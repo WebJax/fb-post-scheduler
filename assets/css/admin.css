@@ -1,0 +1,338 @@
+/**
+ * Facebook Post Scheduler Admin Styles
+ */
+
+/* Metabox styling */
+.fb-post-scheduler-meta-box {
+    margin-bottom: 20px;
+}
+
+.fb-post-scheduler-meta-box p {
+    margin-bottom: 15px;
+}
+
+.fb-post-scheduler-meta-box label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.fb-post-scheduler-meta-box .description {
+    display: block;
+    color: #666;
+    font-style: italic;
+    margin-top: 5px;
+}
+
+/* Multiple Posts Styling */
+.fb-post-item {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 15px;
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.fb-post-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+
+.fb-post-header h3 {
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.fb-remove-post {
+    color: #a00;
+    text-decoration: none;
+}
+
+.fb-remove-post:hover {
+    color: #dc3232;
+}
+
+.fb-post-success {
+    background-color: #f0fff0;
+    border-left: 4px solid #46b450;
+    padding: 10px;
+    margin: 10px 0;
+}
+
+.fb-post-error {
+    background-color: #ffeaea;
+    border-left: 4px solid #dc3232;
+    padding: 10px;
+    margin: 10px 0;
+}
+
+.fb-post-posted-date {
+    color: #666;
+    font-size: 12px;
+    font-style: italic;
+}
+
+/* Facebook preview */
+.fb-post-preview {
+    margin-top: 20px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 15px;
+    background-color: #f9f9f9;
+}
+
+.fb-post-preview h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 10px;
+}
+
+.fb-post-preview-content {
+    padding: 10px;
+}
+
+.fb-post-preview-text {
+    margin-bottom: 10px;
+    white-space: pre-line;
+}
+
+.fb-post-preview-link {
+    background-color: #f7f7f7;
+    border: 1px solid #eee;
+    padding: 10px;
+    border-radius: 2px;
+}
+
+.fb-post-preview-title {
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #1877f2;
+}
+
+.fb-post-preview-url {
+    color: #606770;
+    font-size: 12px;
+    word-break: break-all;
+}
+
+/* Image upload field */
+.fb-post-image-preview-container {
+    margin: 10px 0;
+    max-width: 300px;
+}
+
+.fb-post-image-preview {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid #ddd;
+    padding: 3px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.fb-remove-image {
+    margin-left: 5px;
+}
+
+.fb-post-image-field {
+    margin-top: 15px;
+}
+
+/* Calendar styles */
+#fb-post-calendar {
+    margin-top: 20px;
+}
+
+.calendar-loading {
+    padding: 20px;
+    text-align: center;
+    background-color: #f9f9f9;
+    border-radius: 4px;
+    font-size: 16px;
+    color: #666;
+}
+
+/* Calendar grid */
+.calendar-grid {
+    display: table;
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #ddd;
+}
+
+.calendar-header {
+    display: table-row;
+    background-color: #f1f1f1;
+    font-weight: bold;
+}
+
+.calendar-day-header {
+    display: table-cell;
+    padding: 10px;
+    text-align: center;
+    border: 1px solid #ddd;
+    width: 14.28%; /* 7 days = 100% / 7 */
+}
+
+.calendar-week {
+    display: table-row;
+}
+
+.calendar-day {
+    display: table-cell;
+    height: 120px;
+    vertical-align: top;
+    padding: 5px;
+    border: 1px solid #ddd;
+    position: relative;
+}
+
+.calendar-date {
+    font-weight: bold;
+    margin-bottom: 5px;
+    text-align: right;
+}
+
+.calendar-event {
+    background-color: #1877f2;
+    color: white;
+    padding: 3px 5px;
+    margin-bottom: 5px;
+    border-radius: 3px;
+    font-size: 12px;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.calendar-event:hover {
+    background-color: #0d5fc1;
+}
+
+.calendar-day.today {
+    background-color: #fff8e6;
+}
+
+.calendar-day.other-month {
+    background-color: #f7f7f7;
+    color: #aaa;
+}
+
+/* Navigation buttons */
+.calendar-nav {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    align-items: center;
+}
+
+.calendar-nav-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.calendar-nav-month {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+/* Table styles */
+.widefat.fb-posts-table {
+    margin-top: 20px;
+}
+
+.widefat.fb-posts-table th {
+    font-weight: bold;
+}
+
+.widefat.fb-posts-table td {
+    vertical-align: middle;
+}
+
+/* Dashboard widget */
+#fb_post_scheduler_dashboard_widget .inside {
+    padding: 0;
+    margin: 0;
+}
+
+#fb_post_scheduler_dashboard_widget .fb-posts-table {
+    border: none;
+}
+
+#fb_post_scheduler_dashboard_widget .fb-posts-table th {
+    padding: 8px 10px;
+}
+
+#fb_post_scheduler_dashboard_widget .fb-posts-table td {
+    padding: 8px 10px;
+}
+
+#fb_post_scheduler_dashboard_widget .no-posts {
+    padding: 10px;
+    text-align: center;
+}
+
+/* Export and Logs Pages */
+.card {
+    padding: 20px;
+    margin-top: 20px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.card h2 {
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.fb-log-success {
+    color: #46b450;
+    font-weight: 600;
+}
+
+.fb-log-error {
+    color: #dc3232;
+    font-weight: 600;
+}
+
+/* Calendar View Tabs */
+.calendar-view-tabs {
+    margin-bottom: 15px;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 0;
+}
+
+.calendar-view-tabs .nav-tab {
+    font-size: 14px;
+    margin-bottom: -1px;
+}
+
+.calendar-view-tabs .nav-tab-active {
+    border-bottom: 1px solid #f1f1f1;
+    background: #f1f1f1;
+}
+
+/* Admin buttons */
+.fb-admin-buttons {
+    margin: 20px 0;
+    display: flex;
+    gap: 10px;
+}
+
+.fb-admin-buttons .button {
+    padding: 5px 15px;
+    height: auto;
+    line-height: 2;
+    font-size: 14px;
+}
