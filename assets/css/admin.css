@@ -336,3 +336,21 @@
     line-height: 2;
     font-size: 14px;
 }
+
+/* Add Google-specific styling */
+.fb-generate-ai-text {
+    background-color: #4285f4 !important;
+    color: white !important;
+    border-color: #4285f4 !important;
+    margin-bottom: 5px !important;
+}
+
+.fb-generate-ai-text:hover {
+    background-color: #3367d6 !important;
+    border-color: #3367d6 !important;
+}
+
+.fb-ai-spinner {
+    display: inline-block;
+    margin-left: 5px;
+}

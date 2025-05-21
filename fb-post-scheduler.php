@@ -27,6 +27,7 @@ require_once FB_POST_SCHEDULER_PATH . 'includes/dashboard-widget.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/export.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/notifications.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/manual-check.php';
+require_once FB_POST_SCHEDULER_PATH . 'includes/ai-helper.php';
 
 // Registrer aktivering og deaktivering hooks
 register_activation_hook(__FILE__, 'fb_post_scheduler_activate');
@@ -344,6 +345,22 @@ class FB_Post_Scheduler {
             'fb_post_scheduler_facebook_access_token'
         );
         
+        // AI Settings
+        register_setting(
+            'fb_post_scheduler_settings',
+            'fb_post_scheduler_ai_enabled'
+        );
+        
+        register_setting(
+            'fb_post_scheduler_settings',
+            'fb_post_scheduler_gemini_api_key'
+        );
+        
+        register_setting(
+            'fb_post_scheduler_settings',
+            'fb_post_scheduler_ai_prompt'
+        );
+        
         add_settings_section(
             'fb_post_scheduler_post_types_section',
             __('Post Types Indstillinger', 'fb-post-scheduler'),
@@ -355,6 +372,13 @@ class FB_Post_Scheduler {
             'fb_post_scheduler_facebook_section',
             __('Facebook API Indstillinger', 'fb-post-scheduler'),
             array($this, 'facebook_section_callback'),
+            'fb-post-scheduler-settings'
+        );
+        
+        add_settings_section(
+            'fb_post_scheduler_ai_section',
+            __('AI Tekst Generator Indstillinger', 'fb-post-scheduler'),
+            array($this, 'ai_section_callback'),
             'fb-post-scheduler-settings'
         );
         
@@ -397,6 +421,30 @@ class FB_Post_Scheduler {
             'fb-post-scheduler-settings',
             'fb_post_scheduler_facebook_section'
         );
+        
+        add_settings_field(
+            'fb_post_scheduler_ai_enabled',
+            __('Aktivér AI tekstgenerering', 'fb-post-scheduler'),
+            array($this, 'ai_enabled_callback'),
+            'fb-post-scheduler-settings',
+            'fb_post_scheduler_ai_section'
+        );
+        
+        add_settings_field(
+            'fb_post_scheduler_gemini_api_key',
+            __('Google Gemini API Nøgle', 'fb-post-scheduler'),
+            array($this, 'gemini_api_key_callback'),
+            'fb-post-scheduler-settings',
+            'fb_post_scheduler_ai_section'
+        );
+        
+        add_settings_field(
+            'fb_post_scheduler_ai_prompt',
+            __('AI Prompt Skabelon', 'fb-post-scheduler'),
+            array($this, 'ai_prompt_callback'),
+            'fb-post-scheduler-settings',
+            'fb_post_scheduler_ai_section'
+        );
     }
     
     /**
@@ -411,6 +459,13 @@ class FB_Post_Scheduler {
      */
     public function facebook_section_callback() {
         echo '<p>' . __('Indtast dine Facebook API-oplysninger for at aktivere automatisk opslag til Facebook.', 'fb-post-scheduler') . '</p>';
+    }
+    
+    /**
+     * AI sektion callback
+     */
+    public function ai_section_callback() {
+        echo '<p>' . __('Konfigurer indstillinger for automatisk generering af Facebook-opslagstekst med Google Gemini AI.', 'fb-post-scheduler') . '</p>';
     }
     
     /**
@@ -471,6 +526,34 @@ class FB_Post_Scheduler {
     public function facebook_access_token_callback() {
         $access_token = get_option('fb_post_scheduler_facebook_access_token', '');
         echo '<input type="password" name="fb_post_scheduler_facebook_access_token" value="' . esc_attr($access_token) . '" class="regular-text">';
+    }
+    
+    /**
+     * AI enabled callback
+     */
+    public function ai_enabled_callback() {
+        $enabled = get_option('fb_post_scheduler_ai_enabled', '');
+        echo '<input type="checkbox" name="fb_post_scheduler_ai_enabled" value="1" ' . checked('1', $enabled, false) . '>';
+        echo '<p class="description">' . __('Aktivér for at bruge AI til at generere Facebook-opslagstekst automatisk.', 'fb-post-scheduler') . '</p>';
+    }
+    
+    /**
+     * Gemini API key callback
+     */
+    public function gemini_api_key_callback() {
+        $api_key = get_option('fb_post_scheduler_gemini_api_key', '');
+        echo '<input type="password" name="fb_post_scheduler_gemini_api_key" value="' . esc_attr($api_key) . '" class="regular-text">';
+        echo '<p class="description">' . __('Din Google Gemini API nøgle. Du kan få en fra <a href="https://ai.google.dev/" target="_blank">Google AI Studio</a>.', 'fb-post-scheduler') . '</p>';
+    }
+    
+    /**
+     * AI prompt callback
+     */
+    public function ai_prompt_callback() {
+        $default_prompt = __('Skriv et kortfattet og engagerende Facebook-opslag på dansk baseret på følgende indhold. Opslaget skal være mellem 2-3 sætninger og motivere til at læse hele artiklen. Undlad at bruge hashtags. Skriv i en venlig, informativ tone:', 'fb-post-scheduler');
+        $prompt = get_option('fb_post_scheduler_ai_prompt', $default_prompt);
+        echo '<textarea name="fb_post_scheduler_ai_prompt" rows="4" class="large-text">' . esc_textarea($prompt) . '</textarea>';
+        echo '<p class="description">' . __('Prompten som sendes til AI. Brug dette til at styre tonen og stilen i de genererede opslag. Indholdet fra artiklen tilføjes automatisk efter denne prompt.', 'fb-post-scheduler') . '</p>';
     }
     
     /**
@@ -573,6 +656,13 @@ class FB_Post_Scheduler {
                     
                     <p>
                         <label for="fb_post_text_<?php echo $index; ?>"><?php _e('Tekst til Facebook-opslag:', 'fb-post-scheduler'); ?></label>
+                        <?php if (get_option('fb_post_scheduler_ai_enabled', '') && !$is_posted) : ?>
+                        <button type="button" class="button fb-generate-ai-text" data-index="<?php echo $index; ?>" data-post-id="<?php echo $post->ID; ?>">
+                            <span class="dashicons dashicons-google" style="vertical-align: text-top;"></span> 
+                            <?php _e('Generer tekst med Gemini AI', 'fb-post-scheduler'); ?>
+                        </button>
+                        <span class="spinner fb-ai-spinner" style="float: none; margin-top: 0;"></span>
+                        <?php endif; ?>
                         <textarea id="fb_post_text_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][text]" class="widefat" rows="5" <?php disabled($is_posted, true); ?>><?php echo esc_textarea($fb_post['text']); ?></textarea>
                         <span class="description"><?php _e('Denne tekst vil blive brugt til Facebook-opslaget. Link til indlægget vil automatisk blive tilføjet.', 'fb-post-scheduler'); ?></span>
                     </p>
@@ -650,6 +740,13 @@ class FB_Post_Scheduler {
                 
                 <p>
                     <label for="fb_post_text_{{index}}"><?php _e('Tekst til Facebook-opslag:', 'fb-post-scheduler'); ?></label>
+                    <?php if (get_option('fb_post_scheduler_ai_enabled', '')) : ?>
+                    <button type="button" class="button fb-generate-ai-text" data-index="{{index}}" data-post-id="<?php echo $post->ID; ?>">
+                        <span class="dashicons dashicons-google" style="vertical-align: text-top;"></span> 
+                        <?php _e('Generer tekst med Gemini AI', 'fb-post-scheduler'); ?>
+                    </button>
+                    <span class="spinner fb-ai-spinner" style="float: none; margin-top: 0;"></span>
+                    <?php endif; ?>
                     <textarea id="fb_post_text_{{index}}" name="fb_posts[{{index}}][text]" class="widefat" rows="5"></textarea>
                     <span class="description"><?php _e('Denne tekst vil blive brugt til Facebook-opslaget. Link til indlægget vil automatisk blive tilføjet.', 'fb-post-scheduler'); ?></span>
                 </p>
