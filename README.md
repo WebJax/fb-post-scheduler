@@ -1,12 +1,13 @@
 # Facebook Post Scheduler
 
 ## Beskrivelse
-Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at planlægge og administrere Facebook-opslag direkte fra WordPress. Du kan tilføje Facebook-opslagstekst til indhold fra forskellige post types og planlægge, hvornår opslagene skal postes til Facebook.
+Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at planlægge og administrere Facebook-opslag direkte fra WordPress. Du kan tilføje Facebook-opslagstekst til indhold fra forskellige post types og planlægge, hvornår opslagene skal postes til Facebook. Pluginet understøtter nu også AI-genereret opslag med Google Gemini.
 
 ## Funktioner
 - Vælg hvilke post types der skal kunne planlægge Facebook-opslag
 - Tilføj Facebook-opslagstekst direkte i indholdsredigeringen
 - Planlæg, hvornår opslaget skal sendes til Facebook
+- **AI-genereret opslagstekst med Google Gemini**
 - Automatisk tilføjelse af link til den originale indholdside
 - Vedhæft et specifikt billede til Facebook-opslaget
 - Planlæg flere Facebook-opslag til samme indhold
@@ -24,16 +25,26 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 ## Konfiguration
 1. **Vælg Post Types**: Vælg hvilke post types der skal kunne oprette Facebook-opslag
 2. **Facebook API Indstillinger**: Indtast Facebook App ID, App Secret, Page ID og Access Token
+3. **AI Tekst Generator Indstillinger**: Aktivér AI-tekstgenerering og indtast din Google Gemini API-nøgle
 
 ## Sådan bruges pluginet
 1. Opret eller rediger et indlæg af en af de valgte post types
 2. Find 'Facebook Opslag' boksen i indholdseditoren
 3. Aktivér Facebook-opslag ved at klikke på checkboksen
-4. Indtast teksten til Facebook-opslaget
+4. Indtast teksten til Facebook-opslaget manuelt eller brug "Generer tekst med Gemini AI" knappen
 5. Vælg dato og tidspunkt for opslaget
 6. Vælg eventuelt et billede til opslaget
 7. Gem indlægget
 8. Tilføj flere opslag efter behov ved at klikke på "Tilføj endnu et opslag"
+
+## AI-genererede Facebook-opslag
+Pluginet understøtter nu generering af Facebook-opslagstekst med Google Gemini AI. For at bruge denne funktion:
+
+1. Gå til 'FB Opslag' > 'Indstillinger' > 'AI Tekst Generator Indstillinger'
+2. Aktivér AI tekstgenerering
+3. Indtast din Google Gemini API-nøgle (kan fås fra [Google AI Studio](https://ai.google.dev/))
+4. Tilpas AI prompten efter behov
+5. Ved oprettelse eller redigering af indlæg kan du nu klikke på "Generer tekst med Gemini AI" knappen for at lade AI'en generere et relevant Facebook-opslag baseret på dit indhold
 
 ## Kalender
 Du kan få en kalenderoversigt over alle planlagte Facebook-opslag ved at gå til 'FB Opslag' > 'Kalender' i WordPress admin-menuen. Her kan du se alle planlagte opslag og klikke på dem for at redigere dem. Du kan skifte mellem månedlig og ugentlig visning.
@@ -48,17 +59,24 @@ Pluginet opretter automatisk en logfil med oplysninger om alle opslag, der poste
 - WordPress 5.0 eller nyere
 - PHP 7.0 eller nyere
 - Adgang til Facebook API (App ID, App Secret, Page ID, Access Token)
+- For AI-funktioner: Google Gemini API-nøgle
 
 ## Udviklet til
 Pluginet er udviklet af Jacob Thygesen til brug på danske WordPress-hjemmesider.
 
 ## Sikkerhed
-Dit Facebook API-nøgler og tokens opbevares i WordPress-databasen. Sørg for at holde disse oplysninger sikre og brug kun pluginet på sikre websites med opdateret WordPress og relevante sikkerhedsforanstaltninger.
+Dit Facebook API-nøgler, Google Gemini API-nøgle og tokens opbevares i WordPress-databasen. Sørg for at holde disse oplysninger sikre og brug kun pluginet på sikre websites med opdateret WordPress og relevante sikkerhedsforanstaltninger.
 
 ## FAQ
 
 ### Hvordan får jeg Facebook API-nøgler?
 Du skal oprette en Facebook-app på [Facebook for Developers](https://developers.facebook.com/) og anmode om nødvendige tilladelser til at poste på en Facebook-side.
+
+### Hvordan får jeg en Google Gemini API-nøgle?
+Du kan få en Google Gemini API-nøgle ved at oprette en konto på [Google AI Studio](https://ai.google.dev/) og generere en API-nøgle der.
+
+### Er der begrænsninger på AI-tekstgenerering?
+Ja, Google Gemini API har begrænsninger på hvor mange forespørgsler du kan sende. Se Google's dokumentation for de aktuelle begrænsninger for din konto.
 
 ### Hvor ofte tjekker pluginet for opslag der skal postes?
 Pluginet tjekker hver time for planlagte opslag, der skal postes til Facebook.
