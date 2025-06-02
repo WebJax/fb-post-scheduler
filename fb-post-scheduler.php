@@ -1118,15 +1118,6 @@ function fb_post_scheduler_run_scheduled_posts() {
 }
 
 /**
- * Hent API hjælper instance
- * 
- * @return FB_Post_Scheduler_API API hjælper instance
- */
-function fb_post_scheduler_get_api() {
-    return new FB_Post_Scheduler_API();
-}
-
-/**
  * Post et opslag til Facebook
  * 
  * @param int $post_id WordPress post ID
