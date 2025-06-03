@@ -148,8 +148,11 @@ if ($test_post_id) {
         }
     } else {
         echo "❌ Fejl: Hjælperfunktionen fejlede.\n";
-        if (is_wp_error($result2)) {
+        // Hvis resultatet er en WP_Error, vis fejlbeskeden
+        if (is_wp_error($result2) && is_object($result2)) {
             echo "   Fejlbesked: " . $result2->get_error_message() . "\n";
+        } elseif ($result2 === false) {
+            echo "   Fejlbesked: Ukendt fejl (false returneret)\n";
         }
     }
 } else {
