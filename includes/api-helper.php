@@ -166,12 +166,19 @@ class FB_Post_Scheduler_API {
 
 /**
  * Helper funktion til at få instance af API-klassen
+ * 
+ * Denne funktion bruger et WordPress filter, så vi kan skifte mellem
+ * rigtig API og test API baseret på FB_POST_SCHEDULER_TEST_MODE konstanten
  */
 function fb_post_scheduler_get_api() {
     static $api = null;
     
     if (null === $api) {
         $api = new FB_Post_Scheduler_API();
+        
+        // Tillad andre (især api-wrapper.php) at erstatte API objektet
+        // når vi er i test mode
+        $api = apply_filters('fb_post_scheduler_api_instance', $api);
     }
     
     return $api;

@@ -98,6 +98,61 @@
             // Fjern denne knap
             button.remove();
         });
+        
+        // Håndter AI tekstgenerering
+        $(document).on('click', '.fb-generate-ai-text', function(e) {
+            e.preventDefault();
+            var button = $(this);
+            var index = button.data('index');
+            var postId = button.data('post-id');
+            var spinner = button.siblings('.fb-ai-spinner');
+            var textarea = $('#fb_post_text_' + index);
+            
+            // Vis spinner
+            spinner.addClass('is-active');
+            
+            // Deaktiver knap under processen
+            button.prop('disabled', true);
+            
+            // Send AJAX-anmodning
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_generate_ai_text',
+                    post_id: postId,
+                    nonce: fbPostScheduler.aiNonce
+                },
+                success: function(response) {
+                    // Skjul spinner
+                    spinner.removeClass('is-active');
+                    
+                    // Genaktiver knap
+                    button.prop('disabled', false);
+                    
+                    if (response.success) {
+                        // Indsæt den genererede tekst i tekstfeltet
+                        textarea.val(response.data.text);
+                        
+                        // Udløs ændringshændelse for at opdatere forhåndsvisning
+                        textarea.trigger('change');
+                    } else {
+                        // Vis fejlbesked
+                        alert(response.data.message || fbPostScheduler.aiError);
+                    }
+                },
+                error: function() {
+                    // Skjul spinner
+                    spinner.removeClass('is-active');
+                    
+                    // Genaktiver knap
+                    button.prop('disabled', false);
+                    
+                    // Vis generisk fejl
+                    alert(fbPostScheduler.ajaxError);
+                }
+            });
+        });
     });
     
     /**

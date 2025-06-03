@@ -20,9 +20,12 @@ define('FB_POST_SCHEDULER_PATH', plugin_dir_path(__FILE__));
 define('FB_POST_SCHEDULER_URL', plugin_dir_url(__FILE__));
 define('FB_POST_SCHEDULER_VERSION', '1.0.0');
 
+// Definér testmode konstant for lokalt udviklingsmiljø (sæt til false i produktion)
+define('FB_POST_SCHEDULER_TEST_MODE', true);
+
 // Inkluder nødvendige filer
 require_once FB_POST_SCHEDULER_PATH . 'includes/ajax-handlers.php';
-require_once FB_POST_SCHEDULER_PATH . 'includes/api-helper.php';
+require_once FB_POST_SCHEDULER_PATH . 'includes/api-wrapper.php'; // Bruger api-helper eller api-helper-test baseret på TEST_MODE
 require_once FB_POST_SCHEDULER_PATH . 'includes/dashboard-widget.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/export.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/notifications.php';
@@ -913,7 +916,10 @@ class FB_Post_Scheduler {
                     'pastDateWarning' => __('Advarsel: Du har valgt en dato i fortiden. Opslaget vil blive postet med det samme.', 'fb-post-scheduler'),
                     'selectImage' => __('Vælg billede til Facebook-opslag', 'fb-post-scheduler'),
                     'useImage' => __('Brug dette billede', 'fb-post-scheduler'),
-                    'removeImage' => __('Fjern billede', 'fb-post-scheduler')
+                    'removeImage' => __('Fjern billede', 'fb-post-scheduler'),
+                    'aiNonce' => wp_create_nonce('fb-post-scheduler-ai-nonce'),
+                    'ajaxError' => __('Der opstod en fejl ved kommunikation med serveren. Prøv igen senere.', 'fb-post-scheduler'),
+                    'aiError' => __('Kunne ikke generere tekst med AI. Tjek dine indstillinger og prøv igen.', 'fb-post-scheduler')
                 )
             );
             
@@ -1174,6 +1180,11 @@ function fb_post_scheduler_post_to_facebook($post_id, $fb_text, $image_id = 0) {
                     __('Opslaget blev postet til Facebook med succes.', 'fb-post-scheduler'),
                     admin_url('post.php?post=' . $post_id . '&action=edit')
                 );
+            }
+            
+            // Hvis vi er i testmode, returnér resultatet fra API'en
+            if (defined('FB_POST_SCHEDULER_TEST_MODE') && FB_POST_SCHEDULER_TEST_MODE) {
+                return $result;
             }
             
             return true;

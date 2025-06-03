@@ -119,3 +119,49 @@ function fb_post_scheduler_get_events() {
     exit;
 }
 add_action('wp_ajax_fb_post_scheduler_get_events', 'fb_post_scheduler_get_events');
+
+/**
+ * AJAX-handler til at generere AI-tekst til Facebook-opslag
+ */
+function fb_post_scheduler_generate_ai_text_ajax() {
+    // Tjek nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb-post-scheduler-ai-nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Tjek brugerrettigheder
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Få post ID
+    $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+    if (empty($post_id)) {
+        wp_send_json_error(array(
+            'message' => __('Ingen post ID angivet', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Generer tekst med AI
+    $result = fb_post_scheduler_generate_ai_text($post_id);
+    
+    if (is_wp_error($result)) {
+        wp_send_json_error(array(
+            'message' => $result->get_error_message()
+        ));
+    } else {
+        wp_send_json_success(array(
+            'text' => $result
+        ));
+    }
+    
+    exit;
+}
+add_action('wp_ajax_fb_post_scheduler_generate_ai_text', 'fb_post_scheduler_generate_ai_text_ajax');
