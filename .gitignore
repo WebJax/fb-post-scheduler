@@ -1,0 +1,29 @@
+# Log filer
+logs/fb-post-scheduler.log
+
+# Andre log filer
+*.log
+
+# Backup filer
+*.bak
+*.backup
+
+# Temporary filer
+*.tmp
+*~
+
+# IDE filer
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS genererede filer
+.DS_Store
+Thumbs.db
+
+# Node modules (hvis der bruges npm)
+node_modules/
+
+# Composer dependencies (hvis der bruges composer)
+vendor/
