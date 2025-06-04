@@ -29,6 +29,12 @@ add_action('admin_menu', 'fb_post_scheduler_register_export_page', 20);
  * Indhold til export siden
  */
 function fb_post_scheduler_export_page_content() {
+    // Tjek for eksport anmodning FØRST, før HTML output
+    if (isset($_POST['export_fb_posts']) && check_admin_referer('fb_post_scheduler_export', 'fb_post_scheduler_export_nonce')) {
+        fb_post_scheduler_export_posts();
+        return; // Stop execution after export
+    }
+    
     ?>
     <div class="wrap">
         <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
@@ -81,17 +87,17 @@ function fb_post_scheduler_export_page_content() {
         </div>
     </div>
     <?php
-    
-    // Eksporter hvis der er en anmodning
-    if (isset($_POST['export_fb_posts']) && check_admin_referer('fb_post_scheduler_export', 'fb_post_scheduler_export_nonce')) {
-        fb_post_scheduler_export_posts();
-    }
 }
 
 /**
  * Eksporter poster til CSV
  */
 function fb_post_scheduler_export_posts() {
+    // Rens output buffer for at sikre ren CSV
+    if (ob_get_level()) {
+        ob_end_clean();
+    }
+    
     // Få alle valgte post types
     $selected_post_types = get_option('fb_post_scheduler_post_types', array());
     
@@ -106,59 +112,55 @@ function fb_post_scheduler_export_posts() {
     // Få status filter
     $status = isset($_POST['status']) ? $_POST['status'] : array('scheduled', 'posted');
     
-    // Opbyg query args
-    $args = array(
-        'post_type' => $selected_post_types,
-        'posts_per_page' => -1,
-        'meta_query' => array(
-            'relation' => 'AND',
-            array(
-                'key' => '_fb_post_enabled',
-                'value' => '1',
-                'compare' => '='
-            ),
-            array(
-                'key' => '_fb_post_date',
-                'value' => array($start_date, $end_date),
-                'compare' => 'BETWEEN',
-                'type' => 'DATETIME'
-            )
-        ),
-        'orderby' => 'meta_value',
-        'meta_key' => '_fb_post_date',
-        'order' => 'ASC'
-    );
+    // Få planlagte opslag fra databasen
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'fb_scheduled_posts';
     
-    // Filter på status
-    if (!empty($status) && !in_array('posted', $status)) {
-        $args['tax_query'] = array(
-            array(
-                'taxonomy' => 'fb_post_status',
-                'field' => 'slug',
-                'terms' => 'posted',
-                'operator' => 'NOT IN'
-            )
-        );
-    } elseif (!empty($status) && !in_array('scheduled', $status)) {
-        $args['tax_query'] = array(
-            array(
-                'taxonomy' => 'fb_post_status',
-                'field' => 'slug',
-                'terms' => 'posted',
-                'operator' => 'IN'
-            )
-        );
+    // Byg status filter til SQL
+    $status_filter = '';
+    if (!empty($status)) {
+        $status_placeholders = implode(',', array_fill(0, count($status), '%s'));
+        $status_filter = "AND status IN ($status_placeholders)";
     }
     
-    $posts = new WP_Query($args);
+    // Byg post type filter til SQL
+    $post_type_placeholders = implode(',', array_fill(0, count($selected_post_types), '%s'));
     
-    if (!$posts->have_posts()) {
+    // Forbered SQL query
+    $sql = "SELECT sp.*, p.post_title, p.post_type 
+            FROM $table_name sp
+            INNER JOIN {$wpdb->posts} p ON sp.post_id = p.ID
+            WHERE sp.scheduled_time BETWEEN %s AND %s
+            AND p.post_type IN ($post_type_placeholders)
+            $status_filter
+            ORDER BY sp.scheduled_time ASC";
+    
+    // Forbered parametre til query
+    $params = array($start_date, $end_date);
+    $params = array_merge($params, $selected_post_types);
+    if (!empty($status)) {
+        $params = array_merge($params, $status);
+    }
+    
+    $scheduled_posts = $wpdb->get_results($wpdb->prepare($sql, $params));
+    
+    if (empty($scheduled_posts)) {
         wp_die(__('Ingen Facebook-opslag fundet i det valgte tidsrum.', 'fb-post-scheduler'));
     }
     
-    // Indstil header headers
+    // Disable WordPress output buffering og sæt CSV headers
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+    
+    // Forhindre WordPress headers
+    nocache_headers();
+    
+    // Indstil CSV headers
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename=facebook-posts-' . date('Y-m-d') . '.csv');
+    header('Pragma: no-cache');
+    header('Expires: 0');
     
     // Opret output stream
     $output = fopen('php://output', 'w');
@@ -179,33 +181,32 @@ function fb_post_scheduler_export_posts() {
     ));
     
     // Tilføj data rækker
-    while ($posts->have_posts()) {
-        $posts->the_post();
-        $post_id = get_the_ID();
+    foreach ($scheduled_posts as $scheduled_post) {
+        // Få WordPress post data
+        $wp_post = get_post($scheduled_post->post_id);
+        if (!$wp_post) {
+            continue; // Skip hvis post ikke findes
+        }
         
-        // Få meta data
-        $fb_post_date = get_post_meta($post_id, '_fb_post_date', true);
-        $fb_post_text = get_post_meta($post_id, '_fb_post_text', true);
-        $fb_post_id = get_post_meta($post_id, '_fb_post_id', true);
+        // Få post type information
+        $post_type_obj = get_post_type_object($wp_post->post_type);
+        $post_type_name = $post_type_obj ? $post_type_obj->labels->singular_name : $wp_post->post_type;
         
-        // Tjek status
-        $has_term = has_term('posted', 'fb_post_status', $post_id);
-        $status_text = $has_term ? __('Postet', 'fb-post-scheduler') : __('Planlagt', 'fb-post-scheduler');
+        // Determine status text
+        $status_text = ($scheduled_post->status === 'posted') ? __('Postet', 'fb-post-scheduler') : __('Planlagt', 'fb-post-scheduler');
         
         // Tilføj række til CSV
         fputcsv($output, array(
-            $post_id,
-            get_the_title(),
-            get_post_type_object(get_post_type())->labels->singular_name,
-            date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($fb_post_date)),
+            $scheduled_post->post_id,
+            $wp_post->post_title,
+            $post_type_name,
+            date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($scheduled_post->scheduled_time)),
             $status_text,
-            $fb_post_id,
-            $fb_post_text,
-            get_permalink()
+            $scheduled_post->fb_post_id ? $scheduled_post->fb_post_id : '',
+            $scheduled_post->message,
+            get_permalink($scheduled_post->post_id)
         ));
     }
-    
-    wp_reset_postdata();
     
     // Afslut og slut PHP
     fclose($output);

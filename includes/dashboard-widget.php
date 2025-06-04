@@ -34,40 +34,21 @@ function fb_post_scheduler_dashboard_widget_content() {
         return;
     }
     
-    // Få alle poster med planlagte Facebook-opslag
-    $args = array(
-        'post_type' => $selected_post_types,
-        'posts_per_page' => 5,
-        'meta_query' => array(
-            'relation' => 'AND',
-            array(
-                'key' => '_fb_post_enabled',
-                'value' => '1',
-                'compare' => '='
-            ),
-            array(
-                'key' => '_fb_post_date',
-                'value' => date('Y-m-d H:i:s'),
-                'compare' => '>=',
-                'type' => 'DATETIME'
-            )
-        ),
-        'tax_query' => array(
-            array(
-                'taxonomy' => 'fb_post_status',
-                'field' => 'slug',
-                'terms' => 'posted',
-                'operator' => 'NOT IN'
-            )
-        ),
-        'orderby' => 'meta_value',
-        'meta_key' => '_fb_post_date',
-        'order' => 'ASC'
-    );
+    // Få alle planlagte opslag fra databasen
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'fb_scheduled_posts';
+    $now = current_time('mysql');
     
-    $posts_with_fb = new WP_Query($args);
+    $scheduled_posts = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM $table_name 
+        WHERE scheduled_time >= %s AND status = 'scheduled'
+        AND post_id IN (SELECT ID FROM {$wpdb->posts} WHERE post_type IN ('".implode("','", $selected_post_types)."'))
+        ORDER BY scheduled_time ASC
+        LIMIT 5",
+        $now
+    ));
     
-    if ($posts_with_fb->have_posts()) :
+    if (!empty($scheduled_posts)) :
         ?>
         <table class="widefat fb-posts-table">
             <thead>
@@ -78,27 +59,26 @@ function fb_post_scheduler_dashboard_widget_content() {
                 </tr>
             </thead>
             <tbody>
-                <?php while ($posts_with_fb->have_posts()) : $posts_with_fb->the_post(); ?>
+                <?php foreach ($scheduled_posts as $post) : ?>
                     <tr>
                         <td>
-                            <?php the_title(); ?>
+                            <?php echo esc_html($post->post_title); ?>
                             <div class="row-actions">
                                 <span class="edit">
-                                    <a href="<?php echo get_edit_post_link(); ?>"><?php _e('Rediger', 'fb-post-scheduler'); ?></a>
+                                    <a href="<?php echo get_edit_post_link($post->post_id); ?>"><?php _e('Rediger', 'fb-post-scheduler'); ?></a>
                                 </span>
                             </div>
                         </td>
                         <td>
                             <?php 
-                            $post_date = get_post_meta(get_the_ID(), '_fb_post_date', true);
-                            echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($post_date));
+                            echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($post->scheduled_time));
                             ?>
                         </td>
                         <td>
-                            <a href="<?php echo admin_url('post.php?post=' . get_the_ID() . '&action=edit'); ?>" class="button button-small"><?php _e('Rediger', 'fb-post-scheduler'); ?></a>
+                            <a href="<?php echo admin_url('post.php?post=' . $post->post_id . '&action=edit'); ?>" class="button button-small"><?php _e('Rediger', 'fb-post-scheduler'); ?></a>
                         </td>
                     </tr>
-                <?php endwhile; ?>
+                <?php endforeach; ?>
             </tbody>
         </table>
         <p class="textright">

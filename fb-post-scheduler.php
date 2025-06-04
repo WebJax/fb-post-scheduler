@@ -25,12 +25,14 @@ define('FB_POST_SCHEDULER_TEST_MODE', true);
 
 // Inkluder nødvendige filer
 require_once FB_POST_SCHEDULER_PATH . 'includes/ajax-handlers.php';
-require_once FB_POST_SCHEDULER_PATH . 'includes/api-wrapper.php'; // Bruger api-helper eller api-helper-test baseret på TEST_MODE
+require_once FB_POST_SCHEDULER_PATH . 'includes/api-wrapper.php';
+require_once FB_POST_SCHEDULER_PATH . 'includes/db-helper.php'; 
 require_once FB_POST_SCHEDULER_PATH . 'includes/dashboard-widget.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/export.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/notifications.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/manual-check.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/ai-helper.php';
+require_once FB_POST_SCHEDULER_PATH . 'includes/migration.php';
 
 // Registrer aktivering og deaktivering hooks
 register_activation_hook(__FILE__, 'fb_post_scheduler_activate');
@@ -59,9 +61,10 @@ function fb_post_scheduler_activate() {
     
     $charset_collate = $wpdb->get_charset_collate();
     
-    $table_name = $wpdb->prefix . 'fb_post_scheduler_logs';
+    // Logs tabel
+    $logs_table_name = $wpdb->prefix . 'fb_post_scheduler_logs';
     
-    $sql = "CREATE TABLE $table_name (
+    $logs_sql = "CREATE TABLE $logs_table_name (
         id mediumint(9) NOT NULL AUTO_INCREMENT,
         post_id bigint(20) NOT NULL,
         fb_post_id varchar(255) NOT NULL,
@@ -71,8 +74,29 @@ function fb_post_scheduler_activate() {
         PRIMARY KEY  (id)
     ) $charset_collate;";
     
+    // Scheduled posts tabel
+    $scheduled_table_name = $wpdb->prefix . 'fb_scheduled_posts';
+    
+    $scheduled_sql = "CREATE TABLE $scheduled_table_name (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        post_id bigint(20) NOT NULL,
+        post_title text NOT NULL,
+        message text NOT NULL,
+        fb_post_id varchar(255) DEFAULT '',
+        image_id bigint(20) DEFAULT 0,
+        status varchar(50) DEFAULT 'scheduled',
+        post_index int(11) DEFAULT 0,
+        scheduled_time datetime NOT NULL,
+        created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        PRIMARY KEY  (id),
+        KEY post_id (post_id),
+        KEY status (status),
+        KEY scheduled_time (scheduled_time)
+    ) $charset_collate;";
+    
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-    dbDelta($sql);
+    dbDelta($logs_sql);
+    dbDelta($scheduled_sql);
 }
 
 /**
@@ -200,6 +224,16 @@ class FB_Post_Scheduler {
             if (isset($_GET['posts_processed']) && $_GET['posts_processed'] === 'true') {
                 echo '<div class="notice notice-success is-dismissible"><p>' . __('Planlagte Facebook-opslag er blevet behandlet.', 'fb-post-scheduler') . '</p></div>';
             }
+            
+            // Vis besked om migrering gennemført
+            if (isset($_GET['migration_complete']) && $_GET['migration_complete'] === 'true') {
+                $success = isset($_GET['success']) ? intval($_GET['success']) : 0;
+                $failed = isset($_GET['failed']) ? intval($_GET['failed']) : 0;
+                
+                echo '<div class="notice notice-success is-dismissible"><p>' . 
+                    sprintf(__('Facebook Post Scheduler migrering gennemført. %d opslag migreret med succes, %d fejlede.', 'fb-post-scheduler'), 
+                    $success, $failed) . '</p></div>';
+            }
             ?>
             
             <div class="fb-admin-buttons">
@@ -215,26 +249,19 @@ class FB_Post_Scheduler {
             <h2><?php _e('Kommende Facebook-opslag', 'fb-post-scheduler'); ?></h2>
             
             <?php
-            // Få alle poster med planlagte Facebook-opslag
-            $args = array(
-                'post_type' => $this->selected_post_types,
-                'posts_per_page' => -1,
-                'meta_query' => array(
-                    array(
-                        'key' => '_fb_post_date',
-                        'value' => date('Y-m-d H:i:s'),
-                        'compare' => '>=',
-                        'type' => 'DATETIME'
-                    )
-                ),
-                'orderby' => 'meta_value',
-                'meta_key' => '_fb_post_date',
-                'order' => 'ASC'
-            );
+            // Få alle planlagte opslag fra databasen
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'fb_scheduled_posts';
+            $now = current_time('mysql');
             
-            $posts_with_fb = new WP_Query($args);
+            $scheduled_posts = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM $table_name 
+                WHERE scheduled_time >= %s AND status = 'scheduled'
+                ORDER BY scheduled_time ASC",
+                $now
+            ));
             
-            if ($posts_with_fb->have_posts()) :
+            if (!empty($scheduled_posts)) :
                 ?>
                 <table class="widefat striped">
                     <thead>
@@ -247,33 +274,35 @@ class FB_Post_Scheduler {
                         </tr>
                     </thead>
                     <tbody>
-                        <?php while ($posts_with_fb->have_posts()) : $posts_with_fb->the_post(); ?>
+                        <?php foreach ($scheduled_posts as $post) : ?>
                             <tr>
                                 <td>
-                                    <a href="<?php echo get_edit_post_link(); ?>"><?php the_title(); ?></a>
+                                    <a href="<?php echo admin_url('post.php?post=' . $post->post_id . '&action=edit'); ?>"><?php echo esc_html($post->post_title); ?></a>
                                 </td>
-                                <td><?php echo get_post_type_object(get_post_type())->labels->singular_name; ?></td>
                                 <td>
                                     <?php 
-                                    $post_date = get_post_meta(get_the_ID(), '_fb_post_date', true);
-                                    echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($post_date));
+                                    $post_type = get_post_type($post->post_id);
+                                    echo get_post_type_object($post_type)->labels->singular_name; 
                                     ?>
                                 </td>
                                 <td>
                                     <?php 
-                                    $fb_text = get_post_meta(get_the_ID(), '_fb_post_text', true);
-                                    echo wp_trim_words($fb_text, 10);
+                                    echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($post->scheduled_time));
                                     ?>
                                 </td>
                                 <td>
-                                    <a href="<?php echo admin_url('post.php?post=' . get_the_ID() . '&action=edit'); ?>" class="button"><?php _e('Rediger', 'fb-post-scheduler'); ?></a>
+                                    <?php 
+                                    echo wp_trim_words($post->message, 10);
+                                    ?>
+                                </td>
+                                <td>
+                                    <a href="<?php echo admin_url('post.php?post=' . $post->post_id . '&action=edit'); ?>" class="button"><?php _e('Rediger', 'fb-post-scheduler'); ?></a>
                                 </td>
                             </tr>
-                        <?php endwhile; ?>
+                        <?php endforeach; ?>
                     </tbody>
                 </table>
                 <?php
-                wp_reset_postdata();
             else :
                 ?>
                 <p><?php _e('Ingen planlagte Facebook-opslag fundet.', 'fb-post-scheduler'); ?></p>
@@ -853,8 +882,13 @@ class FB_Post_Scheduler {
             // Opdater _fb_post_enabled meta
             if ($has_enabled) {
                 update_post_meta($post_id, '_fb_post_enabled', '1');
+                
+                // Opret eller opdater planlagte opslag i databasen
+                $this->update_scheduled_posts_in_database($post_id, $fb_posts);
             } else {
                 delete_post_meta($post_id, '_fb_post_enabled');
+                // Fjern alle planlagte opslag for denne post fra databasen
+                fb_post_scheduler_delete_scheduled_posts($post_id);
             }
         }
     }
@@ -881,6 +915,17 @@ class FB_Post_Scheduler {
         );
     }
     
+    /**
+     * Registrer custom post type til planlagte Facebook opslag
+     * 
+     * Denne metode er tom, da vi nu bruger databasetabellen i stedet.
+     * Den beholdes for baglæns kompatibilitet.
+     */
+    public function register_scheduled_posts_post_type() {
+        // Tom - vi bruger nu databasetabellen i stedet
+        // Custom post type er ikke længere nødvendig
+    }
+
     /**
      * Enqueue admin scripts og styles
      */
@@ -1038,6 +1083,9 @@ class FB_Post_Scheduler {
                                 
                                 // Opret notifikation
                                 do_action('fb_post_scheduler_post_success', $post_id, $fb_post, $index);
+                                
+                                // Fjern opslaget fra databasen
+                                fb_post_scheduler_delete_scheduled_post($post_id, $index);
                             }
                             
                             // Gem opdateret data
@@ -1078,6 +1126,66 @@ class FB_Post_Scheduler {
             // Omdiriger til samme side med succes parameter
             wp_redirect(admin_url('admin.php?page=fb-post-scheduler&posts_processed=true'));
             exit;
+        }
+    }
+    
+    /**
+     * Opdater planlagte opslag i kalenderen (Legacy metode for baglæns kompatibilitet)
+     * 
+     * @param int $post_id ID på det oprindelige indlæg
+     * @param array $fb_posts Array af Facebook opslag data
+     */
+    private function update_scheduled_posts_in_calendar($post_id, $fb_posts) {
+        // Brug i stedet den nye database-baserede metode
+        $this->update_scheduled_posts_in_database($post_id, $fb_posts);
+    }
+    
+    /**
+     * Fjern alle planlagte opslag fra kalenderen for en bestemt post (Legacy metode for baglæns kompatibilitet)
+     * 
+     * @param int $post_id ID på det oprindelige indlæg
+     */
+    private function remove_scheduled_posts_from_calendar($post_id) {
+        // Brug den nye database-baserede funktion i stedet
+        fb_post_scheduler_delete_scheduled_posts($post_id);
+    }
+    
+    /**
+     * Fjern et specifikt planlagt opslag fra kalenderen baseret på post ID og index (Legacy metode for baglæns kompatibilitet)
+     * 
+     * @param int $post_id ID på det oprindelige indlæg
+     * @param int $index Index på opslaget i fb_posts array
+     */
+    private function remove_scheduled_post_with_index($post_id, $index) {
+        // Brug den nye database-baserede funktion i stedet
+        fb_post_scheduler_delete_scheduled_post($post_id, $index);
+        fb_post_scheduler_log('Fjernede planlagt opslag fra databasen (Post ID: ' . $post_id . ', Index: ' . $index . ')', $post_id);
+    }
+    
+    /**
+     * Opdater planlagte opslag i databasen
+     * 
+     * @param int $post_id ID på det oprindelige indlæg
+     * @param array $fb_posts Array af Facebook opslag data
+     */
+    private function update_scheduled_posts_in_database($post_id, $fb_posts) {
+        if (!is_array($fb_posts)) {
+            return;
+        }
+        
+        // Slet alle eksisterende planlagte opslag for denne post
+        fb_post_scheduler_delete_scheduled_posts($post_id);
+        
+        // Gennemgå alle opslag og opret dem i databasen
+        foreach ($fb_posts as $index => $fb_post) {
+            // Spring over hvis opslaget ikke er aktiveret eller allerede er postet
+            if (!isset($fb_post['enabled']) || !$fb_post['enabled'] || 
+                (isset($fb_post['status']) && $fb_post['status'] === 'posted')) {
+                continue;
+            }
+            
+            // Gem opslaget i databasen
+            fb_post_scheduler_save_scheduled_post($post_id, $fb_post, $index);
         }
     }
 }

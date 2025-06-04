@@ -47,7 +47,15 @@ Pluginet understøtter nu generering af Facebook-opslagstekst med Google Gemini 
 5. Ved oprettelse eller redigering af indlæg kan du nu klikke på "Generer tekst med Gemini AI" knappen for at lade AI'en generere et relevant Facebook-opslag baseret på dit indhold
 
 ## Kalender
-Du kan få en kalenderoversigt over alle planlagte Facebook-opslag ved at gå til 'FB Opslag' > 'Kalender' i WordPress admin-menuen. Her kan du se alle planlagte opslag og klikke på dem for at redigere dem. Du kan skifte mellem månedlig og ugentlig visning.
+Du kan få en kalenderoversigt over alle planlagte Facebook-opslag ved at gå til 'FB Opslag' > 'Kalender' i WordPress admin-menuen. Her kan du se alle planlagte opslag og interagere med dem direkte. Du kan skifte mellem månedlig og ugentlig visning.
+
+### Kalenderfunktioner:
+- **Vis opslag**: Klik på titel for at redigere det tilknyttede WordPress-indlæg
+- **Kopier opslag**: Hover over et opslag og klik på kopier-ikonet for at oprette en kopi planlagt til dagen efter
+- **Slet opslag**: Hover over et opslag og klik på slet-ikonet for at fjerne det permanent
+- **Rediger opslag**: Klik på rediger-ikonet for hurtig navigation til redigering
+
+Alle handlinger kræver bekræftelse og kalenderen opdateres automatisk efter ændringer.
 
 ## Manuel kørsel af opslag
 Hvis du ønsker at køre opslagsprocessen manuelt uden at vente på den timelige tjek, kan du gå til 'FB Opslag' og klikke på "Kør Facebook-opslag nu" knappen. Dette vil køre alle planlagte opslag, der er planlagt til at blive postet nu eller tidligere.
