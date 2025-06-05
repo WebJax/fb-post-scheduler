@@ -344,6 +344,28 @@ class FB_Post_Scheduler {
                 <!-- Kalender vil blive indlæst med JavaScript -->
                 <div class="calendar-loading"><?php _e('Indlæser kalender...', 'fb-post-scheduler'); ?></div>
             </div>
+            
+            <!-- Temporary debug script to check if JavaScript is working -->
+            <script type="text/javascript">
+            console.log('=== CALENDAR PAGE DEBUG ===');
+            console.log('jQuery loaded:', typeof jQuery !== 'undefined');
+            console.log('$ loaded:', typeof $ !== 'undefined');
+            console.log('Calendar container exists:', document.getElementById('fb-post-calendar') !== null);
+            console.log('fbPostSchedulerData:', typeof fbPostSchedulerData !== 'undefined' ? fbPostSchedulerData : 'UNDEFINED');
+            
+            // Test if calendar script will load
+            jQuery(document).ready(function($) {
+                console.log('Document ready fired');
+                console.log('Calendar container jQuery:', $('#fb-post-calendar').length);
+                
+                // Check if our calendar script loaded
+                setTimeout(function() {
+                    console.log('After 2 seconds:');
+                    console.log('Calendar loading still visible:', $('.calendar-loading').is(':visible'));
+                    console.log('Calendar content:', $('#fb-post-calendar').html().substring(0, 200));
+                }, 2000);
+            });
+            </script>
         </div>
         <?php
     }
@@ -970,6 +992,7 @@ class FB_Post_Scheduler {
             
             // Kun på kalender-siden
             if (strpos($hook, 'fb-post-scheduler-calendar') !== false) {
+                // First enqueue the script
                 wp_enqueue_script(
                     'fb-post-scheduler-calendar-js',
                     FB_POST_SCHEDULER_URL . 'assets/js/calendar.js',
@@ -978,15 +1001,62 @@ class FB_Post_Scheduler {
                     true
                 );
                 
-                // Lokalisér script med data
+                // Then immediately localize it
                 wp_localize_script(
                     'fb-post-scheduler-calendar-js',
                     'fbPostSchedulerData',
                     array(
                         'ajaxurl' => admin_url('admin-ajax.php'),
                         'nonce' => wp_create_nonce('fb-post-scheduler-calendar-nonce'),
+                        'debug' => true
                     )
                 );
+                
+                // Add a backup method via inline script in both head and footer
+                add_action('admin_head', function() {
+                    ?>
+                    <script type="text/javascript">
+                    /* <![CDATA[ */
+                    // Primary fallback - early in head
+                    if (typeof window.fbPostSchedulerData === 'undefined') {
+                        console.log('Creating early fallback fbPostSchedulerData');
+                        window.fbPostSchedulerData = {
+                            'ajaxurl': '<?php echo admin_url('admin-ajax.php'); ?>',
+                            'nonce': '<?php echo wp_create_nonce('fb-post-scheduler-calendar-nonce'); ?>',
+                            'debug': true,
+                            'fallback': true,
+                            'created': 'head'
+                        };
+                    }
+                    /* ]]> */
+                    </script>
+                    <?php
+                }, 1);
+                
+                add_action('admin_footer', function() {
+                    ?>
+                    <script type="text/javascript">
+                    /* <![CDATA[ */
+                    // Secondary fallback - in footer
+                    if (typeof fbPostSchedulerData === 'undefined' && typeof window.fbPostSchedulerData === 'undefined') {
+                        console.log('Creating footer fallback fbPostSchedulerData');
+                        window.fbPostSchedulerData = {
+                            'ajaxurl': '<?php echo admin_url('admin-ajax.php'); ?>',
+                            'nonce': '<?php echo wp_create_nonce('fb-post-scheduler-calendar-nonce'); ?>',
+                            'debug': true,
+                            'fallback': true,
+                            'created': 'footer'
+                        };
+                    }
+                    
+                    // Ensure global access
+                    if (typeof fbPostSchedulerData === 'undefined' && typeof window.fbPostSchedulerData !== 'undefined') {
+                        window.fbPostSchedulerData = window.fbPostSchedulerData;
+                    }
+                    /* ]]> */
+                    </script>
+                    <?php
+                }, 20);
             }
         }
     }
