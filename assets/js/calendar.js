@@ -11,10 +11,6 @@
     
     // Når dokumentet er klar
     $(document).ready(function() {
-        console.log('Calendar script starting - Document ready');
-        console.log('jQuery available:', typeof $ !== 'undefined');
-        console.log('Initial fbPostSchedulerData check:', typeof fbPostSchedulerData !== 'undefined');
-        
         // Initialiser kalenderen med retry logic
         tryInitCalendar();
     });
@@ -24,32 +20,26 @@
      */
     function tryInitCalendar() {
         initAttempts++;
-        console.log('Calendar init attempt:', initAttempts);
         
         // Check for data in multiple locations
         var data = null;
         if (typeof fbPostSchedulerData !== 'undefined') {
             data = fbPostSchedulerData;
-            console.log('✓ Found fbPostSchedulerData (global)');
         } else if (typeof window.fbPostSchedulerData !== 'undefined') {
             data = window.fbPostSchedulerData;
             // Make it globally accessible
             window.fbPostSchedulerData = data;
-            console.log('✓ Found window.fbPostSchedulerData (fallback)');
         }
         
         if (data) {
-            console.log('✓ Data found on attempt', initAttempts, ':', data);
             // Set the global variable for use in initCalendar
             if (typeof fbPostSchedulerData === 'undefined') {
                 window.fbPostSchedulerData = data;
             }
             initCalendar();
         } else if (initAttempts < maxAttempts) {
-            console.log('fbPostSchedulerData not ready, retrying in 100ms...');
             setTimeout(tryInitCalendar, 100);
         } else {
-            console.error('Failed to load fbPostSchedulerData after', maxAttempts, 'attempts');
             if ($('#fb-post-calendar').length) {
                 $('#fb-post-calendar').html('<div class="notice notice-error"><p>Kalender kunne ikke indlæses. Konfigurationsdata ikke tilgængelig.</p></div>');
             }
@@ -60,15 +50,11 @@
      * Initialiserer kalenderen
      */
     function initCalendar() {
-        console.log('=== Facebook Post Scheduler Calendar Debug ===');
-        
         // Get data from either location
         var data = (typeof fbPostSchedulerData !== 'undefined') ? fbPostSchedulerData : window.fbPostSchedulerData;
-        console.log('Using data:', data);
         
         // Check if we have the required data
         if (!data || !data.ajaxurl || !data.nonce) {
-            console.error('Data missing required properties:', data);
             $('#fb-post-calendar').html('<div class="notice notice-error"><p>Kalender kunne ikke indlæses. Manglende AJAX konfiguration.</p></div>');
             return;
         }
@@ -78,15 +64,10 @@
             window.fbPostSchedulerData = data;
         }
         
-        console.log('✓ Calendar data is properly configured');
-        
         // Check if calendar container exists
         if ($('#fb-post-calendar').length === 0) {
-            console.error('Calendar container #fb-post-calendar not found on page');
             return;
         }
-        
-        console.log('✓ Calendar container found');
         
         // Sæt nuværende dato som standard
         var today = new Date();
@@ -94,11 +75,6 @@
         currentMonth = today.getMonth();
         currentWeek = getWeekNumber(today);
         currentView = 'month'; // Standard visning
-        
-        console.log('Current date:', today);
-        console.log('Current year:', currentYear);
-        console.log('Current month:', currentMonth);
-        console.log('Current view:', currentView);
         
         // Opret kalender UI
         createCalendarUI();
@@ -230,17 +206,17 @@
                 view_type: currentView
             },
             success: function(response) {
-                console.log('AJAX Success Response:', response);
                 if (response.success) {
-                    console.log('Events received:', response.data);
                     // Opdater kalenderen med hændelser
                     renderCalendar(days, response.data);
                 } else {
-                    console.error('Fejl ved indlæsning af begivenheder:', response);
+                    // Display error message to user instead of console
+                    $('#fb-post-calendar').html('<div class="notice notice-error"><p>Fejl ved indlæsning af begivenheder. Prøv at genindlæse siden.</p></div>');
                 }
             },
             error: function(xhr, status, error) {
-                console.error('AJAX-fejl ved indlæsning af begivenheder:', {xhr, status, error});
+                // Display error message to user instead of console
+                $('#fb-post-calendar').html('<div class="notice notice-error"><p>Kunne ikke forbinde til serveren. Prøv igen senere.</p></div>');
             }
         });
     }
@@ -496,7 +472,8 @@
                 setupDropTarget($day);
                 
             } catch (error) {
-                console.error('Error processing calendar day:', error);
+                // Skip this day silently if there's an error processing it
+                return;
             }
         });
         
@@ -669,7 +646,6 @@
                     $targetDay.removeClass('drop-error');
                 }, 1500);
                 
-                console.error('AJAX Error:', status, error);
                 showNotification('Der opstod en fejl ved kommunikation med serveren. Prøv igen senere.', 'error');
             }
         });
@@ -713,19 +689,15 @@
      */
     function getEventsForDay(events, date) {
         if (!events || !Array.isArray(events)) {
-            console.log('getEventsForDay: No events or not array:', events);
             return [];
         }
         
         var dateStr = formatDate(date);
-        console.log('getEventsForDay: Looking for events on', dateStr);
         
         return events.filter(function(event) {
             // Sammenlign datoer (ignorer tid)
             var eventDate = new Date(event.date);
             var eventDateStr = formatDate(eventDate);
-            
-            console.log('Comparing event date', eventDateStr, 'with', dateStr, '=', eventDateStr === dateStr);
             
             return eventDateStr === dateStr;
         });

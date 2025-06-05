@@ -537,7 +537,7 @@
     cursor: grab;
     opacity: 0;
     transition: opacity 0.2s;
-    color: #666;
+    color: #fff;
     font-size: 12px;
 }
 
