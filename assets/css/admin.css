@@ -615,3 +615,106 @@
         transform: none !important; /* Remove rotation on mobile for clarity */
     }
 }
+
+/* Facebook Authentication Section */
+.facebook-auth-section {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.facebook-auth-section h2 {
+    margin-top: 0;
+    color: #1d2327;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.facebook-connected,
+.facebook-disconnected {
+    padding: 15px;
+    border-radius: 4px;
+}
+
+.facebook-connected {
+    background: #d1e7dd;
+    border: 1px solid #badbcc;
+    color: #0f5132;
+}
+
+.facebook-disconnected {
+    background: #f8d7da;
+    border: 1px solid #f5c2c7;
+    color: #842029;
+}
+
+.status-connected {
+    color: #0f5132;
+    font-weight: bold;
+}
+
+.status-disconnected {
+    color: #842029;
+    font-weight: bold;
+}
+
+#facebook-login-btn {
+    background-color: #1877f2;
+    border-color: #1877f2;
+    color: #fff;
+    margin-top: 10px;
+    padding: 8px 16px;
+    font-weight: 600;
+}
+
+#facebook-login-btn:hover {
+    background-color: #166fe5;
+    border-color: #166fe5;
+}
+
+#facebook-disconnect-btn {
+    margin-top: 10px;
+}
+
+.facebook-pages-list {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    margin: 10px 0;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.facebook-pages-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.facebook-pages-list li:last-child {
+    border-bottom: none;
+}
+
+.facebook-pages-list small {
+    color: #666;
+    margin-left: 8px;
+}
+
+.use-page-token {
+    background-color: #2271b1;
+    color: #fff;
+    border-color: #2271b1;
+    font-size: 12px;
+    padding: 4px 8px;
+}
+
+.use-page-token:hover {
+    background-color: #135e96;
+    border-color: #135e96;
+}

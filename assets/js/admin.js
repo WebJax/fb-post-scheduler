@@ -153,6 +153,99 @@
                 }
             });
         });
+        
+        // Initialize Facebook SDK
+        window.fbAsyncInit = function() {
+            FB.init({
+                appId: fbPostScheduler.facebook_app_id,
+                cookie: true,
+                xfbml: true,
+                version: 'v18.0'
+            });
+        };
+
+        // Facebook login button
+        $('#facebook-login-btn').on('click', function() {
+            FB.login(function(response) {
+                if (response.authResponse) {
+                    // Get user info
+                    FB.api('/me', { fields: 'name,id' }, function(user) {
+                        // Get user's pages
+                        FB.api('/me/accounts', function(pages_response) {
+                            var pages = [];
+                            if (pages_response && pages_response.data) {
+                                pages = pages_response.data;
+                            }
+                            
+                            $.ajax({
+                                url: ajaxurl,
+                                type: 'POST',
+                                data: {
+                                    action: 'facebook_auth_login',
+                                    nonce: fbPostScheduler.facebook_auth_nonce,
+                                    access_token: response.authResponse.accessToken,
+                                    user_id: user.id,
+                                    user_name: user.name,
+                                    pages: pages
+                                },
+                                success: function(response) {
+                                    if (response.success) {
+                                        location.reload();
+                                    } else {
+                                        alert('Login fejlede. Prøv igen.');
+                                    }
+                                },
+                                error: function() {
+                                    alert('Der skete en fejl. Prøv igen.');
+                                }
+                            });
+                        });
+                    });
+                } else {
+                    alert('Facebook login blev annulleret.');
+                }
+            }, { 
+                scope: 'pages_manage_posts,pages_read_engagement,publish_to_groups,pages_show_list'
+            });
+        });
+
+        // Facebook disconnect button
+        $('#facebook-disconnect-btn').on('click', function() {
+            if (confirm('Er du sikker på at du vil afbryde forbindelsen til Facebook?')) {
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'facebook_auth_disconnect',
+                        nonce: fbPostScheduler.facebook_auth_nonce
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            location.reload();
+                        }
+                    }
+                });
+            }
+        });
+
+        // Use page token button
+        $(document).on('click', '.use-page-token', function() {
+            var pageId = $(this).data('page-id');
+            var pageToken = $(this).data('page-token');
+            var pageName = $(this).data('page-name');
+            
+            if (confirm('Vil du bruge siden "' + pageName + '" til at poste opslag?')) {
+                // Update the settings fields if they exist
+                if ($('input[name="fb_post_scheduler_facebook_page_id"]').length) {
+                    $('input[name="fb_post_scheduler_facebook_page_id"]').val(pageId);
+                }
+                if ($('input[name="fb_post_scheduler_facebook_access_token"]').length) {
+                    $('input[name="fb_post_scheduler_facebook_access_token"]').val(pageToken);
+                }
+                
+                alert('Siden "' + pageName + '" er nu valgt til at poste opslag. Husk at gemme indstillingerne.');
+            }
+        });
     });
     
     /**
