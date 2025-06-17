@@ -24,6 +24,12 @@
     margin-top: 5px;
 }
 
+.dashicons-google {
+    position: relative;
+    top: -5px;
+    left: -2px;
+}
+
 /* Multiple Posts Styling */
 .fb-post-item {
     background-color: #f9f9f9;
