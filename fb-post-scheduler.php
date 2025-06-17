@@ -20,9 +20,6 @@ define('FB_POST_SCHEDULER_PATH', plugin_dir_path(__FILE__));
 define('FB_POST_SCHEDULER_URL', plugin_dir_url(__FILE__));
 define('FB_POST_SCHEDULER_VERSION', '1.0.0');
 
-// Definér testmode konstant for lokalt udviklingsmiljø (sæt til false i produktion)
-define('FB_POST_SCHEDULER_TEST_MODE', true);
-
 // Inkluder nødvendige filer
 require_once FB_POST_SCHEDULER_PATH . 'includes/ajax-handlers.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/api-wrapper.php';

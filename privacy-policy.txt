@@ -1,0 +1,149 @@
+FACEBOOK POST SCHEDULER - PRIVACY POLICY
+
+Last updated: 16 june 2025
+
+1. INTRODUCTION
+
+This Privacy Policy describes how Facebook Post Scheduler ("we", "our", or "us") collects, uses, and protects your information when you use our WordPress plugin that integrates with Facebook's services.
+
+2. INFORMATION WE COLLECT
+
+2.1 Facebook Data
+When you connect your Facebook account to our plugin, we may access and store:
+- Your Facebook Page ID
+- Facebook Access Tokens (encrypted and stored securely)
+- Facebook App credentials (App ID and App Secret)
+- Post content and metadata that you choose to share through our plugin
+- Facebook post IDs and URLs for posts created through our service
+
+2.2 WordPress Data
+We collect and process:
+- Post titles, content, and excerpts from your WordPress site
+- Images and media attachments you select for Facebook posts
+- User preferences and plugin settings
+- Scheduling information (dates and times for posts)
+
+2.3 Usage Data
+We may collect:
+- Plugin usage statistics and performance data
+- Error logs and debugging information
+- Timestamps of when posts are scheduled and published
+
+3. HOW WE USE YOUR INFORMATION
+
+We use the collected information to:
+- Publish posts to your Facebook Page as scheduled
+- Generate AI-powered post content (if enabled)
+- Maintain logs of posting activity for troubleshooting
+- Improve plugin functionality and user experience
+- Provide customer support
+
+4. DATA SHARING AND DISCLOSURE
+
+4.1 Facebook Platform
+We share data with Facebook only as necessary to:
+- Publish posts to your connected Facebook Pages
+- Verify your access permissions
+- Comply with Facebook's Platform Policies
+
+4.2 Third-Party Services
+- Google Gemini AI: If you enable AI text generation, post content may be sent to Google's Gemini API to generate Facebook post text
+- No other third-party services have access to your data
+
+4.3 Legal Requirements
+We may disclose your information if required by law or to protect our rights and safety.
+
+5. DATA STORAGE AND SECURITY
+
+5.1 Storage Location
+- All data is stored in your WordPress database on your own server
+- Facebook Access Tokens are encrypted before storage
+- No data is stored on external servers (except during API calls)
+
+5.2 Security Measures
+- All API communications use HTTPS encryption
+- Access tokens are stored with WordPress security best practices
+- Regular security updates and monitoring
+
+6. DATA RETENTION
+
+- Scheduled post data is retained until posts are successfully published
+- Log data is retained for 30 days for troubleshooting purposes
+- Facebook Access Tokens are retained until you disconnect the integration
+- You can delete all plugin data by deactivating and removing the plugin
+
+7. YOUR RIGHTS AND CHOICES
+
+You have the right to:
+- Access your data stored by the plugin
+- Modify or delete your Facebook integration at any time
+- Export your scheduled posts data
+- Request deletion of all data by uninstalling the plugin
+- Opt out of AI text generation features
+
+8. FACEBOOK PLATFORM COMPLIANCE
+
+This plugin complies with Facebook's Platform Policies:
+- We only request necessary permissions for posting to Pages
+- We do not store unnecessary user data
+- All data usage is transparent and user-controlled
+- Users can revoke access at any time through Facebook settings
+
+9. CHILDREN'S PRIVACY
+
+Our plugin is not intended for use by children under 13. We do not knowingly collect personal information from children under 13.
+
+10. INTERNATIONAL DATA TRANSFERS
+
+Data may be transferred to and processed in countries other than your own when using Facebook's API or Google's Gemini AI service. These transfers are subject to the privacy policies of those respective services.
+
+11. CHANGES TO THIS PRIVACY POLICY
+
+We may update this Privacy Policy from time to time. We will notify users of any material changes by updating the "Last updated" date and providing notice through the plugin interface.
+
+12. CONTACT INFORMATION
+
+If you have questions about this Privacy Policy or our data practices, please contact:
+
+Email: [YOUR EMAIL]
+Website: [YOUR WEBSITE]
+Plugin Support: [SUPPORT URL]
+
+13. FACEBOOK-SPECIFIC DISCLOSURES
+
+13.1 Data Use Disclosure
+This app uses Facebook data solely for the purpose of scheduling and publishing posts to Facebook Pages that you own or manage.
+
+13.2 Data Deletion
+Users can delete their Facebook data from our plugin by:
+- Disconnecting their Facebook account in plugin settings
+- Deactivating the plugin
+- Requesting data deletion through WordPress admin
+
+13.3 Data Access
+You can access all data we have about your Facebook integration through the WordPress admin interface under the Facebook Post Scheduler settings.
+
+14. GDPR COMPLIANCE (FOR EU USERS)
+
+Under the General Data Protection Regulation (GDPR), you have additional rights:
+- Right to be informed (this privacy policy)
+- Right of access (view your data in plugin settings)
+- Right to rectification (modify settings and data)
+- Right to erasure (delete plugin and all data)
+- Right to restrict processing (disable plugin features)
+- Right to data portability (export scheduled posts)
+- Right to object (opt out of specific features)
+
+Legal basis for processing: Legitimate interest and user consent.
+
+15. CALIFORNIA PRIVACY RIGHTS (CCPA)
+
+California residents have the right to:
+- Know what personal information is collected
+- Delete personal information
+- Opt-out of the sale of personal information (we do not sell data)
+- Non-discrimination for exercising privacy rights
+
+This Privacy Policy is effective as of the date listed above and will remain in effect except with respect to any changes in its provisions in the future, which will be in effect immediately after being posted on this page.
+
+By using the Facebook Post Scheduler plugin, you acknowledge that you have read and understood this Privacy Policy and agree to its terms.

@@ -441,8 +441,6 @@
 .calendar-event.dragging {
     opacity: 0.5;
     cursor: grabbing;
-    z-index: 9999;
-    position: relative;
 }
 
 .calendar-day.drag-over {
@@ -450,24 +448,9 @@
     border: 2px dashed #2196f3 !important;
 }
 
-.calendar-day.drop-target {
-    background-color: #f3e5f5 !important;
-    border: 2px solid #9c27b0 !important;
-}
-
-.calendar-event.drag-preview {
-    position: absolute;
-    z-index: 10000;
-    pointer-events: none;
-    opacity: 0.8;
-    transform: rotate(5deg);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-}
-
 /* Loading state for drag and drop */
 .calendar-event.drop-loading {
     opacity: 0.6;
-    position: relative;
 }
 
 .calendar-event.drop-loading::after {
@@ -478,9 +461,24 @@
     right: 0;
     bottom: 0;
     background: rgba(255,255,255,0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+}
+
+.calendar-event.drop-loading::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    border: 2px solid #ccc;
+    border-top-color: #333;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 .calendar-event.drop-loading::before {
