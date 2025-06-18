@@ -1,9 +1,10 @@
 # Facebook Post Scheduler
 
 ## Beskrivelse
-Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at planlægge og administrere Facebook-opslag direkte fra WordPress. Du kan tilføje Facebook-opslagstekst til indhold fra forskellige post types og planlægge, hvornår opslagene skal postes til Facebook. Pluginet understøtter nu også AI-genereret opslag med Google Gemini.
+Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at planlægge og administrere Facebook-opslag direkte fra WordPress. Du kan tilføje Facebook-opslagstekst til indhold fra forskellige post types og planlægge, hvornår opslagene skal postes til Facebook. Pluginet understøtter nu også AI-genereret opslag med Google Gemini og Facebook login integration.
 
 ## Funktioner
+- **Facebook Login Integration**: Log ind direkte med din Facebook-konto i admin-panelet
 - Vælg hvilke post types der skal kunne planlægge Facebook-opslag
 - Tilføj Facebook-opslagstekst direkte i indholdsredigeringen
 - Planlæg, hvornår opslaget skal sendes til Facebook
@@ -21,12 +22,28 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 ## Installation
 1. Upload `fb-post-scheduler`-mappen til `/wp-content/plugins/` mappen
 2. Aktivér pluginet via 'Plugins'-menuen i WordPress
-3. Gå til 'FB Opslag' > 'Indstillinger' for at konfigurere pluginet
+3. Gå til 'FB Opslag' for at logge ind med Facebook
+4. Gå til 'FB Opslag' > 'Indstillinger' for at konfigurere pluginet
 
 ## Konfiguration
-1. **Vælg Post Types**: Vælg hvilke post types der skal kunne oprette Facebook-opslag
-2. **Facebook API Indstillinger**: Indtast Facebook App ID, App Secret, Page ID og Access Token
-3. **AI Tekst Generator Indstillinger**: Aktivér AI-tekstgenerering og indtast din Google Gemini API-nøgle
+1. **Facebook Login**: Log ind med din Facebook-konto direkte i 'FB Opslag' admin-siden
+2. **Vælg Post Types**: Vælg hvilke post types der skal kunne oprette Facebook-opslag
+3. **Facebook API Indstillinger**: Indtast Facebook App ID, App Secret, Page ID og Access Token (eller brug Facebook login)
+4. **AI Tekst Generator Indstillinger**: Aktivér AI-tekstgenerering og indtast din Google Gemini API-nøgle
+
+## Facebook Login
+Pluginet inkluderer nu Facebook login integration, der gør det nemt at forbinde din Facebook-konto:
+
+1. Gå til 'FB Opslag' i WordPress admin-menuen
+2. Klik på "Log ind med Facebook" knappen
+3. Godkend de nødvendige tilladelser i Facebook
+4. Din konto er nu forbundet og klar til brug
+
+### Nødvendige Facebook-tilladelser:
+- `pages_manage_posts`: For at poste til Facebook-sider
+- `pages_read_engagement`: For at læse engagement-data
+- `publish_to_groups`: For at poste til grupper
+- `email`: For at identificere brugeren
 
 ## Sådan bruges pluginet
 1. Opret eller rediger et indlæg af en af de valgte post types

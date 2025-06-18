@@ -141,9 +141,9 @@ class FB_Post_Scheduler {
     private $selected_post_types = array();
     
     /**
-     * Facebook App ID for login
+     * Facebook App ID
      */
-    private $facebook_app_id = '641181524929946';
+    private $facebook_app_id = '641181824929946';
     
     /**
      * Constructor
@@ -168,9 +168,9 @@ class FB_Post_Scheduler {
         // Init taksonomien
         add_action('init', array($this, 'register_taxonomy'));
         
-        // Facebook login hooks
-        add_action('wp_ajax_facebook_auth_login', array($this, 'handle_facebook_auth_login'));
-        add_action('wp_ajax_facebook_auth_disconnect', array($this, 'handle_facebook_auth_disconnect'));
+        // Add Facebook auth AJAX handlers
+        add_action('wp_ajax_fb_post_scheduler_facebook_login', array($this, 'handle_facebook_login'));
+        add_action('wp_ajax_fb_post_scheduler_facebook_disconnect', array($this, 'handle_facebook_disconnect'));
     }
     
     /**
@@ -222,39 +222,20 @@ class FB_Post_Scheduler {
     public function admin_page_content() {
         $facebook_status = get_option('fb_post_scheduler_facebook_login_status', 'disconnected');
         $facebook_user_name = get_option('fb_post_scheduler_facebook_user_name', '');
-        $facebook_user_pages = get_option('fb_post_scheduler_facebook_user_pages', array());
+        $facebook_user_id = get_option('fb_post_scheduler_facebook_user_id', '');
         
         ?>
         <div class="wrap">
             <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
             
+            <!-- Facebook Login Section -->
             <div class="facebook-auth-section">
                 <h2><?php _e('Facebook Login', 'fb-post-scheduler'); ?></h2>
                 <?php if ($facebook_status === 'connected'): ?>
                     <div class="facebook-connected">
                         <p><strong><?php _e('Status:', 'fb-post-scheduler'); ?></strong> <span class="status-connected"><?php _e('Tilsluttet', 'fb-post-scheduler'); ?></span></p>
                         <p><strong><?php _e('Bruger:', 'fb-post-scheduler'); ?></strong> <?php echo esc_html($facebook_user_name); ?></p>
-                        
-                        <?php if (!empty($facebook_user_pages)): ?>
-                        <p><strong><?php _e('Tilgængelige sider:', 'fb-post-scheduler'); ?></strong></p>
-                        <ul class="facebook-pages-list">
-                            <?php foreach ($facebook_user_pages as $page): ?>
-                                <li>
-                                    <?php echo esc_html($page['name']); ?>
-                                    <small>(ID: <?php echo esc_html($page['id']); ?>)</small>
-                                    <?php if (isset($page['access_token'])): ?>
-                                        <button type="button" class="button button-small use-page-token" 
-                                                data-page-id="<?php echo esc_attr($page['id']); ?>" 
-                                                data-page-token="<?php echo esc_attr($page['access_token']); ?>"
-                                                data-page-name="<?php echo esc_attr($page['name']); ?>">
-                                            <?php _e('Brug denne side', 'fb-post-scheduler'); ?>
-                                        </button>
-                                    <?php endif; ?>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
-                        <?php endif; ?>
-                        
+                        <p><strong><?php _e('Bruger ID:', 'fb-post-scheduler'); ?></strong> <?php echo esc_html($facebook_user_id); ?></p>
                         <button id="facebook-disconnect-btn" class="button"><?php _e('Afbryd forbindelse', 'fb-post-scheduler'); ?></button>
                     </div>
                 <?php else: ?>
@@ -1001,9 +982,6 @@ class FB_Post_Scheduler {
                 true
             );
             
-            // Facebook SDK for login
-            wp_enqueue_script('facebook-sdk', 'https://connect.facebook.net/da_DK/sdk.js', array(), '1.0', true);
-            
             // Lokalisering
             wp_localize_script(
                 'fb-post-scheduler-admin-js',
@@ -1016,11 +994,28 @@ class FB_Post_Scheduler {
                     'removeImage' => __('Fjern billede', 'fb-post-scheduler'),
                     'aiNonce' => wp_create_nonce('fb-post-scheduler-ai-nonce'),
                     'ajaxError' => __('Der opstod en fejl ved kommunikation med serveren. Prøv igen senere.', 'fb-post-scheduler'),
-                    'aiError' => __('Kunne ikke generere tekst med AI. Tjek dine indstillinger og prøv igen.', 'fb-post-scheduler'),
-                    'facebook_app_id' => $this->facebook_app_id,
-                    'facebook_auth_nonce' => wp_create_nonce('facebook_auth_nonce')
+                    'aiError' => __('Kunne ikke generere tekst med AI. Tjek dine indstillinger og prøv igen.', 'fb-post-scheduler')
                 )
             );
+            
+            // Add Facebook SDK for admin pages
+            if (strpos($hook, 'fb-post-scheduler') !== false) {
+                wp_enqueue_script('facebook-sdk', 'https://connect.facebook.net/da_DK/sdk.js', array(), '1.0', true);
+                
+                // Lokalisering for Facebook auth
+                wp_localize_script(
+                    'fb-post-scheduler-admin-js',
+                    'fbPostSchedulerAuth',
+                    array(
+                        'ajaxurl' => admin_url('admin-ajax.php'),
+                        'nonce' => wp_create_nonce('fb-post-scheduler-facebook-auth'),
+                        'app_id' => $this->facebook_app_id,
+                        'loginError' => __('Facebook login fejlede. Prøv igen.', 'fb-post-scheduler'),
+                        'disconnectConfirm' => __('Er du sikker på at du vil afbryde forbindelsen til Facebook?', 'fb-post-scheduler'),
+                        'ajaxError' => __('Der skete en fejl. Prøv igen.', 'fb-post-scheduler')
+                    )
+                );
+            }
             
             // Kun på kalender-siden
             if (strpos($hook, 'fb-post-scheduler-calendar') !== false) {
@@ -1092,596 +1087,393 @@ class FB_Post_Scheduler {
     }
     
     /**
-     * Handle Facebook authentication login
+     * Tilføj CSS klasse til admin menu
      */
-    public function handle_facebook_auth_login() {
-        check_ajax_referer('facebook_auth_nonce', 'nonce');
+    public function admin_body_class($classes) {
+        if (isset($_GET['page']) && strpos($_GET['page'], 'fb-post-scheduler') !== false) {
+            $classes .= ' fb-post-scheduler-admin-page';
+        }
+        return $classes;
+    }
+    
+    /**
+     * Tjek planlagte opslag og post dem hvis tiden er kommet
+     */
+    public function check_scheduled_posts() {
+        fb_post_scheduler_log('Start tjek af planlagte opslag');
+        
+        // Dato nu
+        $now = current_time('mysql');
+        
+        // Opret API instance
+        $api = new FB_Post_Scheduler_API();
+        
+        // Tjek for gyldige indstillinger
+        if (!$api->validate_credentials()) {
+            fb_post_scheduler_log('Fejl: Facebook API indstillinger er ikke gyldige');
+            return;
+        }
+        
+        // Få poster med _fb_post_enabled meta
+        $args = array(
+            'post_type' => $this->selected_post_types,
+            'posts_per_page' => -1,
+            'meta_query' => array(
+                array(
+                    'key' => '_fb_post_enabled',
+                    'value' => '1',
+                    'compare' => '='
+                )
+            )
+        );
+        
+        $query = new WP_Query($args);
+        
+        fb_post_scheduler_log('Fandt ' . $query->post_count . ' poster med aktiverede Facebook-opslag');
+        
+        if ($query->have_posts()) {
+            while ($query->have_posts()) {
+                $query->the_post();
+                $post_id = get_the_ID();
+                
+                fb_post_scheduler_log('Behandler post: ' . get_the_title() . ' (ID: ' . $post_id . ')', $post_id);
+                
+                // Få opslag data
+                $fb_posts = get_post_meta($post_id, '_fb_posts', true);
+                
+                if (!empty($fb_posts) && is_array($fb_posts)) {
+                    $has_active = false;
+                    
+                    foreach ($fb_posts as $index => $fb_post) {
+                        // Tjek om opslaget er planlagt, aktiveret og tiden er kommet
+                        if (
+                            isset($fb_post['enabled']) && $fb_post['enabled'] && 
+                            (!isset($fb_post['status']) || $fb_post['status'] !== 'posted') &&
+                            strtotime($fb_post['date']) <= strtotime($now)
+                        ) {
+                            fb_post_scheduler_log('Opslag #' . ($index + 1) . ' er klar til at blive postet', $post_id);
+                            
+                            // Post til Facebook
+                            $message = $fb_post['text'];
+                            $link = get_permalink($post_id);
+                            $image_id = isset($fb_post['image_id']) ? $fb_post['image_id'] : 0;
+                            
+                            // Send til Facebook
+                            $result = $api->post_to_facebook($message, $link, $image_id);
+                            
+                            if (is_wp_error($result)) {
+                                // Log fejl
+                                fb_post_scheduler_log('Fejl ved posting til Facebook: ' . $result->get_error_message(), $post_id);
+                                
+                                // Opdater status til fejl
+                                $fb_posts[$index]['status'] = 'error';
+                                $fb_posts[$index]['error_message'] = $result->get_error_message();
+                            } else {
+                                // Opdater status til posted
+                                $fb_posts[$index]['status'] = 'posted';
+                                $fb_posts[$index]['posted_date'] = $now;
+                                $fb_posts[$index]['fb_post_id'] = isset($result['id']) ? $result['id'] : '';
+                                
+                                fb_post_scheduler_log('Opslag blev postet til Facebook. Post ID: ' . (isset($result['id']) ? $result['id'] : 'N/A'), $post_id);
+                                
+                                // Opret notifikation
+                                do_action('fb_post_scheduler_post_success', $post_id, $fb_post, $index);
+                                
+                                // Fjern opslaget fra databasen
+                                fb_post_scheduler_delete_scheduled_post($post_id, $index);
+                            }
+                            
+                            // Gem opdateret data
+                            update_post_meta($post_id, '_fb_posts', $fb_posts);
+                        } else if (isset($fb_post['enabled']) && $fb_post['enabled'] && (!isset($fb_post['status']) || $fb_post['status'] !== 'posted')) {
+                            $has_active = true;
+                        }
+                    }
+                    
+                    // Fjern _fb_post_enabled meta hvis der ikke er flere aktive opslag
+                    if (!$has_active) {
+                        delete_post_meta($post_id, '_fb_post_enabled');
+                        fb_post_scheduler_log('Ingen flere aktive opslag, _fb_post_enabled meta fjernet', $post_id);
+                    }
+                }
+            }
+            
+            wp_reset_postdata();
+        }
+        
+        fb_post_scheduler_log('Afsluttet tjek af planlagte opslag');
+    }
+    
+    /**
+     * Håndterer manual post check anmodning
+     */
+    public function process_manual_post_check() {
+        // Tjek om vi skal behandle opslag
+        if (isset($_GET['page']) && $_GET['page'] === 'fb-post-scheduler' && isset($_GET['process_posts']) && $_GET['process_posts'] === 'true') {
+            // Tjek permissions
+            if (!current_user_can('manage_options')) {
+                wp_die(__('Du har ikke tilstrækkelige rettigheder til at udføre denne handling.', 'fb-post-scheduler'));
+            }
+            
+            // Kør tjek af planlagte opslag
+            $this->check_scheduled_posts();
+            
+            // Omdiriger til samme side med succes parameter
+            wp_redirect(admin_url('admin.php?page=fb-post-scheduler&posts_processed=true'));
+            exit;
+        }
+    }
+    
+    /**
+     * Opdater planlagte opslag i kalenderen (Legacy metode for baglæns kompatibilitet)
+     * 
+     * @param int $post_id ID på det oprindelige indlæg
+     * @param array $fb_posts Array af Facebook opslag data
+     */
+    private function update_scheduled_posts_in_calendar($post_id, $fb_posts) {
+        // Brug i stedet den nye database-baserede metode
+        $this->update_scheduled_posts_in_database($post_id, $fb_posts);
+    }
+    
+    /**
+     * Fjern alle planlagte opslag fra kalenderen for en bestemt post (Legacy metode for baglæns kompatibilitet)
+     * 
+     * @param int $post_id ID på det oprindelige indlæg
+     */
+    private function remove_scheduled_posts_from_calendar($post_id) {
+        // Brug den nye database-baserede funktion i stedet
+        fb_post_scheduler_delete_scheduled_posts($post_id);
+    }
+    
+    /**
+     * Fjern et specifikt planlagt opslag fra kalenderen baseret på post ID og index (Legacy metode for baglæns kompatibilitet)
+     * 
+     * @param int $post_id ID på det oprindelige indlæg
+     * @param int $index Index på opslaget i fb_posts array
+     */
+    private function remove_scheduled_post_with_index($post_id, $index) {
+        // Brug den nye database-baserede funktion i stedet
+        fb_post_scheduler_delete_scheduled_post($post_id, $index);
+        fb_post_scheduler_log('Fjernede planlagt opslag fra databasen (Post ID: ' . $post_id . ', Index: ' . $index . ')', $post_id);
+    }
+    
+    /**
+     * Opdater planlagte opslag i databasen
+     * 
+     * @param int $post_id ID på det oprindelige indlæg
+     * @param array $fb_posts Array af Facebook opslag data
+     */
+    private function update_scheduled_posts_in_database($post_id, $fb_posts) {
+        if (!is_array($fb_posts)) {
+            return;
+        }
+        
+        // Slet alle eksisterende planlagte opslag for denne post
+        fb_post_scheduler_delete_scheduled_posts($post_id);
+        
+        // Gennemgå alle opslag og opret dem i databasen
+        foreach ($fb_posts as $index => $fb_post) {
+            // Spring over hvis opslaget ikke er aktiveret eller allerede er postet
+            if (!isset($fb_post['enabled']) || !$fb_post['enabled'] || 
+                (isset($fb_post['status']) && $fb_post['status'] === 'posted')) {
+                continue;
+            }
+            
+            // Gem opslaget i databasen
+            fb_post_scheduler_save_scheduled_post($post_id, $fb_post, $index);
+        }
+    }
+    
+    /**
+     * Handle Facebook login via AJAX
+     */
+    public function handle_facebook_login() {
+        // Tjek nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb-post-scheduler-facebook-auth')) {
+            wp_send_json_error(__('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler'));
+        }
+        
+        // Tjek brugerrettigheder
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Utilstrækkelige rettigheder', 'fb-post-scheduler'));
+        }
         
         $access_token = sanitize_text_field($_POST['access_token']);
         $user_id = sanitize_text_field($_POST['user_id']);
         $user_name = sanitize_text_field($_POST['user_name']);
-        $pages = isset($_POST['pages']) ? $_POST['pages'] : array();
+        $user_email = sanitize_email($_POST['user_email']);
+        
+        if (empty($access_token) || empty($user_id) || empty($user_name)) {
+            wp_send_json_error(__('Manglende Facebook-data', 'fb-post-scheduler'));
+        }
         
         // Store Facebook credentials
-        update_option('fb_post_scheduler_facebook_user_access_token', $access_token);
+        update_option('fb_post_scheduler_facebook_access_token', $access_token);
         update_option('fb_post_scheduler_facebook_user_id', $user_id);
         update_option('fb_post_scheduler_facebook_user_name', $user_name);
+        update_option('fb_post_scheduler_facebook_user_email', $user_email);
         update_option('fb_post_scheduler_facebook_login_status', 'connected');
         
-        // Store user's pages if available
-        if (!empty($pages)) {
-            update_option('fb_post_scheduler_facebook_user_pages', $pages);
-        }
+        // Log the successful login
+        fb_post_scheduler_log('Facebook login successful for user: ' . $user_name . ' (ID: ' . $user_id . ')');
         
         wp_send_json_success(array(
-            'message' => 'Facebook login successful',
-            'user_name' => $user_name,
-            'pages' => $pages
+            'message' => __('Facebook login successful', 'fb-post-scheduler'),
+            'user_name' => $user_name
         ));
     }
     
     /**
-     * Handle Facebook authentication disconnect
+     * Handle Facebook disconnect via AJAX
      */
-    public function handle_facebook_auth_disconnect() {
-        check_ajax_referer('facebook_auth_nonce', 'nonce');
+    public function handle_facebook_disconnect() {
+        // Tjek nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb-post-scheduler-facebook-auth')) {
+            wp_send_json_error(__('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler'));
+        }
         
-        delete_option('fb_post_scheduler_facebook_user_access_token');
+        // Tjek brugerrettigheder
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Utilstrækkelige rettigheder', 'fb-post-scheduler'));
+        }
+        
+        // Remove Facebook credentials
+        delete_option('fb_post_scheduler_facebook_access_token');
         delete_option('fb_post_scheduler_facebook_user_id');
         delete_option('fb_post_scheduler_facebook_user_name');
+        delete_option('fb_post_scheduler_facebook_user_email');
         delete_option('fb_post_scheduler_facebook_login_status');
-        delete_option('fb_post_scheduler_facebook_user_pages');
+        
+        // Log the disconnect
+        fb_post_scheduler_log('Facebook disconnected successfully');
         
         wp_send_json_success(array(
-            'message' => 'Facebook disconnected successfully'
+            'message' => __('Facebook disconnected successfully', 'fb-post-scheduler')
         ));
     }
+}
+
+// Init plugin
+add_action('plugins_loaded', array('FB_Post_Scheduler', 'get_instance'));
+
+/**
+ * Kør planlagte Facebook-opslag
+ */
+function fb_post_scheduler_run_scheduled_posts() {
+    // Hent plugin instance
+    $instance = FB_Post_Scheduler::get_instance();
     
-    /**
-     * Admin hovedside indhold
-     */
-    public function admin_page_content() {
-        $facebook_status = get_option('fb_post_scheduler_facebook_login_status', 'disconnected');
-        $facebook_user_name = get_option('fb_post_scheduler_facebook_user_name', '');
-        $facebook_user_pages = get_option('fb_post_scheduler_facebook_user_pages', array());
+    // Få alle poster som er planlagt til at blive postet nu eller tidligere
+    $args = array(
+        'post_type' => get_option('fb_post_scheduler_post_types', array()),
+        'posts_per_page' => -1,
+        'meta_query' => array(
+            'relation' => 'AND',
+            array(
+                'key' => '_fb_post_enabled',
+                'value' => '1',
+                'compare' => '='
+            )
+        )
+    );
+    
+    $posts_to_share = new WP_Query($args);
+    
+    if ($posts_to_share->have_posts()) {
+        while ($posts_to_share->have_posts()) {
+            $posts_to_share->the_post();
+            $post_id = get_the_ID();
+            
+            // Kør den integrerede scheduling funktion
+            $instance->check_scheduled_posts();
+        }
         
-        ?>
-        <div class="wrap">
-            <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-            
-            <div class="facebook-auth-section">
-                <h2><?php _e('Facebook Login', 'fb-post-scheduler'); ?></h2>
-                <?php if ($facebook_status === 'connected'): ?>
-                    <div class="facebook-connected">
-                        <p><strong><?php _e('Status:', 'fb-post-scheduler'); ?></strong> <span class="status-connected"><?php _e('Tilsluttet', 'fb-post-scheduler'); ?></span></p>
-                        <p><strong><?php _e('Bruger:', 'fb-post-scheduler'); ?></strong> <?php echo esc_html($facebook_user_name); ?></p>
-                        
-                        <?php if (!empty($facebook_user_pages)): ?>
-                        <p><strong><?php _e('Tilgængelige sider:', 'fb-post-scheduler'); ?></strong></p>
-                        <ul class="facebook-pages-list">
-                            <?php foreach ($facebook_user_pages as $page): ?>
-                                <li>
-                                    <?php echo esc_html($page['name']); ?>
-                                    <small>(ID: <?php echo esc_html($page['id']); ?>)</small>
-                                    <?php if (isset($page['access_token'])): ?>
-                                        <button type="button" class="button button-small use-page-token" 
-                                                data-page-id="<?php echo esc_attr($page['id']); ?>" 
-                                                data-page-token="<?php echo esc_attr($page['access_token']); ?>"
-                                                data-page-name="<?php echo esc_attr($page['name']); ?>">
-                                            <?php _e('Brug denne side', 'fb-post-scheduler'); ?>
-                                        </button>
-                                    <?php endif; ?>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
-                        <?php endif; ?>
-                        
-                        <button id="facebook-disconnect-btn" class="button"><?php _e('Afbryd forbindelse', 'fb-post-scheduler'); ?></button>
-                    </div>
-                <?php else: ?>
-                    <div class="facebook-disconnected">
-                        <p><strong><?php _e('Status:', 'fb-post-scheduler'); ?></strong> <span class="status-disconnected"><?php _e('Ikke tilsluttet', 'fb-post-scheduler'); ?></span></p>
-                        <p><?php _e('Log ind med Facebook for at kunne planlægge opslag til dine Facebook-sider.', 'fb-post-scheduler'); ?></p>
-                        <button id="facebook-login-btn" class="button button-primary"><?php _e('Log ind med Facebook', 'fb-post-scheduler'); ?></button>
-                    </div>
-                <?php endif; ?>
-            </div>
-            
-            <p><?php _e('Velkommen til Facebook Post Scheduler. Brug denne side til at administrere dine planlagte facebook-opslag.', 'fb-post-scheduler'); ?></p>
-            
-            <?php
-            // Vis succes besked hvis poster er blevet behandlet
-            if (isset($_GET['posts_processed']) && $_GET['posts_processed'] === 'true') {
-                echo '<div class="notice notice-success is-dismissible"><p>' . __('Planlagte Facebook-opslag er blevet behandlet.', 'fb-post-scheduler') . '</p></div>';
-            }
-            
-            // Vis besked om migrering gennemført
-            if (isset($_GET['migration_complete']) && $_GET['migration_complete'] === 'true') {
-                $success = isset($_GET['success']) ? intval($_GET['success']) : 0;
-                $failed = isset($_GET['failed']) ? intval($_GET['failed']) : 0;
-                
-                echo '<div class="notice notice-success is-dismissible"><p>' . 
-                    sprintf(__('Facebook Post Scheduler migrering gennemført. %d opslag migreret med succes, %d fejlede.', 'fb-post-scheduler'), 
-                    $success, $failed) . '</p></div>';
-            }
-            ?>
-            
-            <div class="fb-admin-buttons">
-                <a href="<?php echo admin_url('admin.php?page=fb-post-scheduler&process_posts=true'); ?>" class="button button-primary">
-                    <?php _e('Kør Facebook-opslag nu', 'fb-post-scheduler'); ?>
-                </a>
-                
-                <a href="<?php echo admin_url('admin.php?page=fb-post-scheduler-export'); ?>" class="button">
-                    <?php _e('Eksporter planlagte opslag', 'fb-post-scheduler'); ?>
-                </a>
-            </div>
-            
-            <h2><?php _e('Kommende Facebook-opslag', 'fb-post-scheduler'); ?></h2>
-            
-            <?php
-            // Få alle planlagte opslag fra databasen
-            global $wpdb;
-            $table_name = $wpdb->prefix . 'fb_scheduled_posts';
-            $now = current_time('mysql');
-            
-            $scheduled_posts = $wpdb->get_results($wpdb->prepare(
-                "SELECT * FROM $table_name 
-                WHERE scheduled_time >= %s AND status = 'scheduled'
-                ORDER BY scheduled_time ASC",
-                $now
-            ));
-            
-            if (!empty($scheduled_posts)) :
-                ?>
-                <table class="widefat striped">
-                    <thead>
-                        <tr>
-                            <th><?php _e('Titel', 'fb-post-scheduler'); ?></th>
-                            <th><?php _e('Type', 'fb-post-scheduler'); ?></th>
-                            <th><?php _e('Planlagt til', 'fb-post-scheduler'); ?></th>
-                            <th><?php _e('Facebook-tekst', 'fb-post-scheduler'); ?></th>
-                            <th><?php _e('Handlinger', 'fb-post-scheduler'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($scheduled_posts as $post) : ?>
-                            <tr>
-                                <td>
-                                    <a href="<?php echo admin_url('post.php?post=' . $post->post_id . '&action=edit'); ?>"><?php echo esc_html($post->post_title); ?></a>
-                                </td>
-                                <td>
-                                    <?php 
-                                    $post_type = get_post_type($post->post_id);
-                                    echo get_post_type_object($post_type)->labels->singular_name; 
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php 
-                                    echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($post->scheduled_time));
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php 
-                                    echo wp_trim_words($post->message, 10);
-                                    ?>
-                                </td>
-                                <td>
-                                    <a href="<?php echo admin_url('post.php?post=' . $post->post_id . '&action=edit'); ?>" class="button"><?php _e('Rediger', 'fb-post-scheduler'); ?></a>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-                <?php
-            else :
-                ?>
-                <p><?php _e('Ingen planlagte Facebook-opslag fundet.', 'fb-post-scheduler'); ?></p>
-                <?php
-            endif;
-            ?>
-        </div>
-        <?php
+        wp_reset_postdata();
     }
     
-    /**
-     * Indstillingsside indhold
-     */
-    public function settings_page_content() {
-        ?>
-        <div class="wrap">
-            <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-            
-            <form method="post" action="options.php">
-                <?php
-                settings_fields('fb_post_scheduler_settings');
-                do_settings_sections('fb-post-scheduler-settings');
-                submit_button();
-                ?>
-            </form>
-        </div>
-        <?php
+    return true;
+}
+
+/**
+ * Post et opslag til Facebook
+ * 
+ * @param int $post_id WordPress post ID
+ * @param string $fb_text Tekst til Facebook-opslag
+ * @param int $image_id (Optional) Image attachment ID
+ * @return bool True hvis opslaget blev postet, ellers false
+ */
+function fb_post_scheduler_post_to_facebook($post_id, $fb_text, $image_id = 0) {
+    if (empty($fb_text)) {
+        error_log("Facebook Post Scheduler fejl: Tom tekst til opslag");
+        return false;
     }
     
-    /**
-     * Kalenderside indhold
-     */
-    public function calendar_page_content() {
-        ?>
-        <div class="wrap">
-            <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-            
-            <div id="fb-post-calendar">
-                <!-- Kalender vil blive indlæst med JavaScript -->
-                <div class="calendar-loading"><?php _e('Indlæser kalender...', 'fb-post-scheduler'); ?></div>
-            </div>
-        </div>
-        <?php
+    // Få permalink
+    $permalink = get_permalink($post_id);
+    if (empty($permalink)) {
+        error_log("Facebook Post Scheduler fejl: Kunne ikke få permalink til post ID: $post_id");
+        return false;
     }
     
-    /**
-     * Registrer indstillinger
-     */
-    public function register_settings() {
-        register_setting(
-            'fb_post_scheduler_settings',
-            'fb_post_scheduler_post_types'
-        );
-        
-        register_setting(
-            'fb_post_scheduler_settings',
-            'fb_post_scheduler_facebook_app_id'
-        );
-        
-        register_setting(
-            'fb_post_scheduler_settings',
-            'fb_post_scheduler_facebook_app_secret'
-        );
-        
-        register_setting(
-            'fb_post_scheduler_settings',
-            'fb_post_scheduler_facebook_page_id'
-        );
-        
-        register_setting(
-            'fb_post_scheduler_settings',
-            'fb_post_scheduler_facebook_access_token'
-        );
-        
-        // AI Settings
-        register_setting(
-            'fb_post_scheduler_settings',
-            'fb_post_scheduler_ai_enabled'
-        );
-        
-        register_setting(
-            'fb_post_scheduler_settings',
-            'fb_post_scheduler_gemini_api_key'
-        );
-        
-        register_setting(
-            'fb_post_scheduler_settings',
-            'fb_post_scheduler_ai_prompt'
-        );
-        
-        add_settings_section(
-            'fb_post_scheduler_post_types_section',
-            __('Post Types Indstillinger', 'fb-post-scheduler'),
-            array($this, 'post_types_section_callback'),
-            'fb-post-scheduler-settings'
-        );
-        
-        add_settings_section(
-            'fb_post_scheduler_facebook_section',
-            __('Facebook API Indstillinger', 'fb-post-scheduler'),
-            array($this, 'facebook_section_callback'),
-            'fb-post-scheduler-settings'
-        );
-        
-        add_settings_section(
-            'fb_post_scheduler_ai_section',
-            __('AI Tekst Generator Indstillinger', 'fb-post-scheduler'),
-            array($this, 'ai_section_callback'),
-            'fb-post-scheduler-settings'
-        );
-        
-        add_settings_field(
-            'fb_post_scheduler_post_types',
-            __('Vælg Post Types', 'fb-post-scheduler'),
-            array($this, 'post_types_field_callback'),
-            'fb-post-scheduler-settings',
-            'fb_post_scheduler_post_types_section'
-        );
-        
-        add_settings_field(
-            'fb_post_scheduler_facebook_app_id',
-            __('Facebook App ID', 'fb-post-scheduler'),
-            array($this, 'facebook_app_id_callback'),
-            'fb-post-scheduler-settings',
-            'fb_post_scheduler_facebook_section'
-        );
-        
-        add_settings_field(
-            'fb_post_scheduler_facebook_app_secret',
-            __('Facebook App Secret', 'fb-post-scheduler'),
-            array($this, 'facebook_app_secret_callback'),
-            'fb-post-scheduler-settings',
-            'fb_post_scheduler_facebook_section'
-        );
-        
-        add_settings_field(
-            'fb_post_scheduler_facebook_page_id',
-            __('Facebook Side ID', 'fb-post-scheduler'),
-            array($this, 'facebook_page_id_callback'),
-            'fb-post-scheduler-settings',
-            'fb_post_scheduler_facebook_section'
-        );
-        
-        add_settings_field(
-            'fb_post_scheduler_facebook_access_token',
-            __('Facebook Access Token', 'fb-post-scheduler'),
-            array($this, 'facebook_access_token_callback'),
-            'fb-post-scheduler-settings',
-            'fb_post_scheduler_facebook_section'
-        );
-        
-        add_settings_field(
-            'fb_post_scheduler_ai_enabled',
-            __('Aktivér AI tekstgenerering', 'fb-post-scheduler'),
-            array($this, 'ai_enabled_callback'),
-            'fb-post-scheduler-settings',
-            'fb_post_scheduler_ai_section'
-        );
-        
-        add_settings_field(
-            'fb_post_scheduler_gemini_api_key',
-            __('Google Gemini API Nøgle', 'fb-post-scheduler'),
-            array($this, 'gemini_api_key_callback'),
-            'fb-post-scheduler-settings',
-            'fb_post_scheduler_ai_section'
-        );
-        
-        add_settings_field(
-            'fb_post_scheduler_ai_prompt',
-            __('AI Prompt Skabelon', 'fb-post-scheduler'),
-            array($this, 'ai_prompt_callback'),
-            'fb-post-scheduler-settings',
-            'fb_post_scheduler_ai_section'
-        );
-    }
+    // Hent API-hjælper
+    $api = fb_post_scheduler_get_api();
     
-    /**
-     * Post Types sektion callback
-     */
-    public function post_types_section_callback() {
-        echo '<p>' . __('Vælg hvilke post types der skal have mulighed for at planlægge Facebook-opslag.', 'fb-post-scheduler') . '</p>';
-    }
+    // Post til Facebook
+    $result = $api->post_to_facebook($fb_text, $permalink, $image_id);
     
-    /**
-     * Facebook sektion callback
-     */
-    public function facebook_section_callback() {
-        echo '<p>' . __('Indtast dine Facebook API-oplysninger for at aktivere automatisk opslag til Facebook.', 'fb-post-scheduler') . '</p>';
-    }
-    
-    /**
-     * AI sektion callback
-     */
-    public function ai_section_callback() {
-        echo '<p>' . __('Konfigurer indstillinger for automatisk generering af Facebook-opslagstekst med Google Gemini AI.', 'fb-post-scheduler') . '</p>';
-    }
-    
-    /**
-     * Post Types felt callback
-     */
-    public function post_types_field_callback() {
-        $selected_post_types = get_option('fb_post_scheduler_post_types', array());
+    if (is_wp_error($result)) {
+        // Log fejl
+        fb_post_scheduler_log('Fejl ved post til Facebook: ' . $result->get_error_message(), $post_id);
         
-        // Få alle tilgængelige post types
-        $args = array(
-            'public' => true
-        );
-        
-        $post_types = get_post_types($args, 'objects');
-        
-        foreach ($post_types as $post_type) {
-            // Undgå interne WordPress post types som attachments, blocks osv.
-            if (in_array($post_type->name, array('attachment', 'wp_block', 'wp_navigation'))) {
-                continue;
-            }
-            
-            printf(
-                '<label><input type="checkbox" name="fb_post_scheduler_post_types[]" value="%s" %s> %s</label><br>',
-                esc_attr($post_type->name),
-                in_array($post_type->name, $selected_post_types) ? 'checked' : '',
-                esc_html($post_type->labels->singular_name)
+        // Tilføj notifikation om fejl
+        if (function_exists('fb_post_scheduler_add_notification')) {
+            fb_post_scheduler_add_notification(
+                sprintf(__('Fejl ved post til Facebook: %s', 'fb-post-scheduler'), get_the_title($post_id)),
+                $result->get_error_message(),
+                admin_url('post.php?post=' . $post_id . '&action=edit')
             );
         }
-    }
-    
-    /**
-     * Facebook App ID callback
-     */
-    public function facebook_app_id_callback() {
-        $app_id = get_option('fb_post_scheduler_facebook_app_id', '');
-        echo '<input type="text" name="fb_post_scheduler_facebook_app_id" value="' . esc_attr($app_id) . '" class="regular-text">';
-    }
-    
-    /**
-     * Facebook App Secret callback
-     */
-    public function facebook_app_secret_callback() {
-        $app_secret = get_option('fb_post_scheduler_facebook_app_secret', '');
-        echo '<input type="password" name="fb_post_scheduler_facebook_app_secret" value="' . esc_attr($app_secret) . '" class="regular-text">';
-    }
-    
-    /**
-     * Facebook Page ID callback
-     */
-    public function facebook_page_id_callback() {
-        $page_id = get_option('fb_post_scheduler_facebook_page_id', '');
-        echo '<input type="text" name="fb_post_scheduler_facebook_page_id" value="' . esc_attr($page_id) . '" class="regular-text">';
-    }
-    
-    /**
-     * Facebook Access Token callback
-     */
-    public function facebook_access_token_callback() {
-        $access_token = get_option('fb_post_scheduler_facebook_access_token', '');
-        echo '<input type="password" name="fb_post_scheduler_facebook_access_token" value="' . esc_attr($access_token) . '" class="regular-text">';
-    }
-    
-    /**
-     * AI enabled callback
-     */
-    public function ai_enabled_callback() {
-        $enabled = get_option('fb_post_scheduler_ai_enabled', '');
-        echo '<input type="checkbox" name="fb_post_scheduler_ai_enabled" value="1" ' . checked('1', $enabled, false) . '>';
-        echo '<p class="description">' . __('Aktivér for at bruge AI til at generere Facebook-opslagstekst automatisk.', 'fb-post-scheduler') . '</p>';
-    }
-    
-    /**
-     * Gemini API key callback
-     */
-    public function gemini_api_key_callback() {
-        $api_key = get_option('fb_post_scheduler_gemini_api_key', '');
-        echo '<input type="password" name="fb_post_scheduler_gemini_api_key" value="' . esc_attr($api_key) . '" class="regular-text">';
-        echo '<p class="description">' . __('Din Google Gemini API nøgle. Du kan få en fra <a href="https://ai.google.dev/" target="_blank">Google AI Studio</a>.', 'fb-post-scheduler') . '</p>';
-    }
-    
-    /**
-     * AI prompt callback
-     */
-    public function ai_prompt_callback() {
-        $default_prompt = __('Skriv et kortfattet og engagerende Facebook-opslag på dansk baseret på følgende indhold. Opslaget skal være mellem 2-3 sætninger og motivere til at læse hele artiklen. Undlad at bruge hashtags. Skriv i en venlig, informativ tone:', 'fb-post-scheduler');
-        $prompt = get_option('fb_post_scheduler_ai_prompt', $default_prompt);
-        echo '<textarea name="fb_post_scheduler_ai_prompt" rows="4" class="large-text">' . esc_textarea($prompt) . '</textarea>';
-        echo '<p class="description">' . __('Prompten som sendes til AI. Brug dette til at styre tonen og stilen i de genererede opslag. Indholdet fra artiklen tilføjes automatisk efter denne prompt.', 'fb-post-scheduler') . '</p>';
-    }
-    
-    /**
-     * Tilføj meta boxe til valgte post types
-     */
-    public function add_meta_boxes() {
-        $selected_post_types = get_option('fb_post_scheduler_post_types', array());
         
-        if (!empty($selected_post_types)) {
-            foreach ($selected_post_types as $post_type) {
-                add_meta_box(
-                    'fb_post_scheduler_meta_box',
-                    __('Facebook Opslag', 'fb-post-scheduler'),
-                    array($this, 'render_meta_box'),
-                    $post_type,
-                    'normal',
-                    'high'
+        error_log("Facebook Post Scheduler fejl: " . $result->get_error_message());
+        return false;
+    } else {
+        if (isset($result['id'])) {
+            // Gem Facebook post ID
+            update_post_meta($post_id, '_fb_post_id', $result['id']);
+            
+            // Log success
+            fb_post_scheduler_log('Opslag postet til Facebook med ID: ' . $result['id'], $post_id);
+            
+            // Tilføj notifikation om success
+            if (function_exists('fb_post_scheduler_add_notification')) {
+                fb_post_scheduler_add_notification(
+                    sprintf(__('Opslag postet til Facebook: %s', 'fb-post-scheduler'), get_the_title($post_id)),
+                    __('Opslaget blev postet til Facebook med succes.', 'fb-post-scheduler'),
+                    admin_url('post.php?post=' . $post_id . '&action=edit')
                 );
             }
+            
+            // Hvis vi er i testmode, returnér resultatet fra API'en
+            if (defined('FB_POST_SCHEDULER_TEST_MODE') && FB_POST_SCHEDULER_TEST_MODE) {
+                return $result;
+            }
+            
+            return true;
+        } else {
+            // Log ukendt fejl
+            fb_post_scheduler_log('Ukendt fejl ved post til Facebook', $post_id);
+            
+            // Tilføj notifikation om ukendt fejl
+            if (function_exists('fb_post_scheduler_add_notification')) {
+                fb_post_scheduler_add_notification(
+                    sprintf(__('Fejl ved post til Facebook: %s', 'fb-post-scheduler'), get_the_title($post_id)),
+                    __('Der opstod en ukendt fejl ved forsøg på at poste til Facebook.', 'fb-post-scheduler'),
+                    admin_url('post.php?post=' . $post_id . '&action=edit')
+                );
+            }
+            
+            error_log("Facebook Post Scheduler fejl: Ukendt fejl ved post til Facebook");
+            return false;
         }
     }
-    
-    /**
-     * Render meta box indhold
-     */
-    public function render_meta_box($post) {
-        // Tilføj nonce for sikkerhed
-        wp_nonce_field('fb_post_scheduler_meta_box', 'fb_post_scheduler_meta_box_nonce');
-        
-        // Få gemte metaværdier
-        $fb_posts = get_post_meta($post->ID, '_fb_posts', true);
-        
-        // Hvis der ikke er nogen opslag, oprettes en tom array
-        if (empty($fb_posts) || !is_array($fb_posts)) {
-            $fb_posts = array(
-                array(
-                    'text' => '',
-                    'date' => date('Y-m-d H:i:s', strtotime('+1 day')),
-                    'enabled' => false,
-                    'status' => 'scheduled'
-                )
-            );
-        }
-        
-        ?>
-        <div class="fb-post-scheduler-meta-box">
-            <div id="fb-posts-container">
-                <?php foreach ($fb_posts as $index => $fb_post) : 
-                    // Formatér dato til input-felt
-                    $date_parts = explode(' ', $fb_post['date']);
-                    $date = isset($date_parts[0]) ? $date_parts[0] : date('Y-m-d');
-                    $time = isset($date_parts[1]) ? substr($date_parts[1], 0, 5) : '12:00';
-                    
-                    // Status
-                    $is_posted = isset($fb_post['status']) && $fb_post['status'] === 'posted';
-                ?>
-                <div class="fb-post-item" data-index="<?php echo $index; ?>">
-                    <div class="fb-post-header">
-                        <h3><?php 
-                            if ($is_posted) {
-                                echo __('Facebook Opslag #', 'fb-post-scheduler') . ($index + 1) . ' (' . __('Postet', 'fb-post-scheduler') . ')';
-                            } else {
-                                echo __('Facebook Opslag #', 'fb-post-scheduler') . ($index + 1);
-                            }
-                        ?></h3>
-                        
-                        <?php if (!$is_posted && count($fb_posts) > 1) : ?>
-                        <a href="#" class="fb-remove-post dashicons dashicons-trash"></a>
-                        <?php endif; ?>
-                    </div>
-                    
-                    <p>
-                        <label for="fb_post_enabled_<?php echo $index; ?>">
-                            <input type="checkbox" id="fb_post_enabled_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][enabled]" value="1" <?php checked(isset($fb_post['enabled']) && $fb_post['enabled'], true); ?> <?php disabled($is_posted, true); ?>>
-                            <?php _e('Aktiver Facebook-opslag', 'fb-post-scheduler'); ?>
-                        </label>
-                    </p>
-                    
-                    <?php if ($is_posted && isset($fb_post['fb_post_id'])) : ?>
-                    <p class="fb-post-success">
-                        <?php _e('Dette opslag blev postet til Facebook', 'fb-post-scheduler'); ?>
-                        <?php if (!empty($fb_post['posted_date'])) : ?>
-                        <br>
-                        <span class="fb-post-posted-date">
-                            <?php echo sprintf(__('Postet: %s', 'fb-post-scheduler'), date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($fb_post['posted_date']))); ?>
-                        </span>
-                        <?php endif; ?>
-                    </p>
-                    <?php endif; ?>
-                    
-                    <p>
-                        <label for="fb_post_date_<?php echo $index; ?>"><?php _e('Dato for opslag:', 'fb-post-scheduler'); ?></label>
-                        <input type="date" id="fb_post_date_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][date]" value="<?php echo esc_attr($date); ?>" class="widefat" <?php disabled($is_posted, true); ?>>
-                    </p>
-                    
-                    <p>
-                        <label for="fb_post_time_<?php echo $index; ?>"><?php _e('Tidspunkt for opslag:', 'fb-post-scheduler'); ?></label>
-                        <input type="time" id="fb_post_time_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][time]" value="<?php echo esc_attr($time); ?>" class="widefat" <?php disabled($is_posted, true); ?>>
-                    </p>
-                    
-                    <p>
-                        <label for="fb_post_text_<?php echo $index; ?>"><?php _e('Tekst til Facebook-opslag:', 'fb-post-scheduler'); ?></label>
-                        <?php if (get_option('fb_post_scheduler_ai_enabled', '') && !$is_posted) : ?>
-                        <button type="button" class="button fb-generate-ai-text" data-index="<?php echo $index; ?>" data-post-id="<?php echo $post->ID; ?>">
-                            <span class="dashicons dashicons-google" style="vertical-align: text-top;"></span> 
-                            <?php _e('Generer tekst med Gemini AI', 'fb-post-scheduler'); ?>
-                        </button>
-                        <span class="spinner fb-ai-spinner" style="float: none; margin-top: 0;"></span>
-                        <?php endif; ?>
-                        <textarea id="fb_post_text_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][text]" class="widefat" rows="5" <?php disabled($is_posted, true); ?>><?php echo esc_textarea($fb_post['text']); ?></textarea>
-                        <span class="description"><?php _e('Denne tekst vil blive brugt til Facebook-opslaget. Link til indlægget vil automatisk blive tilføjet.', 'fb-post-scheduler'); ?></span>
-                    </p>
-                    
-                    <p class="fb-post-image-field">
-                        <label for="fb_post_image_<?php echo $index; ?>"><?php _e('Billede til Facebook-opslag:', 'fb-post-scheduler'); ?></label>
-                        <input type="hidden" id="fb_post_image_id_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][image_id]" value="<?php echo isset($fb_post['image_id']) ? esc_attr($fb_post['image_id']) : ''; ?>" <?php disabled($is_posted, true); ?>>
-                        <div class="fb-post-image-preview-container">
-                            <?php if (!empty($fb_post['image_id'])) : 
-                                $image_url = wp_get_attachment_image_url($fb_post['image_id'], 'medium');
-                                $image_alt = get_post_meta($fb_post['image_id'], '_wp_attachment_image_alt', true);
-                            ?>
-                                <img src="<?php echo esc_url($image_url); ?>" alt="<?php echo esc_attr($image_alt); ?>" class="fb-post-image-preview">
-                            <?php endif; ?>
-                        </div>
-                        <button type="button" class="button fb-upload-image" data-index="<?php echo $index; ?>" <?php disabled($is_posted, true); ?>><?php _e('Vælg billede', 'fb-post-scheduler'); ?></button>
-                        <?php if (!empty($fb_post['image_id'])) : ?>
-                            <button type="button" class="button fb-remove-image" data-index="<?php echo $index; ?>" <?php disabled($is_posted, true); ?>><?php _e('Fjern billede', 'fb-post-scheduler'); ?></button>
-                        <?php endif; ?>
-                        <span class="description"><?php _e('Vælg et billede der skal bruges til Facebook-opslaget.
+}
