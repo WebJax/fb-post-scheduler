@@ -1,11 +1,13 @@
 <?php
 /**
  * Plugin Name: Facebook Post Scheduler
- * Plugin URI: https://example.com/plugins/fb-post-scheduler
+ * Plugin URI: https://jaxweb.dk/fb-post-scheduler
  * Description: Planlæg og administrer Facebook-opslag direkte fra WordPress med automatisk link til indholdet
  * Version: 1.0.0
  * Author: Jacob Thygesen
- * Author URI: https://example.com
+ * Author URI: https://jaxweb.dk
+ * License: GPL2
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: fb-post-scheduler
  * Domain Path: /languages
  */
