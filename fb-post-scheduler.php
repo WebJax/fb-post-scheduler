@@ -1455,11 +1455,6 @@ function fb_post_scheduler_post_to_facebook($post_id, $fb_text, $image_id = 0) {
                 );
             }
             
-            // Hvis vi er i testmode, returnér resultatet fra API'en
-            if (defined('FB_POST_SCHEDULER_TEST_MODE') && FB_POST_SCHEDULER_TEST_MODE) {
-                return $result;
-            }
-            
             return true;
         } else {
             // Log ukendt fejl
