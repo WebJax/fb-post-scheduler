@@ -998,8 +998,8 @@ class FB_Post_Scheduler {
                 )
             );
             
-            // Add Facebook SDK for admin pages
-            if (strpos($hook, 'fb-post-scheduler') !== false) {
+            // Add Facebook SDK only on main plugin page (not all admin pages)
+            if ($hook === 'toplevel_page_fb-post-scheduler') {
                 wp_enqueue_script('facebook-sdk', 'https://connect.facebook.net/da_DK/sdk.js', array(), '1.0', true);
                 
                 // Lokalisering for Facebook auth

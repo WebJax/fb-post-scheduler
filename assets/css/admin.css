@@ -608,6 +608,7 @@
     border-radius: 4px;
     padding: 20px;
     margin-bottom: 20px;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
 }
 
 .facebook-auth-section h2 {
@@ -649,17 +650,23 @@
     color: #fff;
     margin-top: 10px;
     font-weight: 600;
+    border-radius: 6px;
+    padding: 8px 16px;
+    text-shadow: none;
+    box-shadow: 0 1px 0 #166fe5;
 }
 
 #facebook-login-btn:hover {
     background-color: #166fe5;
     border-color: #166fe5;
+    color: #fff;
 }
 
 #facebook-login-btn:disabled {
-    background-color: #9ca3af;
-    border-color: #9ca3af;
+    background-color: #9ca3af !important;
+    border-color: #9ca3af !important;
     cursor: not-allowed;
+    opacity: 0.6;
 }
 
 #facebook-disconnect-btn {
@@ -672,6 +679,13 @@
 #facebook-disconnect-btn:hover {
     background-color: #c82333;
     border-color: #bd2130;
+    color: #fff;
+}
+
+/* Prevent Facebook SDK conflicts */
+.fb-post-scheduler-admin-page .facebook-auth-section {
+    position: relative;
+    z-index: 1;
 }
 
 /* Responsive improvements for drag and drop */

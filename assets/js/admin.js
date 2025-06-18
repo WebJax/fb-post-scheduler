@@ -9,8 +9,8 @@
     
     // Når dokumentet er klar
     $(document).ready(function() {
-        // Initialize Facebook SDK if on admin page
-        if (typeof fbPostSchedulerAuth !== 'undefined') {
+        // Initialize Facebook SDK only if fbPostSchedulerAuth exists and we're on the right page
+        if (typeof fbPostSchedulerAuth !== 'undefined' && fbPostSchedulerAuth.app_id) {
             initializeFacebookSDK();
         }
         
@@ -164,57 +164,87 @@
      * Initialize Facebook SDK
      */
     function initializeFacebookSDK() {
+        // Check if Facebook SDK is already loaded
+        if (typeof FB !== 'undefined') {
+            setupFacebookEvents();
+            return;
+        }
+        
+        // Wait for Facebook SDK to load
         window.fbAsyncInit = function() {
-            FB.init({
-                appId: fbPostSchedulerAuth.app_id,
-                cookie: true,
-                xfbml: true,
-                version: 'v18.0'
-            });
+            try {
+                FB.init({
+                    appId: fbPostSchedulerAuth.app_id,
+                    cookie: true,
+                    xfbml: false,
+                    version: 'v18.0'
+                });
+                
+                setupFacebookEvents();
+            } catch (error) {
+                console.error('Facebook SDK initialization error:', error);
+            }
         };
-
+    }
+    
+    /**
+     * Setup Facebook event handlers
+     */
+    function setupFacebookEvents() {
         // Facebook login button
-        $('#facebook-login-btn').on('click', function() {
-            $(this).prop('disabled', true).text('Logger ind...');
+        $('#facebook-login-btn').off('click').on('click', function() {
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('Logger ind...');
             
-            FB.login(function(response) {
-                if (response.authResponse) {
-                    FB.api('/me', { fields: 'name,id,email' }, function(user) {
-                        $.ajax({
-                            url: fbPostSchedulerAuth.ajaxurl,
-                            type: 'POST',
-                            data: {
-                                action: 'fb_post_scheduler_facebook_login',
-                                nonce: fbPostSchedulerAuth.nonce,
-                                access_token: response.authResponse.accessToken,
-                                user_id: user.id,
-                                user_name: user.name,
-                                user_email: user.email || ''
-                            },
-                            success: function(response) {
-                                if (response.success) {
-                                    location.reload();
-                                } else {
-                                    alert(response.data || fbPostSchedulerAuth.loginError);
-                                    $('#facebook-login-btn').prop('disabled', false).text('Log ind med Facebook');
-                                }
-                            },
-                            error: function() {
-                                alert(fbPostSchedulerAuth.ajaxError);
-                                $('#facebook-login-btn').prop('disabled', false).text('Log ind med Facebook');
+            try {
+                FB.login(function(response) {
+                    if (response.authResponse) {
+                        FB.api('/me', { fields: 'name,id,email' }, function(user) {
+                            if (user && !user.error) {
+                                $.ajax({
+                                    url: fbPostSchedulerAuth.ajaxurl,
+                                    type: 'POST',
+                                    data: {
+                                        action: 'fb_post_scheduler_facebook_login',
+                                        nonce: fbPostSchedulerAuth.nonce,
+                                        access_token: response.authResponse.accessToken,
+                                        user_id: user.id,
+                                        user_name: user.name,
+                                        user_email: user.email || ''
+                                    },
+                                    success: function(response) {
+                                        if (response.success) {
+                                            location.reload();
+                                        } else {
+                                            alert(response.data || fbPostSchedulerAuth.loginError);
+                                            resetLoginButton($btn);
+                                        }
+                                    },
+                                    error: function() {
+                                        alert(fbPostSchedulerAuth.ajaxError);
+                                        resetLoginButton($btn);
+                                    }
+                                });
+                            } else {
+                                alert(fbPostSchedulerAuth.loginError);
+                                resetLoginButton($btn);
                             }
                         });
-                    });
-                } else {
-                    $('#facebook-login-btn').prop('disabled', false).text('Log ind med Facebook');
-                }
-            }, { 
-                scope: 'pages_manage_posts,pages_read_engagement,publish_to_groups,email'
-            });
+                    } else {
+                        resetLoginButton($btn);
+                    }
+                }, { 
+                    scope: 'pages_manage_posts,pages_read_engagement,publish_to_groups,email'
+                });
+            } catch (error) {
+                console.error('Facebook login error:', error);
+                alert(fbPostSchedulerAuth.loginError);
+                resetLoginButton($btn);
+            }
         });
 
         // Facebook disconnect button
-        $('#facebook-disconnect-btn').on('click', function() {
+        $('#facebook-disconnect-btn').off('click').on('click', function() {
             if (confirm(fbPostSchedulerAuth.disconnectConfirm)) {
                 $.ajax({
                     url: fbPostSchedulerAuth.ajaxurl,
@@ -236,6 +266,13 @@
                 });
             }
         });
+    }
+    
+    /**
+     * Reset login button state
+     */
+    function resetLoginButton($btn) {
+        $btn.prop('disabled', false).text('Log ind med Facebook');
     }
     
     /**
