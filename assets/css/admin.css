@@ -772,3 +772,60 @@
     border-left: 4px solid #d63638;
     background-color: #fcf0f1;
 }
+
+/* Long-term Token Management */
+.fb-token-management {
+    margin: 10px 0;
+}
+
+.fb-longterm-token {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 20px;
+    margin-top: 15px;
+}
+
+.fb-longterm-token h4 {
+    color: #495057;
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 10px 0;
+}
+
+.fb-longterm-token p {
+    color: #6c757d;
+    font-size: 13px;
+    line-height: 1.4;
+    margin-bottom: 15px;
+}
+
+.fb-longterm-token label {
+    font-weight: 600;
+    color: #495057;
+}
+
+#fb-short-term-token {
+    margin: 5px 0 10px 0;
+}
+
+#fb-exchange-token {
+    background: #0073aa;
+    border-color: #0073aa;
+}
+
+#fb-exchange-token:hover {
+    background: #005a87;
+    border-color: #005a87;
+}
+
+/* Token status warnings */
+#fb-test-result .notice-warning {
+    border-left: 4px solid #ffb900;
+    background-color: #fff8e1;
+}
+
+#fb-exchange-result .notice-info {
+    border-left: 4px solid #00a0d2;
+    background-color: #e7f3ff;
+}

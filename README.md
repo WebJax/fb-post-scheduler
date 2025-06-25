@@ -52,13 +52,30 @@ Pluginet understøtter generering af Facebook-opslagstekst med Google Gemini 2.0
 
 ## Facebook API Test
 
-Pluginet inkluderer nu en test-funktion, der gør det muligt at verificere din Facebook API forbindelse direkte fra indstillingssiden. Test-funktionen tjekker:
+Pluginet inkluderer nu en omfattende test-funktion, der gør det muligt at verificere din Facebook API forbindelse direkte fra indstillingssiden. Test-funktionen tjekker:
 
 1. **Access Token Validering**: Verificerer at dit access token er gyldigt
 2. **Side Information**: Henter information om din Facebook-side (navn, kategori, følgere)
 3. **Posting Tilladelser**: Bekræfter at du har tilladelse til at poste på siden
+4. **Token Udløb**: Tjekker hvornår dit access token udløber
 
-Gå til 'FB Opslag' > 'Indstillinger' > 'Facebook API Indstillinger' og klik på "Test Facebook API Forbindelse" knappen efter du har udfyldt alle felter.
+### Long-term Access Tokens
+
+Facebook access tokens udløber regelmæssigt. Pluginet understøtter nu automatisk udveksling til long-term tokens:
+
+- **Short-term tokens**: Udløber efter 1-2 timer
+- **Long-term tokens**: Udløber efter 60 dage
+- **Automatisk advarsel**: Får besked når token snart udløber
+- **Nem udveksling**: Udveksle tokens direkte fra indstillingssiden
+
+**Sådan bruger du long-term tokens:**
+1. Få et short-term access token fra Facebook Graph API Explorer eller din app
+2. Gå til 'FB Opslag' > 'Indstillinger' > 'Facebook API Indstillinger'
+3. Indsæt short-term token i "Long-term Access Token" sektionen
+4. Klik "Udveksle til Long-term Token"
+5. Gem indstillingerne
+
+Gå til 'FB Opslag' > 'Indstillinger' > 'Facebook API Indstillinger' og brug de tilgængelige test-funktioner efter du har udfyldt alle felter.
 
 ## Nye funktioner
 

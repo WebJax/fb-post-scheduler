@@ -548,3 +548,129 @@ function fb_post_scheduler_test_api_connection_ajax() {
     exit;
 }
 add_action('wp_ajax_fb_post_scheduler_test_api_connection', 'fb_post_scheduler_test_api_connection_ajax');
+
+/**
+ * AJAX-handler til at udveksle short-term token til long-term token
+ */
+function fb_post_scheduler_exchange_token_ajax() {
+    // Tjek nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Tjek brugerrettigheder
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Hent short-term token fra POST data
+    $short_term_token = isset($_POST['short_term_token']) ? sanitize_text_field($_POST['short_term_token']) : '';
+    
+    if (empty($short_term_token)) {
+        wp_send_json_error(array(
+            'message' => __('Short-term access token er påkrævet', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Udveksle token
+    require_once FB_POST_SCHEDULER_PATH . 'includes/api-helper.php';
+    $api = new FB_Post_Scheduler_API();
+    
+    $result = $api->exchange_for_long_term_token($short_term_token);
+    
+    if (is_wp_error($result)) {
+        wp_send_json_error(array(
+            'message' => sprintf(__('Token udveksling fejl: %s', 'fb-post-scheduler'), $result->get_error_message())
+        ));
+        exit;
+    }
+    
+    // Gem det nye long-term token
+    update_option('fb_post_scheduler_facebook_access_token', $result['access_token']);
+    
+    // Gem udløbsinfo
+    update_option('fb_post_scheduler_token_expires_at', $result['expires_at']);
+    update_option('fb_post_scheduler_token_expires_date', $result['expires_date']);
+    
+    wp_send_json_success(array(
+        'message' => sprintf(
+            __('✅ Long-term access token genereret!<br><strong>Udløber:</strong> %s<br><strong>Gyldig i:</strong> %d dage', 'fb-post-scheduler'),
+            $result['expires_date'],
+            round($result['expires_in'] / (24 * 60 * 60))
+        ),
+        'token_info' => $result
+    ));
+    
+    exit;
+}
+add_action('wp_ajax_fb_post_scheduler_exchange_token', 'fb_post_scheduler_exchange_token_ajax');
+
+/**
+ * AJAX-handler til at tjekke token udløb
+ */
+function fb_post_scheduler_check_token_expiry_ajax() {
+    // Tjek nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Tjek brugerrettigheder
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Tjek token udløb
+    require_once FB_POST_SCHEDULER_PATH . 'includes/api-helper.php';
+    $api = new FB_Post_Scheduler_API();
+    
+    $result = $api->check_token_expiration();
+    
+    if (is_wp_error($result)) {
+        wp_send_json_error(array(
+            'message' => sprintf(__('Token tjek fejl: %s', 'fb-post-scheduler'), $result->get_error_message())
+        ));
+        exit;
+    }
+    
+    // Formater besked baseret på udløbsstatus
+    if ($result['expires_at'] === null) {
+        $message = __('✅ Token udløber aldrig (long-term token)', 'fb-post-scheduler');
+        $status = 'success';
+    } elseif ($result['expires_soon']) {
+        $message = sprintf(
+            __('⚠️ Token udløber snart!<br><strong>Udløber:</strong> %s<br><strong>Dage tilbage:</strong> %.1f', 'fb-post-scheduler'),
+            $result['expires_date'],
+            $result['days_until_expiry']
+        );
+        $status = 'warning';
+    } else {
+        $message = sprintf(
+            __('✅ Token er gyldigt<br><strong>Udløber:</strong> %s<br><strong>Dage tilbage:</strong> %.1f', 'fb-post-scheduler'),
+            $result['expires_date'],
+            $result['days_until_expiry']
+        );
+        $status = 'success';
+    }
+    
+    wp_send_json_success(array(
+        'message' => $message,
+        'status' => $status,
+        'token_info' => $result
+    ));
+    
+    exit;
+}
+add_action('wp_ajax_fb_post_scheduler_check_token_expiry', 'fb_post_scheduler_check_token_expiry_ajax');

@@ -161,6 +161,9 @@ class FB_Post_Scheduler {
         // Manual process hook
         add_action('admin_init', array($this, 'process_manual_post_check'));
         
+        // Check for token expiration warnings
+        add_action('admin_notices', array($this, 'check_token_expiration_notice'));
+        
         // Add Facebook share count columns to post lists
         $this->add_facebook_share_columns();
     }
@@ -560,10 +563,30 @@ class FB_Post_Scheduler {
         $access_token = get_option('fb_post_scheduler_facebook_access_token', '');
         echo '<input type="password" name="fb_post_scheduler_facebook_access_token" value="' . esc_attr($access_token) . '" class="regular-text">';
         echo '<br><br>';
+        
+        // Token management buttons
+        echo '<div class="fb-token-management">';
         echo '<button type="button" id="fb-test-connection" class="button button-secondary">' . __('Test Facebook API Forbindelse', 'fb-post-scheduler') . '</button>';
+        echo '<button type="button" id="fb-check-token-expiry" class="button button-secondary" style="margin-left: 10px;">' . __('Tjek Token Udløb', 'fb-post-scheduler') . '</button>';
         echo '<span class="spinner" id="fb-test-spinner" style="float: none; margin-left: 10px;"></span>';
+        echo '</div>';
+        
         echo '<div id="fb-test-result" style="margin-top: 10px;"></div>';
-        echo '<p class="description">' . __('Klik på "Test Facebook API Forbindelse" for at verificere at dine API-indstillinger virker korrekt.', 'fb-post-scheduler') . '</p>';
+        
+        // Long-term token section
+        echo '<div class="fb-longterm-token" style="margin-top: 15px; padding: 15px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px;">';
+        echo '<h4 style="margin-top: 0;">' . __('Long-term Access Token', 'fb-post-scheduler') . '</h4>';
+        echo '<p>' . __('Facebook access tokens udløber. Brug funktionen nedenfor til at udveksle dit kort-term token til et long-term token, der er gyldig i 60 dage.', 'fb-post-scheduler') . '</p>';
+        
+        echo '<label for="fb-short-term-token">' . __('Short-term Access Token:', 'fb-post-scheduler') . '</label><br>';
+        echo '<input type="text" id="fb-short-term-token" class="regular-text" placeholder="' . __('Indsæt dit short-term access token her', 'fb-post-scheduler') . '">';
+        echo '<br><br>';
+        echo '<button type="button" id="fb-exchange-token" class="button button-primary">' . __('Udveksle til Long-term Token', 'fb-post-scheduler') . '</button>';
+        echo '<span class="spinner" id="fb-exchange-spinner" style="float: none; margin-left: 10px;"></span>';
+        echo '<div id="fb-exchange-result" style="margin-top: 10px;"></div>';
+        echo '</div>';
+        
+        echo '<p class="description">' . __('Brug "Test Facebook API Forbindelse" for at verificere dine indstillinger. Brug "Tjek Token Udløb" for at se hvornår dit token udløber.', 'fb-post-scheduler') . '</p>';
     }
     
     /**
@@ -1348,6 +1371,47 @@ class FB_Post_Scheduler {
     public function maybe_clear_share_cache_on_status_update($post_id, $new_status) {
         if ($new_status === 'posted') {
             $this->clear_facebook_share_cache($post_id);
+        }
+    }
+    
+    /**
+     * Tjek for token udløb og vis admin notice hvis nødvendigt
+     */
+    public function check_token_expiration_notice() {
+        // Vis kun på plugin sider
+        if (!isset($_GET['page']) || strpos($_GET['page'], 'fb-post-scheduler') === false) {
+            return;
+        }
+        
+        // Tjek kun en gang per dag for at undgå for mange API kald
+        $last_check = get_transient('fb_post_scheduler_token_check');
+        if ($last_check !== false) {
+            return;
+        }
+        
+        // Sæt transient for at undgå gentagne tjek
+        set_transient('fb_post_scheduler_token_check', time(), DAY_IN_SECONDS);
+        
+        // Tjek token udløb
+        $api = new FB_Post_Scheduler_API();
+        $token_info = $api->check_token_expiration();
+        
+        if (is_wp_error($token_info)) {
+            // Vis ikke fejl for token tjek da det kan være forvirrende
+            return;
+        }
+        
+        // Vis advarsel hvis token udløber snart
+        if ($token_info['expires_soon']) {
+            echo '<div class="notice notice-warning is-dismissible">';
+            echo '<p><strong>' . __('Facebook Post Scheduler Advarsel:', 'fb-post-scheduler') . '</strong> ';
+            echo sprintf(
+                __('Dit Facebook access token udløber om %.1f dage (%s). Gå til <a href="%s">indstillinger</a> for at forny det.', 'fb-post-scheduler'),
+                $token_info['days_until_expiry'],
+                $token_info['expires_date'],
+                admin_url('admin.php?page=fb-post-scheduler-settings')
+            );
+            echo '</p></div>';
         }
     }
 }
