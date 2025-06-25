@@ -142,11 +142,6 @@ class FB_Post_Scheduler {
     private $selected_post_types = array();
     
     /**
-     * Facebook App ID
-     */
-    private $facebook_app_id = '641181824929946';
-    
-    /**
      * Constructor
      */
     private function __construct() {
@@ -165,10 +160,6 @@ class FB_Post_Scheduler {
         
         // Manual process hook
         add_action('admin_init', array($this, 'process_manual_post_check'));
-        
-        // Add Facebook auth AJAX handlers
-        add_action('wp_ajax_fb_post_scheduler_facebook_login', array($this, 'handle_facebook_login'));
-        add_action('wp_ajax_fb_post_scheduler_facebook_disconnect', array($this, 'handle_facebook_disconnect'));
     }
     
     /**
@@ -218,32 +209,10 @@ class FB_Post_Scheduler {
      * Admin hovedside indhold
      */
     public function admin_page_content() {
-        $facebook_status = get_option('fb_post_scheduler_facebook_login_status', 'disconnected');
-        $facebook_user_name = get_option('fb_post_scheduler_facebook_user_name', '');
-        $facebook_user_id = get_option('fb_post_scheduler_facebook_user_id', '');
         
         ?>
         <div class="wrap">
             <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-            
-            <!-- Facebook Login Section -->
-            <div class="facebook-auth-section">
-                <h2><?php _e('Facebook Login', 'fb-post-scheduler'); ?></h2>
-                <?php if ($facebook_status === 'connected'): ?>
-                    <div class="facebook-connected">
-                        <p><strong><?php _e('Status:', 'fb-post-scheduler'); ?></strong> <span class="status-connected"><?php _e('Tilsluttet', 'fb-post-scheduler'); ?></span></p>
-                        <p><strong><?php _e('Bruger:', 'fb-post-scheduler'); ?></strong> <?php echo esc_html($facebook_user_name); ?></p>
-                        <p><strong><?php _e('Bruger ID:', 'fb-post-scheduler'); ?></strong> <?php echo esc_html($facebook_user_id); ?></p>
-                        <button id="facebook-disconnect-btn" class="button"><?php _e('Afbryd forbindelse', 'fb-post-scheduler'); ?></button>
-                    </div>
-                <?php else: ?>
-                    <div class="facebook-disconnected">
-                        <p><strong><?php _e('Status:', 'fb-post-scheduler'); ?></strong> <span class="status-disconnected"><?php _e('Ikke tilsluttet', 'fb-post-scheduler'); ?></span></p>
-                        <p><?php _e('Log ind med Facebook for at kunne planlægge opslag til dine Facebook-sider.', 'fb-post-scheduler'); ?></p>
-                        <button id="facebook-login-btn" class="button button-primary"><?php _e('Log ind med Facebook', 'fb-post-scheduler'); ?></button>
-                    </div>
-                <?php endif; ?>
-            </div>
             
             <p><?php _e('Velkommen til Facebook Post Scheduler. Brug denne side til at administrere dine planlagte facebook-opslag.', 'fb-post-scheduler'); ?></p>
             
@@ -963,25 +932,6 @@ class FB_Post_Scheduler {
                 )
             );
             
-            // Add Facebook SDK only on main plugin page (not all admin pages)
-            if ($hook === 'toplevel_page_fb-post-scheduler') {
-                wp_enqueue_script('facebook-sdk', 'https://connect.facebook.net/da_DK/sdk.js', array(), '1.0', true);
-                
-                // Lokalisering for Facebook auth
-                wp_localize_script(
-                    'fb-post-scheduler-admin-js',
-                    'fbPostSchedulerAuth',
-                    array(
-                        'ajaxurl' => admin_url('admin-ajax.php'),
-                        'nonce' => wp_create_nonce('fb-post-scheduler-facebook-auth'),
-                        'app_id' => $this->facebook_app_id,
-                        'loginError' => __('Facebook login fejlede. Prøv igen.', 'fb-post-scheduler'),
-                        'disconnectConfirm' => __('Er du sikker på at du vil afbryde forbindelsen til Facebook?', 'fb-post-scheduler'),
-                        'ajaxError' => __('Der skete en fejl. Prøv igen.', 'fb-post-scheduler')
-                    )
-                );
-            }
-            
             // Kun på kalender-siden
             if (strpos($hook, 'fb-post-scheduler-calendar') !== false) {
                 // First enqueue the script
@@ -1214,74 +1164,6 @@ class FB_Post_Scheduler {
             // Gem opslaget i databasen
             fb_post_scheduler_save_scheduled_post($post_id, $fb_post, $index);
         }
-    }
-    
-    /**
-     * Handle Facebook login via AJAX
-     */
-    public function handle_facebook_login() {
-        // Tjek nonce
-        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb-post-scheduler-facebook-auth')) {
-            wp_send_json_error(__('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler'));
-        }
-        
-        // Tjek brugerrettigheder
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(__('Utilstrækkelige rettigheder', 'fb-post-scheduler'));
-        }
-        
-        $access_token = sanitize_text_field($_POST['access_token']);
-        $user_id = sanitize_text_field($_POST['user_id']);
-        $user_name = sanitize_text_field($_POST['user_name']);
-        $user_email = sanitize_email($_POST['user_email']);
-        
-        if (empty($access_token) || empty($user_id) || empty($user_name)) {
-            wp_send_json_error(__('Manglende Facebook-data', 'fb-post-scheduler'));
-        }
-        
-        // Store Facebook credentials
-        update_option('fb_post_scheduler_facebook_access_token', $access_token);
-        update_option('fb_post_scheduler_facebook_user_id', $user_id);
-        update_option('fb_post_scheduler_facebook_user_name', $user_name);
-        update_option('fb_post_scheduler_facebook_user_email', $user_email);
-        update_option('fb_post_scheduler_facebook_login_status', 'connected');
-        
-        // Log the successful login
-        fb_post_scheduler_log('Facebook login successful for user: ' . $user_name . ' (ID: ' . $user_id . ')');
-        
-        wp_send_json_success(array(
-            'message' => __('Facebook login successful', 'fb-post-scheduler'),
-            'user_name' => $user_name
-        ));
-    }
-    
-    /**
-     * Handle Facebook disconnect via AJAX
-     */
-    public function handle_facebook_disconnect() {
-        // Tjek nonce
-        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb-post-scheduler-facebook-auth')) {
-            wp_send_json_error(__('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler'));
-        }
-        
-        // Tjek brugerrettigheder
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(__('Utilstrækkelige rettigheder', 'fb-post-scheduler'));
-        }
-        
-        // Remove Facebook credentials
-        delete_option('fb_post_scheduler_facebook_access_token');
-        delete_option('fb_post_scheduler_facebook_user_id');
-        delete_option('fb_post_scheduler_facebook_user_name');
-        delete_option('fb_post_scheduler_facebook_user_email');
-        delete_option('fb_post_scheduler_facebook_login_status');
-        
-        // Log the disconnect
-        fb_post_scheduler_log('Facebook disconnected successfully');
-        
-        wp_send_json_success(array(
-            'message' => __('Facebook disconnected successfully', 'fb-post-scheduler')
-        ));
     }
 }
 
