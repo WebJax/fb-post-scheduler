@@ -158,6 +158,67 @@
                 }
             });
         });
+        
+        // Håndter slet planlagte opslag fra admin listen
+        $(document).on('click', '.fb-delete-scheduled-post', function(e) {
+            e.preventDefault();
+            
+            var button = $(this);
+            var postId = button.data('post-id');
+            var postIndex = button.data('index');
+            var scheduledId = button.data('scheduled-id');
+            var row = button.closest('tr');
+            
+            if (!confirm('Er du sikker på, at du vil slette dette planlagte opslag?')) {
+                return;
+            }
+            
+            // Disable button og vis loading
+            button.prop('disabled', true).text('Sletter...');
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_delete_scheduled',
+                    post_id: postId,
+                    post_index: postIndex,
+                    scheduled_id: scheduledId,
+                    nonce: fbPostScheduler.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Fjern rækken fra tabellen
+                        row.fadeOut(300, function() {
+                            $(this).remove();
+                            
+                            // Hvis der ikke er flere rækker, vis "ingen opslag" besked
+                            var tbody = $('#scheduled-posts-table tbody');
+                            if (tbody.find('tr').length === 0) {
+                                tbody.html('<tr><td colspan="6">Ingen planlagte opslag fundet.</td></tr>');
+                            }
+                        });
+                        
+                        // Vis success besked
+                        if (typeof response.data.message !== 'undefined') {
+                            showNotice(response.data.message, 'success');
+                        }
+                    } else {
+                        // Genaktiver knap
+                        button.prop('disabled', false).text('Slet');
+                        
+                        // Vis fejl besked
+                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
+                        showNotice(message, 'error');
+                    }
+                },
+                error: function() {
+                    // Genaktiver knap
+                    button.prop('disabled', false).text('Slet');
+                    showNotice('Der opstod en netværksfejl', 'error');
+                }
+            });
+        });
     });
     
     /**
@@ -405,4 +466,32 @@
         });
     }
     
+    /**
+     * Viser en notice besked til brugeren
+     */
+    function showNotice(message, type) {
+        type = type || 'info';
+        
+        // Fjern eksisterende notices
+        $('.fb-admin-notice').remove();
+        
+        // Opret ny notice
+        var notice = $('<div class="fb-admin-notice notice notice-' + type + ' is-dismissible"><p>' + message + '</p></div>');
+        
+        // Tilføj til siden
+        $('.wrap h1').after(notice);
+        
+        // Auto-fjern efter 5 sekunder
+        setTimeout(function() {
+            notice.fadeOut(function() {
+                notice.remove();
+            });
+        }, 5000);
+        
+        // Håndter dismiss knap
+        notice.on('click', '.notice-dismiss', function() {
+            notice.remove();
+        });
+    }
+
 })(jQuery);

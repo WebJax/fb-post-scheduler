@@ -702,3 +702,49 @@
         transform: none !important; /* Remove rotation on mobile for clarity */
     }
 }
+
+/* Facebook Share Count Column */
+.column-fb_share_count {
+    width: 80px;
+    text-align: center;
+}
+
+.fb-share-count {
+    display: inline-block;
+    background: #2271b1;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    min-width: 20px;
+    text-align: center;
+}
+
+.fb-share-count-zero {
+    display: inline-block;
+    color: #666;
+    font-size: 11px;
+    text-align: center;
+}
+
+/* Delete button styling */
+.fb-delete-scheduled-post {
+    color: #b32d2e !important;
+    border-color: transparent !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.fb-delete-scheduled-post:hover {
+    color: #d63638 !important;
+    text-decoration: underline;
+}
+
+.fb-delete-scheduled-post:disabled {
+    color: #999 !important;
+    cursor: not-allowed;
+    text-decoration: none;
+}

@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Facebook Post Scheduler
  * Plugin URI: https://jaxweb.dk/fb-post-scheduler
- * Description: Planlæg og administrer Facebook-opslag direkte fra WordPress med automatisk link til indholdet
- * Version: 1.0.0
+ * Description: Planlæg og administrer Facebook-opslag direkte fra WordPress med automatisk link til indholdet, AI-tekst generering, og avanceret administration
+ * Version: 1.1.0
  * Author: Jacob Thygesen
  * Author URI: https://jaxweb.dk
  * License: GPL2
@@ -160,6 +160,12 @@ class FB_Post_Scheduler {
         
         // Manual process hook
         add_action('admin_init', array($this, 'process_manual_post_check'));
+        
+        // Initialize admin functionality
+        add_action('admin_init', array($this, 'init_admin'));
+        
+        // Add Facebook share count columns to post lists
+        $this->add_facebook_share_columns();
     }
     
     /**
@@ -294,6 +300,7 @@ class FB_Post_Scheduler {
                                 </td>
                                 <td>
                                     <a href="<?php echo admin_url('post.php?post=' . $post->post_id . '&action=edit'); ?>" class="button"><?php _e('Rediger', 'fb-post-scheduler'); ?></a>
+                                    <button type="button" class="button button-link-delete fb-delete-scheduled-post" data-post-id="<?php echo $post->post_id; ?>" data-index="<?php echo $post->post_index; ?>" data-scheduled-id="<?php echo $post->id; ?>"><?php _e('Slet', 'fb-post-scheduler'); ?></button>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -1163,6 +1170,181 @@ class FB_Post_Scheduler {
             
             // Gem opslaget i databasen
             fb_post_scheduler_save_scheduled_post($post_id, $fb_post, $index);
+        }
+    }
+    
+    /**
+     * Tilføjer Facebook share count kolonner til post type oversigter
+     */
+    public function add_facebook_share_columns() {
+        // Standard post types
+        $post_types = array('post', 'page');
+        
+        // Tilføj custom post types hvis de eksisterer
+        if (post_type_exists('event')) {
+            $post_types[] = 'event';
+        }
+        
+        foreach ($post_types as $post_type) {
+            // Tilføj kolonne header
+            add_filter("manage_{$post_type}_posts_columns", array($this, 'add_facebook_share_column_header'));
+            
+            // Tilføj kolonne indhold
+            add_action("manage_{$post_type}_posts_custom_column", array($this, 'display_facebook_share_column'), 10, 2);
+            
+            // Gør kolonnen sorterbar
+            add_filter("manage_edit-{$post_type}_sortable_columns", array($this, 'make_facebook_share_column_sortable'));
+        }
+        
+        // Håndter sortering
+        add_action('pre_get_posts', array($this, 'handle_facebook_share_column_sorting'));
+    }
+    
+    /**
+     * Tilføjer Facebook share count kolonne header
+     */
+    public function add_facebook_share_column_header($columns) {
+        // Indsæt kolonnen før dato-kolonnen
+        $new_columns = array();
+        foreach ($columns as $key => $value) {
+            if ($key === 'date') {
+                $new_columns['fb_share_count'] = __('FB Delinger', 'fb-post-scheduler');
+            }
+            $new_columns[$key] = $value;
+        }
+        return $new_columns;
+    }
+    
+    /**
+     * Viser Facebook share count for en post
+     */
+    public function display_facebook_share_column($column, $post_id) {
+        if ($column === 'fb_share_count') {
+            // Tjek cache først
+            $cached_count = get_transient('fb_share_count_' . $post_id);
+            
+            if ($cached_count !== false) {
+                $share_count = intval($cached_count);
+            } else {
+                global $wpdb;
+                $table_name = $wpdb->prefix . 'fb_scheduled_posts';
+                
+                // Hent antal gange posten er blevet delt på Facebook
+                $share_count = $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM $table_name WHERE post_id = %d AND status = 'posted'",
+                    $post_id
+                ));
+                
+                // Cache resultatet i 1 time
+                set_transient('fb_share_count_' . $post_id, $share_count, HOUR_IN_SECONDS);
+            }
+            
+            if ($share_count > 0) {
+                echo '<span class="fb-share-count" title="' . sprintf(__('Delt %d gang(e) på Facebook', 'fb-post-scheduler'), $share_count) . '">' . intval($share_count) . '</span>';
+            } else {
+                echo '<span class="fb-share-count-zero" title="' . __('Ikke delt på Facebook endnu', 'fb-post-scheduler') . '">0</span>';
+            }
+        }
+    }
+    
+    /**
+     * Gør Facebook share count kolonnen sorterbar
+     */
+    public function make_facebook_share_column_sortable($columns) {
+        $columns['fb_share_count'] = 'fb_share_count';
+        return $columns;
+    }
+    
+    /**
+     * Håndterer sortering af Facebook share count kolonnen
+     */
+    public function handle_facebook_share_column_sorting($query) {
+        if (!is_admin() || !$query->is_main_query()) {
+            return;
+        }
+        
+        $orderby = $query->get('orderby');
+        
+        if ($orderby === 'fb_share_count') {
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'fb_scheduled_posts';
+            
+            // Join med fb_scheduled_posts tabellen og sorter efter antal
+            $query->set('meta_query', array(
+                'relation' => 'LEFT',
+                array(
+                    'key' => '_fb_share_count_cache',
+                    'compare' => 'EXISTS'
+                )
+            ));
+            
+            // Custom ORDER BY
+            add_filter('posts_join', array($this, 'facebook_share_count_join'));
+            add_filter('posts_orderby', array($this, 'facebook_share_count_orderby'));
+            add_filter('posts_groupby', array($this, 'facebook_share_count_groupby'));
+        }
+    }
+    
+    /**
+     * JOIN for Facebook share count sortering
+     */
+    public function facebook_share_count_join($join) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'fb_scheduled_posts';
+        
+        $join .= " LEFT JOIN (
+            SELECT post_id, COUNT(*) as share_count 
+            FROM $table_name 
+            WHERE status = 'posted' 
+            GROUP BY post_id
+        ) fb_shares ON {$wpdb->posts}.ID = fb_shares.post_id";
+        
+        return $join;
+    }
+    
+    /**
+     * ORDER BY for Facebook share count sortering
+     */
+    public function facebook_share_count_orderby($orderby) {
+        global $wpdb;
+        
+        $order = isset($_GET['order']) && $_GET['order'] === 'desc' ? 'DESC' : 'ASC';
+        $orderby = "COALESCE(fb_shares.share_count, 0) $order";
+        
+        return $orderby;
+    }
+    
+    /**
+     * GROUP BY for Facebook share count sortering
+     */
+    public function facebook_share_count_groupby($groupby) {
+        global $wpdb;
+        
+        if (!$groupby) {
+            $groupby = "{$wpdb->posts}.ID";
+        }
+        
+        // Remove filters after use to avoid conflicts
+        remove_filter('posts_join', array($this, 'facebook_share_count_join'));
+        remove_filter('posts_orderby', array($this, 'facebook_share_count_orderby'));
+        remove_filter('posts_groupby', array($this, 'facebook_share_count_groupby'));
+        
+        return $groupby;
+    }
+    
+    /**
+     * Rydder Facebook share count cache for en post
+     */
+    public function clear_facebook_share_cache($post_id) {
+        delete_transient('fb_share_count_' . $post_id);
+    }
+    
+    /**
+     * Hook til at rydde cache når en post status opdateres
+     */
+    public function maybe_clear_share_cache_on_status_update($post_id, $new_status) {
+        if ($new_status === 'posted') {
+            $this->clear_facebook_share_cache($post_id);
         }
     }
 }

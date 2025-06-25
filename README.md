@@ -14,6 +14,8 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 - Kalenderoversigt over alle planlagte opslag (månedlig og ugentlig visning)
 - Kopier, flyt og slet opslag direkte i kalenderoversigten
 - Dashboard for hurtig oversigt over planlagte opslag
+- **Slet planlagte opslag direkte fra admin listen** 🆕
+- **Facebook delings-kolonne på post oversigter** - se hvor mange gange hvert indlæg er blevet delt 🆕
 - Eksporter planlagte opslag til CSV
 - Notifikationssystem for opslagsstatus
 - Logfil over alle Facebook API-kald og opslagsstatus
@@ -46,6 +48,17 @@ Pluginet understøtter generering af Facebook-opslagstekst med Google Gemini 2.0
 3. Indtast din Google Gemini API-nøgle (kan fås fra [Google AI Studio](https://ai.google.dev/))
 4. Tilpas AI prompten efter behov
 5. Ved oprettelse eller redigering af indlæg kan du nu klikke på "Generer tekst med Gemini AI" knappen for at lade AI'en generere et relevant Facebook-opslag baseret på dit indhold
+
+## Nye funktioner
+
+### Slet planlagte opslag fra admin listen
+Du kan nu slette planlagte opslag direkte fra listen over "Kommende Facebook-opslag" ved at klikke på den røde "Slet" knap. Dette giver hurtig adgang til at fjerne opslag uden at skulle redigere det originale indhold.
+
+### Facebook delings-kolonne
+I oversigterne for posts, sider og events kan du nu se en "FB Delinger" kolonne, der viser hvor mange gange hvert indlæg er blevet delt på Facebook. Kolonnen kan sorteres og viser:
+- Et blåt tal for indlæg der er blevet delt
+- "0" for indlæg der ikke er blevet delt endnu
+- Tooltips med yderligere detaljer
 
 ## Kalender
 Du kan få en kalenderoversigt over alle planlagte Facebook-opslag ved at gå til 'FB Opslag' > 'Kalender' i WordPress admin-menuen. Her kan du se alle planlagte opslag og interagere med dem direkte. Du kan skifte mellem månedlig og ugentlig visning.

@@ -401,3 +401,67 @@ function fb_post_scheduler_move_post_ajax() {
     exit;
 }
 add_action('wp_ajax_fb_post_scheduler_move_post', 'fb_post_scheduler_move_post_ajax');
+
+/**
+ * AJAX-handler til at slette et planlagt opslag fra admin listen
+ */
+function fb_post_scheduler_delete_scheduled_ajax() {
+    // Tjek nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Tjek brugerrettigheder
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Få parametre
+    $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+    $post_index = isset($_POST['post_index']) ? intval($_POST['post_index']) : 0;
+    $scheduled_id = isset($_POST['scheduled_id']) ? intval($_POST['scheduled_id']) : 0;
+    
+    if (!$post_id || !$scheduled_id) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig post ID eller scheduled ID', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'fb_scheduled_posts';
+    
+    // Slet det specifikke planlagte opslag
+    $deleted = $wpdb->delete(
+        $table_name,
+        array('id' => $scheduled_id),
+        array('%d')
+    );
+    
+    if ($deleted === false) {
+        wp_send_json_error(array(
+            'message' => __('Kunne ikke slette det planlagte opslag', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Opdater post meta for at fjerne den planlagte tid for dette index
+    $scheduled_times = get_post_meta($post_id, '_fb_scheduled_times', true);
+    if (is_array($scheduled_times) && isset($scheduled_times[$post_index])) {
+        unset($scheduled_times[$post_index]);
+        update_post_meta($post_id, '_fb_scheduled_times', $scheduled_times);
+    }
+    
+    wp_send_json_success(array(
+        'message' => __('Planlagt opslag slettet', 'fb-post-scheduler')
+    ));
+    
+    exit;
+}
+add_action('wp_ajax_fb_post_scheduler_delete_scheduled', 'fb_post_scheduler_delete_scheduled_ajax');
