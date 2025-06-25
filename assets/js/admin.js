@@ -219,6 +219,45 @@
                 }
             });
         });
+        
+        // Håndter Facebook API test knap
+        $(document).on('click', '#fb-test-connection', function(e) {
+            e.preventDefault();
+            
+            var button = $(this);
+            var spinner = $('#fb-test-spinner');
+            var resultDiv = $('#fb-test-result');
+            
+            // Disable button og vis spinner
+            button.prop('disabled', true).text('Tester...');
+            spinner.addClass('is-active');
+            resultDiv.html('');
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_test_api_connection',
+                    nonce: fbPostScheduler.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
+                    } else {
+                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
+                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
+                    }
+                },
+                error: function() {
+                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
+                },
+                complete: function() {
+                    // Genaktiver knap og skjul spinner
+                    button.prop('disabled', false).text('Test Facebook API Forbindelse');
+                    spinner.removeClass('is-active');
+                }
+            });
+        });
     });
     
     /**

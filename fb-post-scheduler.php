@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 // Definér konstanter
 define('FB_POST_SCHEDULER_PATH', plugin_dir_path(__FILE__));
 define('FB_POST_SCHEDULER_URL', plugin_dir_url(__FILE__));
-define('FB_POST_SCHEDULER_VERSION', '1.0.0');
+define('FB_POST_SCHEDULER_VERSION', '1.1.0');
 
 // Inkluder nødvendige filer
 require_once FB_POST_SCHEDULER_PATH . 'includes/ajax-handlers.php';
@@ -161,9 +161,6 @@ class FB_Post_Scheduler {
         // Manual process hook
         add_action('admin_init', array($this, 'process_manual_post_check'));
         
-        // Initialize admin functionality
-        add_action('admin_init', array($this, 'init_admin'));
-        
         // Add Facebook share count columns to post lists
         $this->add_facebook_share_columns();
     }
@@ -266,7 +263,7 @@ class FB_Post_Scheduler {
             
             if (!empty($scheduled_posts)) :
                 ?>
-                <table class="widefat striped">
+                <table class="widefat striped" id="scheduled-posts-table">
                     <thead>
                         <tr>
                             <th><?php _e('Titel', 'fb-post-scheduler'); ?></th>
@@ -562,6 +559,11 @@ class FB_Post_Scheduler {
     public function facebook_access_token_callback() {
         $access_token = get_option('fb_post_scheduler_facebook_access_token', '');
         echo '<input type="password" name="fb_post_scheduler_facebook_access_token" value="' . esc_attr($access_token) . '" class="regular-text">';
+        echo '<br><br>';
+        echo '<button type="button" id="fb-test-connection" class="button button-secondary">' . __('Test Facebook API Forbindelse', 'fb-post-scheduler') . '</button>';
+        echo '<span class="spinner" id="fb-test-spinner" style="float: none; margin-left: 10px;"></span>';
+        echo '<div id="fb-test-result" style="margin-top: 10px;"></div>';
+        echo '<p class="description">' . __('Klik på "Test Facebook API Forbindelse" for at verificere at dine API-indstillinger virker korrekt.', 'fb-post-scheduler') . '</p>';
     }
     
     /**
@@ -934,6 +936,7 @@ class FB_Post_Scheduler {
                     'useImage' => __('Brug dette billede', 'fb-post-scheduler'),
                     'removeImage' => __('Fjern billede', 'fb-post-scheduler'),
                     'aiNonce' => wp_create_nonce('fb-post-scheduler-ai-nonce'),
+                    'nonce' => wp_create_nonce('fb_post_scheduler_nonce'),
                     'ajaxError' => __('Der opstod en fejl ved kommunikation med serveren. Prøv igen senere.', 'fb-post-scheduler'),
                     'aiError' => __('Kunne ikke generere tekst med AI. Tjek dine indstillinger og prøv igen.', 'fb-post-scheduler')
                 )

@@ -138,6 +138,119 @@ class FB_Post_Scheduler_API {
     }
     
     /**
+     * Valider access token
+     * 
+     * @return array|WP_Error Token information or error
+     */
+    public function validate_access_token() {
+        if (empty($this->access_token)) {
+            return new WP_Error('no_token', __('Access token er ikke konfigureret', 'fb-post-scheduler'));
+        }
+        
+        $url = 'https://graph.facebook.com/me?access_token=' . urlencode($this->access_token);
+        
+        $response = wp_remote_get($url, array(
+            'timeout' => 30,
+            'headers' => array(
+                'User-Agent' => 'WordPress/Facebook-Post-Scheduler'
+            )
+        ));
+        
+        if (is_wp_error($response)) {
+            return new WP_Error('api_error', sprintf(__('API forespørgsel fejlede: %s', 'fb-post-scheduler'), $response->get_error_message()));
+        }
+        
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        
+        if (isset($data['error'])) {
+            return new WP_Error('token_error', sprintf(__('Access token fejl: %s', 'fb-post-scheduler'), $data['error']['message']));
+        }
+        
+        return $data;
+    }
+    
+    /**
+     * Hent information om Facebook siden
+     * 
+     * @return array|WP_Error Side information or error
+     */
+    public function get_page_info() {
+        if (empty($this->page_id) || empty($this->access_token)) {
+            return new WP_Error('missing_config', __('Side ID eller access token mangler', 'fb-post-scheduler'));
+        }
+        
+        $url = sprintf(
+            'https://graph.facebook.com/%s?fields=id,name,category,fan_count,verification_status&access_token=%s',
+            urlencode($this->page_id),
+            urlencode($this->access_token)
+        );
+        
+        $response = wp_remote_get($url, array(
+            'timeout' => 30,
+            'headers' => array(
+                'User-Agent' => 'WordPress/Facebook-Post-Scheduler'
+            )
+        ));
+        
+        if (is_wp_error($response)) {
+            return new WP_Error('api_error', sprintf(__('API forespørgsel fejlede: %s', 'fb-post-scheduler'), $response->get_error_message()));
+        }
+        
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        
+        if (isset($data['error'])) {
+            return new WP_Error('page_error', sprintf(__('Side fejl: %s', 'fb-post-scheduler'), $data['error']['message']));
+        }
+        
+        return $data;
+    }
+    
+    /**
+     * Tjek posting tilladelser for siden
+     * 
+     * @return array|WP_Error Permissions or error
+     */
+    public function check_posting_permissions() {
+        if (empty($this->page_id) || empty($this->access_token)) {
+            return new WP_Error('missing_config', __('Side ID eller access token mangler', 'fb-post-scheduler'));
+        }
+        
+        // Tjek om vi kan hente page's access token
+        $url = sprintf(
+            'https://graph.facebook.com/%s?fields=access_token&access_token=%s',
+            urlencode($this->page_id),
+            urlencode($this->access_token)
+        );
+        
+        $response = wp_remote_get($url, array(
+            'timeout' => 30,
+            'headers' => array(
+                'User-Agent' => 'WordPress/Facebook-Post-Scheduler'
+            )
+        ));
+        
+        if (is_wp_error($response)) {
+            return new WP_Error('api_error', sprintf(__('API forespørgsel fejlede: %s', 'fb-post-scheduler'), $response->get_error_message()));
+        }
+        
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        
+        if (isset($data['error'])) {
+            return new WP_Error('permission_error', sprintf(__('Tilladelse fejl: %s', 'fb-post-scheduler'), $data['error']['message']));
+        }
+        
+        // Hvis vi får et access token tilbage, har vi posting tilladelser
+        if (isset($data['access_token'])) {
+            return array('status' => 'ok', 'message' => __('Posting tilladelser er OK', 'fb-post-scheduler'));
+        }
+        
+        return new WP_Error('no_permissions', __('Ingen posting tilladelser til denne side', 'fb-post-scheduler'));
+    }
+    
+    /**
      * Log Facebook API-kald
      *
      * @param int $post_id WordPress post ID

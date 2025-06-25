@@ -28,7 +28,8 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 ## Konfiguration
 1. **Vælg Post Types**: Vælg hvilke post types der skal kunne oprette Facebook-opslag
 2. **Facebook API Indstillinger**: Indtast Facebook App ID, App Secret, Page ID og Access Token
-3. **AI Tekst Generator Indstillinger**: Aktivér AI-tekstgenerering og indtast din Google Gemini API-nøgle
+3. **Test Facebook API Forbindelse**: Klik på "Test Facebook API Forbindelse" knappen for at verificere at dine indstillinger virker korrekt
+4. **AI Tekst Generator Indstillinger**: Aktivér AI-tekstgenerering og indtast din Google Gemini API-nøgle
 
 ## Sådan bruges pluginet
 1. Opret eller rediger et indlæg af en af de valgte post types
@@ -48,6 +49,16 @@ Pluginet understøtter generering af Facebook-opslagstekst med Google Gemini 2.0
 3. Indtast din Google Gemini API-nøgle (kan fås fra [Google AI Studio](https://ai.google.dev/))
 4. Tilpas AI prompten efter behov
 5. Ved oprettelse eller redigering af indlæg kan du nu klikke på "Generer tekst med Gemini AI" knappen for at lade AI'en generere et relevant Facebook-opslag baseret på dit indhold
+
+## Facebook API Test
+
+Pluginet inkluderer nu en test-funktion, der gør det muligt at verificere din Facebook API forbindelse direkte fra indstillingssiden. Test-funktionen tjekker:
+
+1. **Access Token Validering**: Verificerer at dit access token er gyldigt
+2. **Side Information**: Henter information om din Facebook-side (navn, kategori, følgere)
+3. **Posting Tilladelser**: Bekræfter at du har tilladelse til at poste på siden
+
+Gå til 'FB Opslag' > 'Indstillinger' > 'Facebook API Indstillinger' og klik på "Test Facebook API Forbindelse" knappen efter du har udfyldt alle felter.
 
 ## Nye funktioner
 

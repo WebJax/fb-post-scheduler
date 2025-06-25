@@ -465,3 +465,86 @@ function fb_post_scheduler_delete_scheduled_ajax() {
     exit;
 }
 add_action('wp_ajax_fb_post_scheduler_delete_scheduled', 'fb_post_scheduler_delete_scheduled_ajax');
+
+/**
+ * AJAX-handler til at teste Facebook API forbindelse
+ */
+function fb_post_scheduler_test_api_connection_ajax() {
+    // Tjek nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Tjek brugerrettigheder
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Hent API indstillinger
+    $app_id = get_option('fb_post_scheduler_facebook_app_id', '');
+    $app_secret = get_option('fb_post_scheduler_facebook_app_secret', '');
+    $page_id = get_option('fb_post_scheduler_facebook_page_id', '');
+    $access_token = get_option('fb_post_scheduler_facebook_access_token', '');
+    
+    // Tjek om alle felter er udfyldt
+    if (empty($app_id) || empty($app_secret) || empty($page_id) || empty($access_token)) {
+        wp_send_json_error(array(
+            'message' => __('Alle Facebook API felter skal være udfyldt før test kan køres.', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Test API forbindelse
+    require_once FB_POST_SCHEDULER_PATH . 'includes/api-helper.php';
+    $api = new FB_Post_Scheduler_API();
+    
+    // Test 1: Valider access token
+    $token_info = $api->validate_access_token();
+    if (is_wp_error($token_info)) {
+        wp_send_json_error(array(
+            'message' => sprintf(__('Access Token fejl: %s', 'fb-post-scheduler'), $token_info->get_error_message())
+        ));
+        exit;
+    }
+    
+    // Test 2: Hent side information
+    $page_info = $api->get_page_info();
+    if (is_wp_error($page_info)) {
+        wp_send_json_error(array(
+            'message' => sprintf(__('Side information fejl: %s', 'fb-post-scheduler'), $page_info->get_error_message())
+        ));
+        exit;
+    }
+    
+    // Test 3: Tjek om vi kan poste til siden
+    $posting_permissions = $api->check_posting_permissions();
+    if (is_wp_error($posting_permissions)) {
+        wp_send_json_error(array(
+            'message' => sprintf(__('Posting tilladelser fejl: %s', 'fb-post-scheduler'), $posting_permissions->get_error_message())
+        ));
+        exit;
+    }
+    
+    // Alle tests bestået
+    $success_message = sprintf(
+        __('✅ Facebook API forbindelse er OK!<br><strong>Side:</strong> %s<br><strong>ID:</strong> %s<br><strong>Kategori:</strong> %s<br><strong>Følgere:</strong> %s', 'fb-post-scheduler'),
+        isset($page_info['name']) ? esc_html($page_info['name']) : 'N/A',
+        isset($page_info['id']) ? esc_html($page_info['id']) : 'N/A',
+        isset($page_info['category']) ? esc_html($page_info['category']) : 'N/A',
+        isset($page_info['fan_count']) ? number_format($page_info['fan_count']) : 'N/A'
+    );
+    
+    wp_send_json_success(array(
+        'message' => $success_message,
+        'page_info' => $page_info
+    ));
+    
+    exit;
+}
+add_action('wp_ajax_fb_post_scheduler_test_api_connection', 'fb_post_scheduler_test_api_connection_ajax');

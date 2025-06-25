@@ -748,3 +748,27 @@
     cursor: not-allowed;
     text-decoration: none;
 }
+
+/* Facebook API Test */
+#fb-test-connection {
+    margin-top: 5px;
+}
+
+#fb-test-result .notice {
+    margin: 10px 0 0 0;
+    padding: 10px;
+}
+
+#fb-test-result .notice.inline {
+    display: block;
+}
+
+#fb-test-result .notice-success {
+    border-left: 4px solid #00a32a;
+    background-color: #f0f6fc;
+}
+
+#fb-test-result .notice-error {
+    border-left: 4px solid #d63638;
+    background-color: #fcf0f1;
+}
