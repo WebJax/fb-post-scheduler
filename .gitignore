@@ -1,5 +1,5 @@
 # Log filer
-logs/fb-post-scheduler.log
+logs/
 
 # Andre log filer
 *.log

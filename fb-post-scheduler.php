@@ -24,12 +24,11 @@ define('FB_POST_SCHEDULER_VERSION', '1.0.0');
 
 // Inkluder nødvendige filer
 require_once FB_POST_SCHEDULER_PATH . 'includes/ajax-handlers.php';
-require_once FB_POST_SCHEDULER_PATH . 'includes/api-wrapper.php';
+require_once FB_POST_SCHEDULER_PATH . 'includes/api-helper.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/db-helper.php'; 
 require_once FB_POST_SCHEDULER_PATH . 'includes/dashboard-widget.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/export.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/notifications.php';
-require_once FB_POST_SCHEDULER_PATH . 'includes/manual-check.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/ai-helper.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/migration.php';
 
@@ -166,9 +165,6 @@ class FB_Post_Scheduler {
         
         // Manual process hook
         add_action('admin_init', array($this, 'process_manual_post_check'));
-        
-        // Init taksonomien
-        add_action('init', array($this, 'register_taxonomy'));
         
         // Add Facebook auth AJAX handlers
         add_action('wp_ajax_fb_post_scheduler_facebook_login', array($this, 'handle_facebook_login'));
@@ -926,39 +922,6 @@ class FB_Post_Scheduler {
     }
     
     /**
-     * Registrer taksonomien
-     */
-    public function register_taxonomy() {
-        // Denne taksonomi bruges kun internt til at holde styr på opslag
-        register_taxonomy(
-            'fb_post_status',
-            get_option('fb_post_scheduler_post_types', array()),
-            array(
-                'hierarchical' => false,
-                'public' => false,
-                'show_ui' => false,
-                'show_in_menu' => false,
-                'show_in_nav_menus' => false,
-                'show_in_rest' => false,
-                'show_tagcloud' => false,
-                'show_in_quick_edit' => false,
-                'show_admin_column' => false,
-            )
-        );
-    }
-    
-    /**
-     * Registrer custom post type til planlagte Facebook opslag
-     * 
-     * Denne metode er tom, da vi nu bruger databasetabellen i stedet.
-     * Den beholdes for baglæns kompatibilitet.
-     */
-    public function register_scheduled_posts_post_type() {
-        // Tom - vi bruger nu databasetabellen i stedet
-        // Custom post type er ikke længere nødvendig
-    }
-
-    /**
      * Enqueue admin scripts og styles
      */
     public function enqueue_admin_scripts($hook) {
@@ -1224,39 +1187,6 @@ class FB_Post_Scheduler {
             wp_redirect(admin_url('admin.php?page=fb-post-scheduler&posts_processed=true'));
             exit;
         }
-    }
-    
-    /**
-     * Opdater planlagte opslag i kalenderen (Legacy metode for baglæns kompatibilitet)
-     * 
-     * @param int $post_id ID på det oprindelige indlæg
-     * @param array $fb_posts Array af Facebook opslag data
-     */
-    private function update_scheduled_posts_in_calendar($post_id, $fb_posts) {
-        // Brug i stedet den nye database-baserede metode
-        $this->update_scheduled_posts_in_database($post_id, $fb_posts);
-    }
-    
-    /**
-     * Fjern alle planlagte opslag fra kalenderen for en bestemt post (Legacy metode for baglæns kompatibilitet)
-     * 
-     * @param int $post_id ID på det oprindelige indlæg
-     */
-    private function remove_scheduled_posts_from_calendar($post_id) {
-        // Brug den nye database-baserede funktion i stedet
-        fb_post_scheduler_delete_scheduled_posts($post_id);
-    }
-    
-    /**
-     * Fjern et specifikt planlagt opslag fra kalenderen baseret på post ID og index (Legacy metode for baglæns kompatibilitet)
-     * 
-     * @param int $post_id ID på det oprindelige indlæg
-     * @param int $index Index på opslaget i fb_posts array
-     */
-    private function remove_scheduled_post_with_index($post_id, $index) {
-        // Brug den nye database-baserede funktion i stedet
-        fb_post_scheduler_delete_scheduled_post($post_id, $index);
-        fb_post_scheduler_log('Fjernede planlagt opslag fra databasen (Post ID: ' . $post_id . ', Index: ' . $index . ')', $post_id);
     }
     
     /**
