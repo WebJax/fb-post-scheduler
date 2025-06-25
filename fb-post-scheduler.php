@@ -155,6 +155,13 @@ class FB_Post_Scheduler {
         add_action('save_post', array($this, 'save_meta_box_data'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
         
+        // Force meta box position for Gutenberg
+        add_action('do_meta_boxes', array($this, 'force_meta_box_position'), 10, 3);
+        
+        // Additional hook for Gutenberg meta box positioning
+        add_filter('postbox_classes_post_fb_post_scheduler_meta_box', array($this, 'add_meta_box_classes'));
+        add_filter('postbox_classes_page_fb_post_scheduler_meta_box', array($this, 'add_meta_box_classes'));
+        
         // WP-Cron hook
         add_action('fb_post_scheduler_check_posts', array($this, 'check_scheduled_posts'));
         
@@ -625,16 +632,27 @@ class FB_Post_Scheduler {
         
         if (!empty($selected_post_types)) {
             foreach ($selected_post_types as $post_type) {
+                // Tjek om Gutenberg er aktiv
+                $context = $this->is_gutenberg_active() ? 'normal' : 'normal';
+                $priority = $this->is_gutenberg_active() ? 'low' : 'low';
+                
                 add_meta_box(
                     'fb_post_scheduler_meta_box',
                     __('Facebook Opslag', 'fb-post-scheduler'),
                     array($this, 'render_meta_box'),
                     $post_type,
-                    'normal',
-                    'high'
+                    $context,
+                    $priority
                 );
             }
         }
+    }
+    
+    /**
+     * Tjek om Gutenberg er aktiv
+     */
+    private function is_gutenberg_active() {
+        return function_exists('use_block_editor_for_post_type');
     }
     
     /**
@@ -1415,6 +1433,34 @@ class FB_Post_Scheduler {
             );
             echo '</p></div>';
         }
+    }
+    
+    /**
+     * Forcer meta box position under editoren
+     */
+    public function force_meta_box_position($post_type, $context, $post) {
+        global $wp_meta_boxes;
+        
+        // Tjek om vores meta box eksisterer
+        if (isset($wp_meta_boxes[$post_type]['normal']['low']['fb_post_scheduler_meta_box'])) {
+            // Gem en reference til vores meta box
+            $fb_meta_box = $wp_meta_boxes[$post_type]['normal']['low']['fb_post_scheduler_meta_box'];
+            
+            // Fjern den fra sin nuværende position
+            unset($wp_meta_boxes[$post_type]['normal']['low']['fb_post_scheduler_meta_box']);
+            
+            // Tilføj den igen som den sidste i 'normal' konteksten
+            $wp_meta_boxes[$post_type]['normal']['low']['fb_post_scheduler_meta_box'] = $fb_meta_box;
+        }
+    }
+    
+    /**
+     * Tilføj CSS klasser til meta box
+     */
+    public function add_meta_box_classes($classes) {
+        $classes[] = 'fb-post-scheduler-metabox';
+        $classes[] = 'postbox-below-editor';
+        return $classes;
     }
 }
 

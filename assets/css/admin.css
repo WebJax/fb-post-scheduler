@@ -7,6 +7,32 @@
     margin-bottom: 20px;
 }
 
+/* Forcere meta box position i Gutenberg */
+.block-editor-page #fb_post_scheduler_meta_box,
+.postbox-below-editor {
+    order: 999 !important;
+}
+
+/* Sørg for at meta boxen vises korrekt i Gutenberg */
+.edit-post-meta-boxes-area .postbox#fb_post_scheduler_meta_box,
+.edit-post-meta-boxes-area .postbox.fb-post-scheduler-metabox {
+    display: block !important;
+    margin-bottom: 20px;
+    order: 999 !important;
+}
+
+/* Styling for classic editor */
+.post-php #fb_post_scheduler_meta_box,
+.post-new-php #fb_post_scheduler_meta_box {
+    margin-top: 20px;
+}
+
+/* Specifik styling for at sikre position under editoren */
+.metabox-location-normal .postbox.fb-post-scheduler-metabox {
+    order: 999 !important;
+    margin-top: 20px !important;
+}
+
 .fb-post-scheduler-meta-box p {
     margin-bottom: 15px;
 }

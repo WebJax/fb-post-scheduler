@@ -25,6 +25,9 @@
         // Fallback event delegation method
         setupFallbackEventHandlers();
         
+        // Ensure meta box is positioned correctly in Gutenberg
+        ensureMetaBoxPosition();
+        
         // Initialize Facebook SDK only if fbPostSchedulerAuth exists and we're on the right page
         if (typeof fbPostSchedulerAuth !== 'undefined' && fbPostSchedulerAuth.app_id) {
             initializeFacebookSDK();
@@ -530,6 +533,46 @@
                 }
             });
         });
+    }
+    
+    /**
+     * Ensure meta box is positioned correctly
+     */
+    function ensureMetaBoxPosition() {
+        // Check if we're in Gutenberg editor
+        if (typeof wp !== 'undefined' && wp.data && wp.data.select('core/edit-post')) {
+            // Wait for Gutenberg to fully load
+            var attempts = 0;
+            var maxAttempts = 20;
+            
+            function checkAndPosition() {
+                attempts++;
+                var metaBox = $('#fb_post_scheduler_meta_box');
+                
+                if (metaBox.length > 0) {
+                    // Move meta box to the bottom of the normal context
+                    var normalArea = $('.edit-post-meta-boxes-area__container .metabox-location-normal');
+                    if (normalArea.length > 0) {
+                        metaBox.appendTo(normalArea);
+                    }
+                } else if (attempts < maxAttempts) {
+                    // Try again after a short delay
+                    setTimeout(checkAndPosition, 500);
+                }
+            }
+            
+            // Start checking
+            setTimeout(checkAndPosition, 1000);
+        } else {
+            // Classic editor - use CSS order
+            setTimeout(function() {
+                var metaBox = $('#fb_post_scheduler_meta_box');
+                if (metaBox.length > 0) {
+                    // Move to bottom of normal meta boxes
+                    metaBox.parent().append(metaBox);
+                }
+            }, 500);
+        }
     }
     
     /**
