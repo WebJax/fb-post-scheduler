@@ -926,8 +926,9 @@ class FB_Post_Scheduler {
      * Enqueue admin scripts og styles
      */
     public function enqueue_admin_scripts($hook) {
-        // Indlæs kun på plugin-sider og post-edit skærmen
-        if (strpos($hook, 'fb-post-scheduler') !== false || $hook == 'post.php' || $hook == 'post-new.php') {
+        // Indlæs kun på plugin-sider og post-edit skærmen  
+        // Hook eksempler: 'toplevel_page_fb-post-scheduler', 'facebook-scheduler_page_fb-post-scheduler-settings'
+        if (strpos($hook, 'fb-post-scheduler') !== false || $hook == 'post.php' || $hook == 'post-new.php' || strpos($hook, 'admin_page_fb-post-scheduler') !== false) {
             // Styles
             wp_enqueue_style(
                 'fb-post-scheduler-admin-css',
@@ -960,6 +961,7 @@ class FB_Post_Scheduler {
                     'removeImage' => __('Fjern billede', 'fb-post-scheduler'),
                     'aiNonce' => wp_create_nonce('fb-post-scheduler-ai-nonce'),
                     'nonce' => wp_create_nonce('fb_post_scheduler_nonce'),
+                    'ajaxUrl' => admin_url('admin-ajax.php'),
                     'ajaxError' => __('Der opstod en fejl ved kommunikation med serveren. Prøv igen senere.', 'fb-post-scheduler'),
                     'aiError' => __('Kunne ikke generere tekst med AI. Tjek dine indstillinger og prøv igen.', 'fb-post-scheduler')
                 )

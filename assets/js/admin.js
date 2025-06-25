@@ -9,6 +9,22 @@
     
     // Når dokumentet er klar
     $(document).ready(function() {
+        // Bind token management buttons directly
+        bindTokenManagementButtons();
+        
+        // Also try binding after a short delay in case elements load later
+        setTimeout(function() {
+            bindTokenManagementButtons();
+        }, 500);
+        
+        // Try again with a longer delay for settings pages
+        setTimeout(function() {
+            bindTokenManagementButtons();
+        }, 2000);
+        
+        // Fallback event delegation method
+        setupFallbackEventHandlers();
+        
         // Initialize Facebook SDK only if fbPostSchedulerAuth exists and we're on the right page
         if (typeof fbPostSchedulerAuth !== 'undefined' && fbPostSchedulerAuth.app_id) {
             initializeFacebookSDK();
@@ -121,7 +137,7 @@
             
             // Send AJAX-anmodning
             $.ajax({
-                url: ajaxurl,
+                url: fbPostScheduler.ajaxUrl,
                 type: 'POST',
                 data: {
                     action: 'fb_post_scheduler_generate_ai_text',
@@ -177,7 +193,7 @@
             button.prop('disabled', true).text('Sletter...');
             
             $.ajax({
-                url: ajaxurl,
+                url: fbPostScheduler.ajaxUrl,
                 type: 'POST',
                 data: {
                     action: 'fb_post_scheduler_delete_scheduled',
@@ -219,9 +235,14 @@
                 }
             });
         });
-        
-        // Håndter Facebook API test knap
-        $(document).on('click', '#fb-test-connection', function(e) {
+    });
+    
+    /**
+     * Bind token management buttons
+     */
+    function bindTokenManagementButtons() {
+        // Facebook API test knap
+        $('#fb-test-connection').off('click').on('click', function(e) {
             e.preventDefault();
             
             var button = $(this);
@@ -234,7 +255,7 @@
             resultDiv.html('');
             
             $.ajax({
-                url: ajaxurl,
+                url: fbPostScheduler.ajaxUrl,
                 type: 'POST',
                 data: {
                     action: 'fb_post_scheduler_test_api_connection',
@@ -259,8 +280,8 @@
             });
         });
         
-        // Håndter Facebook token udløbstjek
-        $(document).on('click', '#fb-check-token-expiry', function(e) {
+        // Facebook token udløbstjek
+        $('#fb-check-token-expiry').off('click').on('click', function(e) {
             e.preventDefault();
             
             var button = $(this);
@@ -273,7 +294,7 @@
             resultDiv.html('');
             
             $.ajax({
-                url: ajaxurl,
+                url: fbPostScheduler.ajaxUrl,
                 type: 'POST',
                 data: {
                     action: 'fb_post_scheduler_check_token_expiry',
@@ -299,8 +320,8 @@
             });
         });
         
-        // Håndter long-term token udveksling
-        $(document).on('click', '#fb-exchange-token', function(e) {
+        // Long-term token udveksling
+        $('#fb-exchange-token').off('click').on('click', function(e) {
             e.preventDefault();
             
             var button = $(this);
@@ -319,7 +340,7 @@
             resultDiv.html('');
             
             $.ajax({
-                url: ajaxurl,
+                url: fbPostScheduler.ajaxUrl,
                 type: 'POST',
                 data: {
                     action: 'fb_post_scheduler_exchange_token',
@@ -355,7 +376,161 @@
                 }
             });
         });
-    });
+    }
+    
+    /**
+     * Setup fallback event handlers using event delegation
+     */
+    function setupFallbackEventHandlers() {
+        // Use document-level event delegation as fallback
+        $(document).off('click.fb-token-management').on('click.fb-token-management', '#fb-test-connection', function(e) {
+            e.preventDefault();
+            
+            var button = $(this);
+            var spinner = $('#fb-test-spinner');
+            var resultDiv = $('#fb-test-result');
+            
+            if (typeof fbPostScheduler === 'undefined') {
+                console.error('fbPostScheduler object not available');
+                return;
+            }
+            
+            // Disable button og vis spinner
+            button.prop('disabled', true).text('Tester...');
+            spinner.addClass('is-active');
+            resultDiv.html('');
+            
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_test_api_connection',
+                    nonce: fbPostScheduler.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
+                    } else {
+                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
+                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
+                    }
+                },
+                error: function() {
+                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
+                },
+                complete: function() {
+                    // Genaktiver knap og skjul spinner
+                    button.prop('disabled', false).text('Test Facebook API Forbindelse');
+                    spinner.removeClass('is-active');
+                }
+            });
+        });
+        
+        $(document).off('click.fb-token-management').on('click.fb-token-management', '#fb-check-token-expiry', function(e) {
+            e.preventDefault();
+            
+            var button = $(this);
+            var spinner = $('#fb-test-spinner');
+            var resultDiv = $('#fb-test-result');
+            
+            if (typeof fbPostScheduler === 'undefined') {
+                console.error('fbPostScheduler object not available');
+                return;
+            }
+            
+            // Disable button og vis spinner
+            button.prop('disabled', true).text('Tjekker...');
+            spinner.addClass('is-active');
+            resultDiv.html('');
+            
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_check_token_expiry',
+                    nonce: fbPostScheduler.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        var noticeClass = response.data.status === 'warning' ? 'notice-warning' : 'notice-success';
+                        resultDiv.html('<div class="notice ' + noticeClass + ' inline"><p>' + response.data.message + '</p></div>');
+                    } else {
+                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
+                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
+                    }
+                },
+                error: function() {
+                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
+                },
+                complete: function() {
+                    // Genaktiver knap og skjul spinner
+                    button.prop('disabled', false).text('Tjek Token Udløb');
+                    spinner.removeClass('is-active');
+                }
+            });
+        });
+        
+        $(document).off('click.fb-token-management').on('click.fb-token-management', '#fb-exchange-token', function(e) {
+            e.preventDefault();
+            
+            var button = $(this);
+            var spinner = $('#fb-exchange-spinner');
+            var resultDiv = $('#fb-exchange-result');
+            var shortTermToken = $('#fb-short-term-token').val();
+            
+            if (typeof fbPostScheduler === 'undefined') {
+                console.error('fbPostScheduler object not available');
+                return;
+            }
+            
+            if (!shortTermToken.trim()) {
+                resultDiv.html('<div class="notice notice-error inline"><p>❌ Indtast venligst et short-term access token</p></div>');
+                return;
+            }
+            
+            // Disable button og vis spinner
+            button.prop('disabled', true).text('Udveksler...');
+            spinner.addClass('is-active');
+            resultDiv.html('');
+            
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_exchange_token',
+                    short_term_token: shortTermToken,
+                    nonce: fbPostScheduler.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
+                        
+                        // Opdater access token feltet med det nye token
+                        $('input[name="fb_post_scheduler_facebook_access_token"]').val(response.data.token_info.access_token);
+                        
+                        // Ryd short-term token feltet
+                        $('#fb-short-term-token').val('');
+                        
+                        // Vis besked om at gemme indstillinger
+                        setTimeout(function() {
+                            resultDiv.append('<div class="notice notice-info inline" style="margin-top: 10px;"><p>💡 Husk at klikke "Gem ændringer" for at gemme det nye token permanent.</p></div>');
+                        }, 1000);
+                    } else {
+                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
+                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
+                    }
+                },
+                error: function() {
+                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
+                },
+                complete: function() {
+                    // Genaktiver knap og skjul spinner
+                    button.prop('disabled', false).text('Udveksle til Long-term Token');
+                    spinner.removeClass('is-active');
+                }
+            });
+        });
+    }
     
     /**
      * Initialize Facebook SDK
