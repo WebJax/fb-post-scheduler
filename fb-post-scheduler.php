@@ -1701,7 +1701,3 @@ function fb_post_scheduler_post_to_facebook($post_id, $fb_text, $image_id = 0) {
         }
     }
 }
-<<<<<<< HEAD
-=======
-
->>>>>>> fbd7057 (Implement automatic Facebook page selection and token management features)
