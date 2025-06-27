@@ -855,3 +855,236 @@
     border-left: 4px solid #00a0d2;
     background-color: #e7f3ff;
 }
+
+/* Facebook Page Selection Styling */
+.fb-page-selector-section {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 20px;
+    margin: 15px 0;
+}
+
+.fb-user-token-section {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.fb-user-token-section label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 5px;
+}
+
+#fb-user-access-token {
+    width: 70%;
+    margin-right: 10px;
+}
+
+#fb-save-user-token {
+    background: #28a745;
+    border-color: #28a745;
+    color: white;
+}
+
+#fb-save-user-token:hover {
+    background: #218838;
+    border-color: #1e7e34;
+}
+
+.fb-pages-section {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+#fb-load-pages {
+    background: #17a2b8;
+    border-color: #17a2b8;
+    color: white;
+}
+
+#fb-load-pages:hover {
+    background: #138496;
+    border-color: #117a8b;
+}
+
+#fb-pages-dropdown-container {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 15px;
+}
+
+#fb-pages-dropdown-container label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 5px;
+}
+
+#fb-pages-dropdown {
+    width: 70%;
+    margin-right: 10px;
+}
+
+#fb-select-page {
+    background: #007cba;
+    border-color: #007cba;
+    color: white;
+}
+
+#fb-select-page:hover {
+    background: #005a87;
+    border-color: #004c75;
+}
+
+.fb-current-page-info {
+    background: #e7f3ff;
+    border: 1px solid #0073aa;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.fb-current-page-info h4 {
+    color: #0073aa;
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 10px 0;
+}
+
+.fb-current-page-info p {
+    color: #004c75;
+    font-size: 13px;
+    margin-bottom: 10px;
+}
+
+#fb-renew-page-token {
+    background: #dc3545;
+    border-color: #dc3545;
+    color: white;
+}
+
+#fb-renew-page-token:hover {
+    background: #c82333;
+    border-color: #bd2130;
+}
+
+/* Facebook App Setup Guide */
+.fb-app-setup-guide {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 20px;
+    margin: 15px 0 25px 0;
+}
+
+.fb-setup-steps {
+    margin-top: 15px;
+}
+
+.fb-setup-step {
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.fb-setup-step:last-child {
+    border-bottom: none;
+}
+
+.fb-setup-step h5 {
+    color: #0073aa;
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 10px 0;
+}
+
+.fb-setup-step p {
+    color: #555;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 10px;
+}
+
+.fb-setup-step ul {
+    margin: 10px 0 15px 20px;
+}
+
+.fb-setup-step li {
+    color: #555;
+    font-size: 13px;
+    line-height: 1.4;
+    margin-bottom: 5px;
+}
+
+.fb-permissions-list {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.fb-permissions-list li {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 3px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.fb-permissions-list li:last-child {
+    margin-bottom: 0;
+}
+
+.fb-permissions-list code {
+    color: #0073aa;
+    font-weight: 600;
+}
+
+/* Page selection result messages */
+#fb-pages-result .notice,
+#fb-page-selection-result .notice {
+    margin: 10px 0 0 0;
+    padding: 10px;
+}
+
+#fb-pages-result .notice.inline,
+#fb-page-selection-result .notice.inline {
+    display: block;
+}
+
+/* Spinner styling for page selection */
+#fb-pages-spinner,
+#fb-renew-spinner {
+    visibility: hidden;
+}
+
+#fb-pages-spinner.is-active,
+#fb-renew-spinner.is-active {
+    visibility: visible;
+}
+
+/* Responsive adjustments */
+@media (max-width: 782px) {
+    #fb-user-access-token,
+    #fb-pages-dropdown {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    
+    #fb-save-user-token,
+    #fb-select-page {
+        margin-left: 0;
+        margin-top: 5px;
+    }
+}

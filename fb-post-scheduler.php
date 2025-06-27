@@ -388,6 +388,16 @@ class FB_Post_Scheduler {
             'fb_post_scheduler_facebook_access_token'
         );
         
+        register_setting(
+            'fb_post_scheduler_settings',
+            'fb_post_scheduler_facebook_user_token'
+        );
+        
+        register_setting(
+            'fb_post_scheduler_settings',
+            'fb_post_scheduler_facebook_page_name'
+        );
+        
         // AI Settings
         register_setting(
             'fb_post_scheduler_settings',
@@ -458,6 +468,14 @@ class FB_Post_Scheduler {
         );
         
         add_settings_field(
+            'fb_post_scheduler_facebook_page_selector',
+            __('Vælg Facebook Side', 'fb-post-scheduler'),
+            array($this, 'facebook_page_selector_callback'),
+            'fb-post-scheduler-settings',
+            'fb_post_scheduler_facebook_section'
+        );
+        
+        add_settings_field(
             'fb_post_scheduler_facebook_access_token',
             __('Facebook Access Token', 'fb-post-scheduler'),
             array($this, 'facebook_access_token_callback'),
@@ -501,7 +519,54 @@ class FB_Post_Scheduler {
      * Facebook sektion callback
      */
     public function facebook_section_callback() {
-        echo '<p>' . __('Indtast dine Facebook API-oplysninger for at aktivere automatisk opslag til Facebook.', 'fb-post-scheduler') . '</p>';
+        echo '<div class="fb-app-setup-guide">';
+        echo '<h4>' . __('Facebook App Setup Guide', 'fb-post-scheduler') . '</h4>';
+        echo '<div class="fb-setup-steps">';
+        
+        echo '<div class="fb-setup-step">';
+        echo '<h5>1. ' . __('Opret Facebook App', 'fb-post-scheduler') . '</h5>';
+        echo '<p>' . sprintf(
+            __('Gå til <a href="%s" target="_blank">Facebook for Developers</a> og opret en ny app af typen "Business".', 'fb-post-scheduler'),
+            'https://developers.facebook.com/apps/'
+        ) . '</p>';
+        echo '</div>';
+        
+        echo '<div class="fb-setup-step">';
+        echo '<h5>2. ' . __('Tilføj nødvendige produkter', 'fb-post-scheduler') . '</h5>';
+        echo '<p>' . __('Tilføj følgende produkter til din app:', 'fb-post-scheduler') . '</p>';
+        echo '<ul>';
+        echo '<li><strong>Facebook Login</strong> - til brugerautorisering</li>';
+        echo '<li><strong>Instagram Basic Display</strong> - til Instagram integration</li>';
+        echo '<li><strong>Business Manager API</strong> - til virksomhedssider</li>';
+        echo '</ul>';
+        echo '</div>';
+        
+        echo '<div class="fb-setup-step">';
+        echo '<h5>3. ' . __('Anmod om app-rettigheder', 'fb-post-scheduler') . '</h5>';
+        echo '<p>' . __('Din app skal have følgende rettigheder for at virke korrekt:', 'fb-post-scheduler') . '</p>';
+        echo '<ul class="fb-permissions-list">';
+        echo '<li><code>pages_show_list</code> - Se liste over sider</li>';
+        echo '<li><code>business_management</code> - Administrer virksomhedskonti</li>';
+        echo '<li><code>instagram_basic</code> - Grundlæggende Instagram adgang</li>';
+        echo '<li><code>instagram_content_publish</code> - Udgiv Instagram indhold</li>';
+        echo '<li><code>pages_read_engagement</code> - Læs side-engagement</li>';
+        echo '<li><code>pages_manage_metadata</code> - Administrer side-metadata</li>';
+        echo '<li><code>pages_read_user_content</code> - Læs brugerindhold på siden</li>';
+        echo '<li><code>pages_manage_posts</code> - Administrer opslag på siden</li>';
+        echo '<li><code>pages_manage_engagement</code> - Administrer side-engagement</li>';
+        echo '</ul>';
+        echo '<p><em>' . __('Bemærk: Nogle af disse rettigheder kræver app-gennemgang fra Facebook.', 'fb-post-scheduler') . '</em></p>';
+        echo '</div>';
+        
+        echo '<div class="fb-setup-step">';
+        echo '<h5>4. ' . __('Hent App ID og App Secret', 'fb-post-scheduler') . '</h5>';
+        echo '<p>' . __('Find App ID og App Secret i din apps "Basic Settings" sektion og indtast dem nedenfor.', 'fb-post-scheduler') . '</p>';
+        echo '</div>';
+        
+        echo '</div>';
+        echo '</div>';
+        
+        echo '<p><strong>' . __('Indtast dine Facebook API-oplysninger for at aktivere automatisk opslag til Facebook.', 'fb-post-scheduler') . '</strong></p>';
     }
     
     /**
@@ -594,6 +659,59 @@ class FB_Post_Scheduler {
         echo '</div>';
         
         echo '<p class="description">' . __('Brug "Test Facebook API Forbindelse" for at verificere dine indstillinger. Brug "Tjek Token Udløb" for at se hvornår dit token udløber.', 'fb-post-scheduler') . '</p>';
+    }
+    
+    /**
+     * Facebook Page Selector callback
+     */
+    public function facebook_page_selector_callback() {
+        $user_access_token = get_option('fb_post_scheduler_facebook_user_token', '');
+        $selected_page_id = get_option('fb_post_scheduler_facebook_page_id', '');
+        $selected_page_name = get_option('fb_post_scheduler_facebook_page_name', '');
+        
+        echo '<div class="fb-page-selector-section">';
+        
+        // User Access Token input
+        echo '<div class="fb-user-token-section">';
+        echo '<label for="fb-user-access-token">' . __('Bruger Access Token:', 'fb-post-scheduler') . '</label><br>';
+        echo '<input type="password" id="fb-user-access-token" class="regular-text" value="' . esc_attr($user_access_token) . '" placeholder="' . __('Indsæt dit bruger access token her', 'fb-post-scheduler') . '">';
+        echo '<button type="button" id="fb-save-user-token" class="button button-secondary" style="margin-left: 10px;">' . __('Gem Token', 'fb-post-scheduler') . '</button>';
+        echo '<br><small class="description">' . __('Hent dit bruger access token fra <a href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a> med de nødvendige rettigheder.', 'fb-post-scheduler') . '</small>';
+        echo '</div>';
+        
+        echo '<br>';
+        
+        // Load pages button and dropdown
+        echo '<div class="fb-pages-section">';
+        echo '<button type="button" id="fb-load-pages" class="button button-secondary">' . __('Indlæs tilgængelige sider', 'fb-post-scheduler') . '</button>';
+        echo '<span class="spinner" id="fb-pages-spinner" style="float: none; margin-left: 10px;"></span>';
+        echo '<div id="fb-pages-result" style="margin-top: 10px;"></div>';
+        
+        // Pages dropdown (initially hidden)
+        echo '<div id="fb-pages-dropdown-container" style="margin-top: 15px; display: none;">';
+        echo '<label for="fb-pages-dropdown">' . __('Vælg Facebook Side:', 'fb-post-scheduler') . '</label><br>';
+        echo '<select id="fb-pages-dropdown" class="regular-text">';
+        echo '<option value="">' . __('-- Vælg en side --', 'fb-post-scheduler') . '</option>';
+        echo '</select>';
+        echo '<button type="button" id="fb-select-page" class="button button-primary" style="margin-left: 10px;">' . __('Vælg denne side', 'fb-post-scheduler') . '</button>';
+        echo '</div>';
+        echo '</div>';
+        
+        // Current selected page info
+        if (!empty($selected_page_id) && !empty($selected_page_name)) {
+            echo '<div class="fb-current-page-info" style="margin-top: 15px; padding: 10px; background: #e7f3ff; border: 1px solid #0073aa; border-radius: 4px;">';
+            echo '<h4 style="margin-top: 0;">' . __('Aktuel valgte side:', 'fb-post-scheduler') . '</h4>';
+            echo '<p><strong>' . esc_html($selected_page_name) . '</strong> (ID: ' . esc_html($selected_page_id) . ')</p>';
+            echo '<button type="button" id="fb-renew-page-token" class="button button-secondary">' . __('Forny Token', 'fb-post-scheduler') . '</button>';
+            echo '<span class="spinner" id="fb-renew-spinner" style="float: none; margin-left: 10px;"></span>';
+            echo '</div>';
+        }
+        
+        echo '<div id="fb-page-selection-result" style="margin-top: 10px;"></div>';
+        
+        echo '</div>';
+        
+        echo '<p class="description">' . __('Denne funktion gør det muligt at vælge en Facebook-side direkte og automatisk generere de nødvendige tokens.', 'fb-post-scheduler') . '</p>';
     }
     
     /**
@@ -1583,3 +1701,7 @@ function fb_post_scheduler_post_to_facebook($post_id, $fb_text, $image_id = 0) {
         }
     }
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> fbd7057 (Implement automatic Facebook page selection and token management features)

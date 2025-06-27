@@ -379,6 +379,9 @@
                 }
             });
         });
+        
+        // Bind page selection buttons  
+        bindPageSelectionButtons();
     }
     
     /**
@@ -847,5 +850,228 @@
             notice.remove();
         });
     }
+    
+    // Facebook Page Selection functionality
+    function bindPageSelectionButtons() {
+        // Gem bruger access token
+        $(document).off('click.fb-page-selection').on('click.fb-page-selection', '#fb-save-user-token', function(e) {
+            e.preventDefault();
+            
+            var button = $(this);
+            var userToken = $('#fb-user-access-token').val();
+            
+            if (typeof fbPostScheduler === 'undefined') {
+                console.error('fbPostScheduler object not available');
+                return;
+            }
+            
+            if (!userToken.trim()) {
+                alert('Indtast venligst dit bruger access token');
+                return;
+            }
+            
+            // Disable button
+            button.prop('disabled', true).text('Gemmer...');
+            
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_save_user_token',
+                    nonce: fbPostScheduler.nonce,
+                    user_token: userToken
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $('#fb-pages-result').html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
+                    } else {
+                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
+                        $('#fb-pages-result').html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
+                    }
+                },
+                error: function() {
+                    $('#fb-pages-result').html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
+                },
+                complete: function() {
+                    // Genaktiver knap
+                    button.prop('disabled', false).text('Gem Token');
+                }
+            });
+        });
+        
+        // Indlæs Facebook Pages
+        $(document).off('click.fb-page-selection').on('click.fb-page-selection', '#fb-load-pages', function(e) {
+            e.preventDefault();
+            
+            var button = $(this);
+            var spinner = $('#fb-pages-spinner');
+            var resultDiv = $('#fb-pages-result');
+            var dropdownContainer = $('#fb-pages-dropdown-container');
+            
+            if (typeof fbPostScheduler === 'undefined') {
+                console.error('fbPostScheduler object not available');
+                return;
+            }
+            
+            // Disable button og vis spinner
+            button.prop('disabled', true).text('Indlæser...');
+            spinner.addClass('is-active');
+            resultDiv.html('');
+            dropdownContainer.hide();
+            
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_load_facebook_pages',
+                    nonce: fbPostScheduler.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
+                        
+                        // Populer dropdown med sider
+                        var dropdown = $('#fb-pages-dropdown');
+                        dropdown.empty().append('<option value="">-- Vælg en side --</option>');
+                        
+                        if (response.data.pages && response.data.pages.length > 0) {
+                            $.each(response.data.pages, function(index, page) {
+                                dropdown.append('<option value="' + page.id + '" data-name="' + page.name + '" data-token="' + page.access_token + '">' + page.name + ' (' + page.category + ')</option>');
+                            });
+                            
+                            dropdownContainer.show();
+                        }
+                    } else {
+                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
+                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
+                    }
+                },
+                error: function() {
+                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
+                },
+                complete: function() {
+                    // Genaktiver knap og skjul spinner
+                    button.prop('disabled', false).text('Indlæs tilgængelige sider');
+                    spinner.removeClass('is-active');
+                }
+            });
+        });
+        
+        // Vælg Facebook Page
+        $(document).off('click.fb-page-selection').on('click.fb-page-selection', '#fb-select-page', function(e) {
+            e.preventDefault();
+            
+            var button = $(this);
+            var dropdown = $('#fb-pages-dropdown');
+            var selectedOption = dropdown.find('option:selected');
+            var resultDiv = $('#fb-page-selection-result');
+            
+            if (typeof fbPostScheduler === 'undefined') {
+                console.error('fbPostScheduler object not available');
+                return;
+            }
+            
+            if (!selectedOption.val()) {
+                alert('Vælg venligst en Facebook-side');
+                return;
+            }
+            
+            var pageId = selectedOption.val();
+            var pageName = selectedOption.data('name');
+            var pageAccessToken = selectedOption.data('token');
+            
+            // Disable button
+            button.prop('disabled', true).text('Konfigurerer...');
+            resultDiv.html('');
+            
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_select_facebook_page',
+                    nonce: fbPostScheduler.nonce,
+                    page_id: pageId,
+                    page_name: pageName,
+                    page_access_token: pageAccessToken
+                },
+                success: function(response) {
+                    if (response.success) {
+                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
+                        
+                        // Opdater Page ID feltene på siden
+                        $('input[name="fb_post_scheduler_facebook_page_id"]').val(pageId);
+                        
+                        // Genindlæs siden efter 2 sekunder for at vise den nye side-info
+                        setTimeout(function() {
+                            location.reload();
+                        }, 2000);
+                    } else {
+                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
+                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
+                    }
+                },
+                error: function() {
+                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
+                },
+                complete: function() {
+                    // Genaktiver knap
+                    button.prop('disabled', false).text('Vælg denne side');
+                }
+            });
+        });
+        
+        // Forny page token
+        $(document).off('click.fb-page-selection').on('click.fb-page-selection', '#fb-renew-page-token', function(e) {
+            e.preventDefault();
+            
+            var button = $(this);
+            var spinner = $('#fb-renew-spinner');
+            var resultDiv = $('#fb-page-selection-result');
+            
+            if (typeof fbPostScheduler === 'undefined') {
+                console.error('fbPostScheduler object not available');
+                return;
+            }
+            
+            if (!confirm('Er du sikker på, at du vil forny page access token?')) {
+                return;
+            }
+            
+            // Disable button og vis spinner
+            button.prop('disabled', true).text('Fornyer...');
+            spinner.addClass('is-active');
+            resultDiv.html('');
+            
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_renew_page_token',
+                    nonce: fbPostScheduler.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
+                    } else {
+                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
+                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
+                    }
+                },
+                error: function() {
+                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
+                },
+                complete: function() {
+                    // Genaktiver knap og skjul spinner
+                    button.prop('disabled', false).text('Forny Token');
+                    spinner.removeClass('is-active');
+                }
+            });
+        });
+    }
+    
+    // Bind page selection buttons on document ready
+    $(document).ready(function() {
+        // Page selection buttons er allerede bound via bindTokenManagementButtons
+    });
 
 })(jQuery);

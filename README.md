@@ -8,6 +8,9 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 - Tilføj Facebook-opslagstekst direkte i indholdsredigeringen
 - Planlæg, hvornår opslaget skal sendes til Facebook
 - AI-genereret opslagstekst med Google Gemini 2.0 Flash
+- **Automatisk Facebook Page selection og token management** 🆕
+- **Detaljeret Facebook App setup guide med rettigheder** 🆕
+- **"Forny token" knap for nemt token management** 🆕
 - Automatisk tilføjelse af link til den originale indholdside
 - Vedhæft et specifikt billede til Facebook-opslaget
 - Planlæg flere Facebook-opslag til samme indhold
@@ -16,6 +19,8 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 - Dashboard for hurtig oversigt over planlagte opslag
 - **Slet planlagte opslag direkte fra admin listen** 🆕
 - **Facebook delings-kolonne på post oversigter** - se hvor mange gange hvert indlæg er blevet delt 🆕
+- Robust Facebook API connection testing og token expiry checks
+- Long-term access token exchange og management
 - Eksporter planlagte opslag til CSV
 - Notifikationssystem for opslagsstatus
 - Logfil over alle Facebook API-kald og opslagsstatus
@@ -26,10 +31,44 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 3. Gå til 'FB Opslag' > 'Indstillinger' for at konfigurere pluginet
 
 ## Konfiguration
+
+### 1. Facebook App Setup
+Før du kan bruge pluginet, skal du have en Facebook App med de korrekte rettigheder. Pluginet inkluderer en detaljeret setup-guide:
+
+1. **Opret Facebook App**: Gå til [Facebook for Developers](https://developers.facebook.com/apps/) og opret en ny app af typen "Business"
+2. **Tilføj produkter**: Tilføj Facebook Login, Instagram Basic Display og Business Manager API
+3. **Anmod om rettigheder**: Din app skal have følgende rettigheder:
+   - `pages_show_list` - Se liste over sider
+   - `business_management` - Administrer virksomhedskonti
+   - `instagram_basic` - Grundlæggende Instagram adgang
+   - `instagram_content_publish` - Udgiv Instagram indhold
+   - `pages_read_engagement` - Læs side-engagement
+   - `pages_manage_metadata` - Administrer side-metadata
+   - `pages_read_user_content` - Læs brugerindhold på siden
+   - `pages_manage_posts` - Administrer opslag på siden
+   - `pages_manage_engagement` - Administrer side-engagement
+
+4. **Hent App ID og App Secret**: Find disse i din apps "Basic Settings" sektion
+
+### 2. Automatisk Facebook Side Setup 🆕
+Pluginet inkluderer nu en ny funktion til at automatisk vælge Facebook-sider og generere long-term access tokens:
+
+1. **Indtast App oplysninger**: Udfyld Facebook App ID og App Secret
+2. **Bruger Access Token**: Hent et bruger access token fra [Graph API Explorer](https://developers.facebook.com/tools/explorer/) med de nødvendige rettigheder og gem det
+3. **Indlæs sider**: Klik "Indlæs tilgængelige sider" for at se alle sider du har adgang til
+4. **Vælg side**: Vælg den ønskede Facebook-side fra dropdown-menuen
+5. **Automatisk konfiguration**: Pluginet genererer automatisk et long-term page access token og opdaterer alle indstillinger
+
+### 3. Andre indstillinger
 1. **Vælg Post Types**: Vælg hvilke post types der skal kunne oprette Facebook-opslag
-2. **Facebook API Indstillinger**: Indtast Facebook App ID, App Secret, Page ID og Access Token
-3. **Test Facebook API Forbindelse**: Klik på "Test Facebook API Forbindelse" knappen for at verificere at dine indstillinger virker korrekt
-4. **AI Tekst Generator Indstillinger**: Aktivér AI-tekstgenerering og indtast din Google Gemini API-nøgle
+2. **Test Facebook API Forbindelse**: Klik på "Test Facebook API Forbindelse" knappen for at verificere at dine indstillinger virker korrekt
+3. **AI Tekst Generator Indstillinger**: Aktivér AI-tekstgenerering og indtast din Google Gemini API-nøgle
+
+### Token Fornyelse
+For eksisterende opsætninger kan du forny dit page access token ved at:
+1. Opdatere dit bruger access token hvis nødvendigt
+2. Klikke på "Forny Token" knappen under den aktuelle side-information
+3. Dette henter et nyt long-term token automatisk
 
 ## Sådan bruges pluginet
 1. Opret eller rediger et indlæg af en af de valgte post types

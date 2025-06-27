@@ -405,6 +405,134 @@ class FB_Post_Scheduler_API {
         
         return new WP_Error('no_data', __('Ingen token data modtaget', 'fb-post-scheduler'));
     }
+    
+    /**
+     * Hent brugerens Facebook Pages
+     * 
+     * @param string $user_access_token Bruger access token
+     * @return array|WP_Error Liste af sider eller fejl
+     */
+    public function get_user_pages($user_access_token) {
+        if (empty($user_access_token)) {
+            return new WP_Error('no_user_token', __('Bruger access token er påkrævet', 'fb-post-scheduler'));
+        }
+        
+        $url = sprintf(
+            'https://graph.facebook.com/me/accounts?access_token=%s&fields=id,name,access_token,category,tasks',
+            urlencode($user_access_token)
+        );
+        
+        $response = wp_remote_get($url, array(
+            'timeout' => 30,
+            'headers' => array(
+                'User-Agent' => 'WordPress/Facebook-Post-Scheduler'
+            )
+        ));
+        
+        if (is_wp_error($response)) {
+            return new WP_Error('api_error', sprintf(__('API forespørgsel fejlede: %s', 'fb-post-scheduler'), $response->get_error_message()));
+        }
+        
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        
+        if (isset($data['error'])) {
+            return new WP_Error('pages_error', sprintf(__('Fejl ved hentning af sider: %s', 'fb-post-scheduler'), $data['error']['message']));
+        }
+        
+        if (isset($data['data']) && is_array($data['data'])) {
+            $pages = array();
+            
+            foreach ($data['data'] as $page) {
+                // Filtrer kun sider hvor brugeren kan lave indlæg
+                if (isset($page['tasks']) && is_array($page['tasks']) && 
+                    (in_array('MODERATE', $page['tasks']) || in_array('CREATE_CONTENT', $page['tasks']))) {
+                    $pages[] = array(
+                        'id' => $page['id'],
+                        'name' => isset($page['name']) ? $page['name'] : 'Unavngivet side',
+                        'category' => isset($page['category']) ? $page['category'] : '',
+                        'access_token' => isset($page['access_token']) ? $page['access_token'] : '',
+                        'tasks' => $page['tasks']
+                    );
+                }
+            }
+            
+            return $pages;
+        }
+        
+        return array();
+    }
+    
+    /**
+     * Udveksle page access token til long-term page access token
+     * 
+     * @param string $page_access_token Page access token
+     * @return array|WP_Error Long-term token info eller fejl
+     */
+    public function exchange_for_page_long_term_token($page_access_token) {
+        if (empty($page_access_token)) {
+            return new WP_Error('no_page_token', __('Page access token er påkrævet', 'fb-post-scheduler'));
+        }
+        
+        if (empty($this->app_id) || empty($this->app_secret)) {
+            return new WP_Error('no_app_credentials', __('Facebook App ID og App Secret skal være konfigureret', 'fb-post-scheduler'));
+        }
+        
+        // Page access tokens bliver automatisk long-term når de hentes via bruger long-term token
+        // Vi tjekker bare om token er gyldigt og returnerer info
+        $url = sprintf(
+            'https://graph.facebook.com/debug_token?input_token=%s&access_token=%s',
+            urlencode($page_access_token),
+            urlencode($this->app_id . '|' . $this->app_secret)
+        );
+        
+        $response = wp_remote_get($url, array(
+            'timeout' => 30,
+            'headers' => array(
+                'User-Agent' => 'WordPress/Facebook-Post-Scheduler'
+            )
+        ));
+        
+        if (is_wp_error($response)) {
+            return new WP_Error('api_error', sprintf(__('API forespørgsel fejlede: %s', 'fb-post-scheduler'), $response->get_error_message()));
+        }
+        
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        
+        if (isset($data['error'])) {
+            return new WP_Error('debug_error', sprintf(__('Token debug fejl: %s', 'fb-post-scheduler'), $data['error']['message']));
+        }
+        
+        if (isset($data['data'])) {
+            $token_data = $data['data'];
+            
+            // Tjek om token er gyldigt
+            if (!isset($token_data['is_valid']) || !$token_data['is_valid']) {
+                return new WP_Error('invalid_token', __('Page access token er ugyldigt', 'fb-post-scheduler'));
+            }
+            
+            // Page access tokens udløber normalt aldrig, men tjek hvis der er et udløb
+            if (isset($token_data['expires_at'])) {
+                $expires_at = intval($token_data['expires_at']);
+                $expires_date = date('Y-m-d H:i:s', $expires_at);
+            } else {
+                $expires_at = null;
+                $expires_date = 'Aldrig';
+            }
+            
+            return array(
+                'access_token' => $page_access_token,
+                'token_type' => 'page',
+                'expires_at' => $expires_at,
+                'expires_date' => $expires_date,
+                'app_id' => isset($token_data['app_id']) ? $token_data['app_id'] : null,
+                'scopes' => isset($token_data['scopes']) ? $token_data['scopes'] : array()
+            );
+        }
+        
+        return new WP_Error('no_data', __('Ingen token data modtaget', 'fb-post-scheduler'));
+    }
 }
 
 /**
