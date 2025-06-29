@@ -133,3 +133,20 @@
 [2025-06-25 02:54:37] Fejl: Facebook API indstillinger er ikke gyldige
 [2025-06-25 04:09:58] Start tjek af planlagte opslag
 [2025-06-25 04:09:58] Fejl: Facebook API indstillinger er ikke gyldige
+[2025-06-27 12:18:53] Start tjek af planlagte opslag
+[2025-06-27 12:18:53] Fandt 2 poster med aktiverede Facebook-opslag
+[2025-06-27 12:18:53] [Post ID: 35241] Behandler post: Nytårshilsen fra Formand Kristine Christiansen (ID: 35241)
+[2025-06-27 12:18:53] [Post ID: 35241] Opslag #1 er klar til at blive postet
+[2025-06-27 12:18:57] [Post ID: 35241] Opslag blev postet til Facebook. Post ID: 511064988978330_1151747500321729
+[2025-06-27 12:18:57] [Post ID: 35241] Ingen flere aktive opslag, _fb_post_enabled meta fjernet
+[2025-06-27 12:18:57] [Post ID: 35269] Behandler post: Ændrede åbningstider på genbrugspladser og butikker fra 2. januar 2025 (ID: 35269)
+[2025-06-27 12:18:57] [Post ID: 35269] Opslag #1 er klar til at blive postet
+[2025-06-27 12:18:59] [Post ID: 35269] Opslag blev postet til Facebook. Post ID: 511064988978330_1151747526988393
+[2025-06-27 12:18:59] [Post ID: 35269] Ingen flere aktive opslag, _fb_post_enabled meta fjernet
+[2025-06-27 12:18:59] Afsluttet tjek af planlagte opslag
+[2025-06-27 12:53:32] Start tjek af planlagte opslag
+[2025-06-27 12:53:32] Fandt 0 poster med aktiverede Facebook-opslag
+[2025-06-27 12:53:32] Afsluttet tjek af planlagte opslag
+[2025-06-27 14:09:41] Start tjek af planlagte opslag
+[2025-06-27 14:09:41] Fandt 0 poster med aktiverede Facebook-opslag
+[2025-06-27 14:09:41] Afsluttet tjek af planlagte opslag

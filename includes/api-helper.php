@@ -533,6 +533,124 @@ class FB_Post_Scheduler_API {
         
         return new WP_Error('no_data', __('Ingen token data modtaget', 'fb-post-scheduler'));
     }
+    
+    /**
+     * Hent brugerens Facebook Grupper
+     * 
+     * @param string $user_access_token Bruger access token
+     * @return array|WP_Error Liste af grupper eller fejl
+     */
+    public function get_user_groups($user_access_token) {
+        if (empty($user_access_token)) {
+            return new WP_Error('no_user_token', __('Bruger access token er påkrævet', 'fb-post-scheduler'));
+        }
+        
+        $url = sprintf(
+            'https://graph.facebook.com/me/groups?access_token=%s&fields=id,name,description,privacy,administrator',
+            urlencode($user_access_token)
+        );
+        
+        $response = wp_remote_get($url, array(
+            'timeout' => 30,
+            'headers' => array(
+                'User-Agent' => 'WordPress/Facebook-Post-Scheduler'
+            )
+        ));
+        
+        if (is_wp_error($response)) {
+            return new WP_Error('api_error', sprintf(__('API forespørgsel fejlede: %s', 'fb-post-scheduler'), $response->get_error_message()));
+        }
+        
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        
+        if (isset($data['error'])) {
+            return new WP_Error('groups_error', sprintf(__('Fejl ved hentning af grupper: %s', 'fb-post-scheduler'), $data['error']['message']));
+        }
+        
+        if (isset($data['data']) && is_array($data['data'])) {
+            $groups = array();
+            
+            foreach ($data['data'] as $group) {
+                // Filtrer kun grupper hvor brugeren kan lave indlæg (administrator eller moderator)
+                if (isset($group['administrator']) && $group['administrator']) {
+                    $groups[] = array(
+                        'id' => $group['id'],
+                        'name' => isset($group['name']) ? $group['name'] : 'Unavngivet gruppe',
+                        'description' => isset($group['description']) ? $group['description'] : '',
+                        'privacy' => isset($group['privacy']) ? $group['privacy'] : 'UNKNOWN',
+                        'type' => 'group'
+                    );
+                }
+            }
+            
+            return $groups;
+        }
+        
+        return array();
+    }
+    
+    /**
+     * Post til Facebook Gruppe
+     *
+     * @param string $message Beskedtekst til Facebook-opslag
+     * @param string $link URL til at inkludere i opslaget
+     * @param string $group_id Facebook gruppe ID
+     * @param int $image_id Attachment ID of image to include (optional)
+     * @return array|WP_Error Response fra Facebook eller fejl
+     */
+    public function post_to_facebook_group($message, $link, $group_id, $image_id = 0) {
+        // Tjek at alle nødvendige indstillinger er sat
+        if (empty($group_id) || empty($this->access_token)) {
+            return new WP_Error('missing_credentials', __('Manglende Facebook API-indstillinger for gruppe', 'fb-post-scheduler'));
+        }
+        
+        // API endpoint for gruppe
+        $url = "https://graph.facebook.com/{$group_id}/feed";
+        
+        // Forbered data
+        $data = array(
+            'message' => $message,
+            'link' => $link,
+            'access_token' => $this->access_token
+        );
+        
+        // Hvis der er et billede, brug photos endpoint i stedet
+        if (!empty($image_id)) {
+            // Få billedfil-url
+            $image_url = wp_get_attachment_url($image_id);
+            
+            if ($image_url) {
+                $url = "https://graph.facebook.com/{$group_id}/photos";
+                $data['url'] = $image_url;
+                $data['caption'] = $message;
+                // Tilføj link til caption
+                $data['caption'] .= "\n\n" . $link;
+            }
+        }
+        
+        // Send POST-anmodning til Facebook Graph API
+        $response = wp_remote_post($url, array(
+            'method' => 'POST',
+            'timeout' => 45,
+            'redirection' => 5,
+            'httpversion' => '1.0',
+            'blocking' => true,
+            'body' => $data,
+        ));
+        
+        if (is_wp_error($response)) {
+            return $response;
+        }
+        
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        
+        if (isset($body['error'])) {
+            return new WP_Error('facebook_error', $body['error']['message']);
+        }
+        
+        return $body;
+    }
 }
 
 /**

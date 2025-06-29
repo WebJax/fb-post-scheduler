@@ -1088,3 +1088,182 @@
         margin-top: 5px;
     }
 }
+
+/* Facebook Group Selection Styling */
+.fb-group-selector-section {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 20px;
+    margin: 15px 0;
+}
+
+.fb-groups-section {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+#fb-load-groups {
+    background: #6f42c1;
+    border-color: #6f42c1;
+    color: white;
+}
+
+#fb-load-groups:hover {
+    background: #5a32a1;
+    border-color: #4e2a8e;
+}
+
+#fb-groups-dropdown-container {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 15px;
+}
+
+#fb-groups-dropdown-container label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 8px;
+}
+
+#fb-groups-dropdown {
+    width: 70%;
+    margin-right: 10px;
+}
+
+#fb-select-group {
+    background: #28a745;
+    border-color: #28a745;
+    color: white;
+}
+
+#fb-select-group:hover {
+    background: #218838;
+    border-color: #1e7e34;
+}
+
+.fb-current-group-info {
+    background: #f0f8e7 !important;
+    border: 1px solid #4caf50 !important;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 15px;
+}
+
+.fb-current-group-info h4 {
+    color: #2e7d0e;
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.fb-current-group-info p {
+    margin-bottom: 10px;
+    color: #2e7d0e;
+    font-weight: 600;
+}
+
+#fb-clear-group {
+    background: #dc3545;
+    border-color: #dc3545;
+    color: white;
+}
+
+#fb-clear-group:hover {
+    background: #c82333;
+    border-color: #bd2130;
+}
+
+/* Group selection result messages */
+#fb-groups-result .notice,
+#fb-group-selection-result .notice {
+    margin: 10px 0 0 0;
+    padding: 10px;
+}
+
+#fb-groups-result .notice.inline,
+#fb-group-selection-result .notice.inline {
+    display: block;
+}
+
+/* Spinner styling for group selection */
+#fb-groups-spinner {
+    visibility: hidden;
+}
+
+#fb-groups-spinner.is-active {
+    visibility: visible;
+}
+
+/* Responsive adjustments for groups */
+@media (max-width: 782px) {
+    #fb-groups-dropdown,
+    #fb-load-groups {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    
+    #fb-select-group,
+    #fb-clear-group {
+        margin-left: 0;
+        margin-top: 5px;
+        width: 100%;
+    }
+}
+
+/* Facebook Post Target Selection Styling */
+.fb-post-target-selection {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.fb-post-target-selection label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 10px;
+}
+
+.fb-post-target-selection input[type="radio"] {
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+.fb-post-target-selection label[for^="fb_post_target_"] {
+    display: inline-block;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px 15px;
+    margin: 5px 10px 5px 0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.fb-post-target-selection label[for^="fb_post_target_"]:hover {
+    border-color: #0073aa;
+    background: #f0f8ff;
+}
+
+.fb-post-target-selection input[type="radio"]:checked + strong {
+    color: #0073aa;
+}
+
+.fb-post-target-selection label[for^="fb_post_target_"] input[type="radio"]:checked {
+    background: #0073aa;
+}
+
+@media (max-width: 782px) {
+    .fb-post-target-selection label[for^="fb_post_target_"] {
+        display: block;
+        margin: 5px 0;
+        width: 100%;
+    }
+}

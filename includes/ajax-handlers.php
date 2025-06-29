@@ -938,3 +938,120 @@ function fb_post_scheduler_renew_page_token_ajax() {
     exit;
 }
 add_action('wp_ajax_fb_post_scheduler_renew_page_token', 'fb_post_scheduler_renew_page_token_ajax');
+
+/**
+ * AJAX handler til indlæsning af Facebook-grupper
+ */
+function fb_post_scheduler_load_groups_ajax() {
+    // Tjek nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array('message' => 'Ugyldig sikkerhedsnøgle'));
+        exit;
+    }
+
+    // Tjek brugerrettigheder
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array('message' => 'Utilstrækkelige rettigheder'));
+        exit;
+    }
+
+    $user_access_token = sanitize_text_field($_POST['user_access_token']);
+
+    if (empty($user_access_token)) {
+        wp_send_json_error(array('message' => __('Bruger access token er påkrævet', 'fb-post-scheduler')));
+        exit;
+    }
+
+    // Hent grupper via API
+    $api = fb_post_scheduler_get_api();
+    $groups = $api->get_user_groups($user_access_token);
+
+    if (is_wp_error($groups)) {
+        wp_send_json_error(array(
+            'message' => sprintf(__('Fejl ved hentning af grupper: %s', 'fb-post-scheduler'), $groups->get_error_message())
+        ));
+        exit;
+    }
+
+    if (empty($groups)) {
+        wp_send_json_success(array(
+            'message' => __('Ingen grupper fundet hvor du er administrator.', 'fb-post-scheduler'),
+            'groups' => array()
+        ));
+        exit;
+    }
+
+    wp_send_json_success(array(
+        'message' => sprintf(__('Fundet %d grupper hvor du er administrator', 'fb-post-scheduler'), count($groups)),
+        'groups' => $groups
+    ));
+
+    exit;
+}
+add_action('wp_ajax_fb_post_scheduler_load_groups', 'fb_post_scheduler_load_groups_ajax');
+
+/**
+ * AJAX handler til valg af Facebook-gruppe
+ */
+function fb_post_scheduler_select_group_ajax() {
+    // Tjek nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array('message' => 'Ugyldig sikkerhedsnøgle'));
+        exit;
+    }
+
+    // Tjek brugerrettigheder
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array('message' => 'Utilstrækkelige rettigheder'));
+        exit;
+    }
+
+    $group_id = sanitize_text_field($_POST['group_id']);
+    $group_name = sanitize_text_field($_POST['group_name']);
+
+    if (empty($group_id) || empty($group_name)) {
+        wp_send_json_error(array('message' => __('Gruppe ID og navn er påkrævet', 'fb-post-scheduler')));
+        exit;
+    }
+
+    // Gem gruppe-indstillinger
+    update_option('fb_post_scheduler_facebook_group_id', $group_id);
+    update_option('fb_post_scheduler_facebook_group_name', $group_name);
+
+    wp_send_json_success(array(
+        'message' => sprintf(__('✅ Gruppe "%s" er valgt!', 'fb-post-scheduler'), $group_name),
+        'group_id' => $group_id,
+        'group_name' => $group_name
+    ));
+
+    exit;
+}
+add_action('wp_ajax_fb_post_scheduler_select_group', 'fb_post_scheduler_select_group_ajax');
+
+/**
+ * AJAX handler til rydde gruppe-valg
+ */
+function fb_post_scheduler_clear_group_ajax() {
+    // Tjek nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array('message' => 'Ugyldig sikkerhedsnøgle'));
+        exit;
+    }
+
+    // Tjek brugerrettigheder
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array('message' => 'Utilstrækkelige rettigheder'));
+        exit;
+    }
+
+    // Ryd gruppe-indstillinger
+    delete_option('fb_post_scheduler_facebook_group_id');
+    delete_option('fb_post_scheduler_facebook_group_name');
+
+    wp_send_json_success(array(
+        'message' => __('✅ Gruppe-valg er ryddet!', 'fb-post-scheduler')
+    ));
+
+    exit;
+}
+add_action('wp_ajax_fb_post_scheduler_clear_group', 'fb_post_scheduler_clear_group_ajax');

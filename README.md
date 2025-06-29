@@ -9,6 +9,7 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 - Planlæg, hvornår opslaget skal sendes til Facebook
 - AI-genereret opslagstekst med Google Gemini 2.0 Flash
 - **Automatisk Facebook Page selection og token management** 🆕
+- **Facebook Group support - del direkte til grupper du administrerer** 🆕
 - **Detaljeret Facebook App setup guide med rettigheder** 🆕
 - **"Forny token" knap for nemt token management** 🆕
 - Automatisk tilføjelse af link til den originale indholdside
@@ -47,6 +48,8 @@ Før du kan bruge pluginet, skal du have en Facebook App med de korrekte rettigh
    - `pages_read_user_content` - Læs brugerindhold på siden
    - `pages_manage_posts` - Administrer opslag på siden
    - `pages_manage_engagement` - Administrer side-engagement
+   - `groups_access_member_info` - Adgang til gruppemedlemsoplysninger 🆕
+   - `publish_to_groups` - Udgiv opslag i grupper 🆕
 
 4. **Hent App ID og App Secret**: Find disse i din apps "Basic Settings" sektion
 
@@ -59,7 +62,17 @@ Pluginet inkluderer nu en ny funktion til at automatisk vælge Facebook-sider og
 4. **Vælg side**: Vælg den ønskede Facebook-side fra dropdown-menuen
 5. **Automatisk konfiguration**: Pluginet genererer automatisk et long-term page access token og opdaterer alle indstillinger
 
-### 3. Andre indstillinger
+### 3. Facebook Gruppe Support 🆕
+Du kan nu også dele opslag direkte til Facebook-grupper du administrerer:
+
+1. **Brug samme bruger access token**: Som blev brugt til side-setup
+2. **Indlæs grupper**: Klik "Indlæs tilgængelige grupper" for at se alle grupper hvor du er administrator
+3. **Vælg gruppe**: Vælg den ønskede Facebook-gruppe fra dropdown-menuen
+4. **Ved opslag**: Vælg om du vil dele til din valgte side eller gruppe
+
+**Bemærk**: For at dele til grupper skal du være administrator af gruppen, og gruppen skal tillade opslag fra eksterne apps.
+
+### 4. Andre indstillinger
 1. **Vælg Post Types**: Vælg hvilke post types der skal kunne oprette Facebook-opslag
 2. **Test Facebook API Forbindelse**: Klik på "Test Facebook API Forbindelse" knappen for at verificere at dine indstillinger virker korrekt
 3. **AI Tekst Generator Indstillinger**: Aktivér AI-tekstgenerering og indtast din Google Gemini API-nøgle
@@ -74,11 +87,12 @@ For eksisterende opsætninger kan du forny dit page access token ved at:
 1. Opret eller rediger et indlæg af en af de valgte post types
 2. Find 'Facebook Opslag' boksen i indholdseditoren
 3. Aktivér Facebook-opslag ved at klikke på checkboksen
-4. Indtast teksten til Facebook-opslaget manuelt eller brug "Generer tekst med Gemini AI" knappen
-5. Vælg dato og tidspunkt for opslaget
-6. Vælg eventuelt et billede til opslaget
-7. Gem indlægget
-8. Tilføj flere opslag efter behov ved at klikke på "Tilføj endnu et opslag"
+4. **Vælg destination**: Hvis du har konfigureret både en Facebook-side og en gruppe, vælg hvor opslaget skal deles 🆕
+5. Indtast teksten til Facebook-opslaget manuelt eller brug "Generer tekst med Gemini AI" knappen
+6. Vælg dato og tidspunkt for opslaget
+7. Vælg eventuelt et billede til opslaget
+8. Gem indlægget
+9. Tilføj flere opslag efter behov ved at klikke på "Tilføj endnu et opslag"
 
 ## AI-genererede Facebook-opslag
 Pluginet understøtter generering af Facebook-opslagstekst med Google Gemini 2.0 Flash AI. For at bruge denne funktion:

@@ -382,6 +382,12 @@
         
         // Bind page selection buttons  
         bindPageSelectionButtons();
+        
+        // Bind group selection buttons
+        bindGroupSelectionButtons();
+        
+        // Bind group selection buttons
+        bindGroupSelectionButtons();
     }
     
     /**
@@ -1064,6 +1070,182 @@
                     // Genaktiver knap og skjul spinner
                     button.prop('disabled', false).text('Forny Token');
                     spinner.removeClass('is-active');
+                }
+            });
+        });
+    }
+    
+    // Facebook Group Selection functionality
+    function bindGroupSelectionButtons() {
+        // Indlæs Facebook Groups
+        $(document).off('click.fb-group-selection').on('click.fb-group-selection', '#fb-load-groups', function(e) {
+            e.preventDefault();
+            
+            var button = $(this);
+            var spinner = $('#fb-groups-spinner');
+            var resultDiv = $('#fb-groups-result');
+            var dropdownContainer = $('#fb-groups-dropdown-container');
+            var userToken = $('#fb-user-access-token').val();
+            
+            if (typeof fbPostScheduler === 'undefined') {
+                console.error('fbPostScheduler object not available');
+                return;
+            }
+            
+            if (!userToken.trim()) {
+                resultDiv.html('<div class="notice notice-error inline"><p>❌ Indtast venligst dit bruger access token først i "Vælg Facebook Side" sektionen</p></div>');
+                return;
+            }
+            
+            // Disable button og vis spinner
+            button.prop('disabled', true).text('Indlæser...');
+            spinner.addClass('is-active');
+            resultDiv.html('');
+            dropdownContainer.hide();
+            
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_load_groups',
+                    nonce: fbPostScheduler.nonce,
+                    user_access_token: userToken
+                },
+                success: function(response) {
+                    if (response.success) {
+                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
+                        
+                        // Populer dropdown med grupper
+                        var dropdown = $('#fb-groups-dropdown');
+                        dropdown.empty().append('<option value="">-- Vælg en gruppe --</option>');
+                        
+                        if (response.data.groups && response.data.groups.length > 0) {
+                            $.each(response.data.groups, function(index, group) {
+                                dropdown.append('<option value="' + group.id + '" data-name="' + group.name + '">' + group.name + ' (' + group.privacy + ')</option>');
+                            });
+                            
+                            dropdownContainer.show();
+                        } else {
+                            resultDiv.html('<div class="notice notice-info inline"><p>ℹ️ ' + response.data.message + '</p></div>');
+                        }
+                    } else {
+                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
+                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
+                    }
+                },
+                error: function() {
+                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
+                },
+                complete: function() {
+                    // Genaktiver knap og skjul spinner
+                    button.prop('disabled', false).text('Indlæs tilgængelige grupper');
+                    spinner.removeClass('is-active');
+                }
+            });
+        });
+        
+        // Vælg Facebook Group
+        $(document).off('click.fb-group-selection').on('click.fb-group-selection', '#fb-select-group', function(e) {
+            e.preventDefault();
+            
+            var button = $(this);
+            var dropdown = $('#fb-groups-dropdown');
+            var selectedGroupId = dropdown.val();
+            var selectedGroupName = dropdown.find('option:selected').data('name');
+            var resultDiv = $('#fb-group-selection-result');
+            
+            if (typeof fbPostScheduler === 'undefined') {
+                console.error('fbPostScheduler object not available');
+                return;
+            }
+            
+            if (!selectedGroupId) {
+                resultDiv.html('<div class="notice notice-error inline"><p>❌ Vælg venligst en gruppe</p></div>');
+                return;
+            }
+            
+            // Disable button
+            button.prop('disabled', true).text('Vælger...');
+            resultDiv.html('');
+            
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_select_group',
+                    nonce: fbPostScheduler.nonce,
+                    group_id: selectedGroupId,
+                    group_name: selectedGroupName
+                },
+                success: function(response) {
+                    if (response.success) {
+                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
+                        
+                        // Genindlæs siden efter 2 sekunder for at vise den valgte gruppe
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
+                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
+                    }
+                },
+                error: function() {
+                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
+                },
+                complete: function() {
+                    // Genaktiver knap
+                    button.prop('disabled', false).text('Vælg denne gruppe');
+                }
+            });
+        });
+        
+        // Ryd gruppe-valg
+        $(document).off('click.fb-group-selection').on('click.fb-group-selection', '#fb-clear-group', function(e) {
+            e.preventDefault();
+            
+            var button = $(this);
+            var resultDiv = $('#fb-group-selection-result');
+            
+            if (typeof fbPostScheduler === 'undefined') {
+                console.error('fbPostScheduler object not available');
+                return;
+            }
+            
+            if (!confirm('Er du sikker på, at du vil rydde gruppe-valget?')) {
+                return;
+            }
+            
+            // Disable button
+            button.prop('disabled', true).text('Rydder...');
+            resultDiv.html('');
+            
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_clear_group',
+                    nonce: fbPostScheduler.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
+                        
+                        // Genindlæs siden efter 2 sekunder
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
+                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
+                    }
+                },
+                error: function() {
+                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
+                },
+                complete: function() {
+                    // Genaktiver knap
+                    button.prop('disabled', false).text('Ryd gruppe-valg');
                 }
             });
         });
