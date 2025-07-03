@@ -37,9 +37,15 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 3. Aktivér Facebook-opslag ved at klikke på checkboksen
 4. Indtast teksten til Facebook-opslaget manuelt eller brug "Generer tekst med Gemini AI" knappen
 5. Vælg dato og tidspunkt for opslaget
-6. Vælg eventuelt et billede til opslaget
+6. Vælg eventuelt et billede til opslaget (hvis ikke valgt, bruges indlæggets fremhævede billede automatisk)
 7. Gem indlægget
 8. Tilføj flere opslag efter behov ved at klikke på "Tilføj endnu et opslag"
+
+### Automatisk billede-håndtering
+Pluginet sikrer altid at Facebook får et gyldigt billede til at vise ved delte links:
+- **Hvis du vælger et billede**: Dette billede bruges til Facebook-opslaget
+- **Hvis intet billede vælges**: Indlæggets fremhævede billede (featured image) bruges automatisk
+- Dette gør at Facebook altid viser det rigtige billede når nogen deler linket
 
 ## AI-genererede Facebook-opslag
 Pluginet understøtter generering af Facebook-opslagstekst med Google Gemini 2.0 Flash AI. For at bruge denne funktion:

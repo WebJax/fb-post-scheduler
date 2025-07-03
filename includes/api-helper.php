@@ -51,9 +51,10 @@ class FB_Post_Scheduler_API {
      * @param string $message Beskedtekst til Facebook-opslag
      * @param string $link URL til at inkludere i opslaget
      * @param int $image_id Attachment ID of image to include (optional)
+     * @param int $post_id WordPress post ID for fallback to featured image (optional)
      * @return array|WP_Error Response fra Facebook eller fejl
      */
-    public function post_to_facebook($message, $link, $image_id = 0) {
+    public function post_to_facebook($message, $link, $image_id = 0, $post_id = 0) {
         // Tjek at alle nødvendige indstillinger er sat
         if (empty($this->page_id) || empty($this->access_token)) {
             return new WP_Error('missing_credentials', __('Manglende Facebook API-indstillinger', 'fb-post-scheduler'));
@@ -69,18 +70,41 @@ class FB_Post_Scheduler_API {
             'access_token' => $this->access_token
         );
         
-        // Hvis der er et billede, brug photos endpoint i stedet
+        // Find bedste billede URL - prioritet: valgt billede > post thumbnail
+        $image_url = null;
+        $image_source = '';
+        
+        // Prøv først det valgte billede
         if (!empty($image_id)) {
-            // Få billedfil-url
             $image_url = wp_get_attachment_url($image_id);
-            
             if ($image_url) {
-                $url = "https://graph.facebook.com/{$this->page_id}/photos";
-                $data['url'] = $image_url;
-                $data['caption'] = $message;
-                // Tilføj link til caption
-                $data['caption'] .= "\n\n" . $link;
+                $image_source = 'selected_image';
             }
+        }
+        
+        // Hvis intet valgt billede eller det ikke kan hentes, prøv post thumbnail
+        if (empty($image_url) && !empty($post_id)) {
+            $image_url = get_the_post_thumbnail_url($post_id, 'large');
+            if ($image_url) {
+                $image_source = 'featured_image';
+            }
+        }
+        
+        // Log hvilket billede der bruges
+        if (!empty($image_url) && !empty($post_id)) {
+            $log_message = $image_source === 'selected_image' 
+                ? 'Bruger valgt billede til Facebook post'
+                : 'Bruger featured image som fallback til Facebook post';
+            fb_post_scheduler_log($log_message, $post_id, '', 'info');
+        }
+        
+        // Hvis vi har et gyldigt billede-URL, brug photos endpoint
+        if (!empty($image_url)) {
+            $url = "https://graph.facebook.com/{$this->page_id}/photos";
+            $data['url'] = $image_url;
+            $data['caption'] = $message;
+            // Tilføj link til caption
+            $data['caption'] .= "\n\n" . $link;
         }
         
         // Send POST-anmodning til Facebook Graph API

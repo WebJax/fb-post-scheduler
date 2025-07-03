@@ -674,3 +674,112 @@ function fb_post_scheduler_check_token_expiry_ajax() {
     exit;
 }
 add_action('wp_ajax_fb_post_scheduler_check_token_expiry', 'fb_post_scheduler_check_token_expiry_ajax');
+
+/**
+ * AJAX handler til at hente billede-information
+ */
+function fb_post_scheduler_get_image_info() {
+    // Tjek nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Tjek brugerrettigheder
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    $image_id = isset($_POST['image_id']) ? intval($_POST['image_id']) : 0;
+    
+    if (!$image_id) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig billede ID', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Hent billede-information
+    $image_url = wp_get_attachment_image_url($image_id, 'full');
+    $image_alt = get_post_meta($image_id, '_wp_attachment_image_alt', true);
+    
+    if (!$image_url) {
+        wp_send_json_error(array(
+            'message' => __('Billede ikke fundet', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    wp_send_json_success(array(
+        'url' => $image_url,
+        'alt' => $image_alt
+    ));
+    
+    exit;
+}
+add_action('wp_ajax_fb_get_image_info', 'fb_post_scheduler_get_image_info');
+
+/**
+ * AJAX-handler til at hente featured image information
+ */
+function fb_post_scheduler_get_featured_image_info() {
+    // Tjek nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Tjek brugerrettigheder
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+    
+    if (!$post_id) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig post ID', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Hent featured image ID
+    $featured_image_id = get_post_thumbnail_id($post_id);
+    
+    if (!$featured_image_id) {
+        wp_send_json_error(array(
+            'message' => __('Ingen featured image fundet', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Hent billede-information
+    $image_url = wp_get_attachment_image_url($featured_image_id, 'full');
+    $image_alt = get_post_meta($featured_image_id, '_wp_attachment_image_alt', true);
+    
+    if (!$image_url) {
+        wp_send_json_error(array(
+            'message' => __('Featured image ikke tilgængeligt', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    wp_send_json_success(array(
+        'url' => $image_url,
+        'alt' => $image_alt,
+        'image_id' => $featured_image_id
+    ));
+    
+    exit;
+}
+add_action('wp_ajax_fb_get_featured_image_info', 'fb_post_scheduler_get_featured_image_info');

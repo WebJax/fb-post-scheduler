@@ -33,8 +33,9 @@
             initializeFacebookSDK();
         }
         
-        // Preview-opdatering for alle opslag
-        initFacebookPreviews();
+        // Initialiser eksisterende billeder i Facebook preview
+        initializeExistingImages();
+
         
         // Datepicker-initialisering (hvis på rediger post-side)
         if ($('[id^="fb_post_date_"]').length) {
@@ -91,6 +92,10 @@
                 var previewContainer = button.siblings('.fb-post-image-preview-container');
                 previewContainer.html(img);
                 
+                // Opdater Facebook forhåndsvisning
+                var $postItem = button.closest('.fb-post-item');
+                updateFacebookPreview($postItem, attachment.url, attachment.alt);
+                
                 // Tilføj knap til at fjerne billedet
                 if (button.siblings('.fb-remove-image').length === 0) {
                     var removeButton = $('<button>').attr({
@@ -118,6 +123,10 @@
             
             // Fjern preview
             button.siblings('.fb-post-image-preview-container').empty();
+            
+            // Gå tilbage til featured image som fallback
+            var $postItem = button.closest('.fb-post-item');
+            fetchFeaturedImageForPreview($postItem);
             
             // Fjern denne knap
             button.remove();
@@ -699,32 +708,68 @@
         $textFields.each(function() {
             var $textField = $(this);
             var index = $textField.attr('id').replace('fb_post_text_', '');
-            var $previewText = $textField.closest('.fb-post-item').find('.fb-post-preview-text');
+            var $postItem = $textField.closest('.fb-post-item');
+            var $previewText = $postItem.find('.fb-post-preview-text');
             
             if ($previewText.length) {
                 // Opdater preview ved indlæsning
-                updatePreview($textField, $previewText);
+                updatePreview($postItem);
                 
-                // Opdater preview ved ændringer
+                // Opdater preview ved ændringer i tekst
                 $textField.on('input change', function() {
-                    updatePreview($textField, $previewText);
+                    updatePreview($postItem);
                 });
+                
+                // Opdater preview når billede ændres
+                var $imageField = $postItem.find('[id^="fb_post_image_id_"]');
+                if ($imageField.length) {
+                    $imageField.on('change', function() {
+                        updatePreview($postItem);
+                    });
+                }
             }
         });
         
         // Funktion til at opdatere preview
-        function updatePreview($textField, $previewText) {
+        function updatePreview($postItem) {
+            var $textField = $postItem.find('[id^="fb_post_text_"]');
+            var $previewText = $postItem.find('.fb-post-preview-text');
+            var $previewImage = $postItem.find('.fb-preview-image');
+            var $imagePlaceholder = $postItem.find('.fb-image-placeholder');
+            var $imageField = $postItem.find('[id^="fb_post_image_id_"]');
+            
             var text = $textField.val();
             
+            // Opdater tekst
             if (text) {
                 // Erstat linjeskift med <br>
                 text = text.replace(/\n/g, '<br>');
                 $previewText.html(text);
-                $previewText.closest('.fb-post-preview').show();
             } else {
                 $previewText.html('');
-                $previewText.closest('.fb-post-preview').show();
             }
+            
+            // Opdater billede preview
+            var imageId = $imageField.val();
+            if (imageId && imageId !== '0' && imageId !== '') {
+                // Find billede URL fra preview container først
+                var $imagePreview = $postItem.find('.fb-post-image-preview');
+                if ($imagePreview.length && $imagePreview.attr('src')) {
+                    $previewImage.attr('src', $imagePreview.attr('src'));
+                    $previewImage.attr('alt', $imagePreview.attr('alt') || 'Facebook preview billede');
+                    $previewImage.show();
+                    $imagePlaceholder.hide();
+                } else {
+                    // Hvis intet preview billede findes, hent det via AJAX
+                    fetchImageForPreview($postItem, imageId);
+                }
+            } else {
+                // Ingen specifik billede valgt - prøv featured image som fallback
+                fetchFeaturedImageForPreview($postItem);
+            }
+            
+            // Vis preview
+            $postItem.find('.fb-post-preview').show();
         }
     }
     
@@ -787,6 +832,10 @@
         // Tilføj nyt opslag til containeren
         $('#fb-posts-container').append(template);
         
+        // Initialiser billede-preview for det nye opslag
+        var $newPostItem = $('.fb-post-item[data-index="' + postCount + '"]');
+        fetchFeaturedImageForPreview($newPostItem);
+        
         // Initialiser preview og datokontroller for det nye opslag
         initFacebookPreviews();
         initDateControls();
@@ -846,6 +895,137 @@
         notice.on('click', '.notice-dismiss', function() {
             notice.remove();
         });
+    }
+    
+    /**
+     * Initialiserer Facebook preview for eksisterende billeder
+     */
+    function initializeExistingImages() {
+        $('.fb-post-item').each(function() {
+            var $postItem = $(this);
+            var $imagePreview = $postItem.find('.fb-post-image-preview');
+            var $fbPreviewImage = $postItem.find('.fb-preview-image');
+            var $fbImagePlaceholder = $postItem.find('.fb-image-placeholder');
+            var $imageIdField = $postItem.find('[id^="fb_post_image_id_"]');
+            
+            console.log('Initializing images for post item:', $postItem.data('index'));
+            console.log('Image preview found:', $imagePreview.length);
+            console.log('FB preview image found:', $fbPreviewImage.length);
+            console.log('Image ID field value:', $imageIdField.val());
+            
+            // Hvis der allerede er et billede-preview der vises
+            if ($imagePreview.length && $imagePreview.attr('src')) {
+                console.log('Found existing image preview, updating FB preview');
+                updateFacebookPreview($postItem, $imagePreview.attr('src'), $imagePreview.attr('alt'));
+            } else if ($imageIdField.val() && $imageIdField.val() !== '0' && $imageIdField.val() !== '') {
+                // Hvis der er et image_id men intet preview billede, hent billedet via AJAX
+                console.log('Found image ID but no preview, fetching image via AJAX');
+                fetchImageForPreview($postItem, $imageIdField.val());
+            } else {
+                // Ingen billede valgt - prøv at hente featured image som fallback
+                console.log('No image selected, trying to fetch featured image');
+                fetchFeaturedImageForPreview($postItem);
+            }
+        });
+    }
+    
+    /**
+     * Henter billede-information fra WordPress via AJAX
+     */
+    function fetchImageForPreview($postItem, imageId) {
+        $.ajax({
+            url: fbPostScheduler.ajaxUrl,
+            type: 'POST',
+            data: {
+                action: 'fb_get_image_info',
+                image_id: imageId,
+                nonce: fbPostScheduler.nonce
+            },
+            success: function(response) {
+                if (response.success && response.data.url) {
+                    var $fbPreviewImage = $postItem.find('.fb-preview-image');
+                    var $fbImagePlaceholder = $postItem.find('.fb-image-placeholder');
+                    
+                    if ($fbPreviewImage.length) {
+                        $fbPreviewImage.attr('src', response.data.url);
+                        $fbPreviewImage.attr('alt', response.data.alt || 'Facebook preview billede');
+                        $fbPreviewImage.show();
+                        $fbImagePlaceholder.hide();
+                    }
+                }
+            },
+            error: function() {
+                console.log('Failed to fetch image info for ID:', imageId);
+            }
+        });
+    }
+    
+    /**
+     * Opdater Facebook forhåndsvisning med billede
+     */
+    function updateFacebookPreview($postItem, imageUrl, imageAlt) {
+        var $fbPreviewImage = $postItem.find('.fb-preview-image');
+        var $fbImagePlaceholder = $postItem.find('.fb-image-placeholder');
+        
+        if ($fbPreviewImage.length && imageUrl) {
+            $fbPreviewImage.attr('src', imageUrl);
+            $fbPreviewImage.attr('alt', imageAlt || 'Facebook preview billede');
+            $fbPreviewImage.show();
+            $fbImagePlaceholder.hide();
+        }
+    }
+    
+    /**
+     * Hent featured image som fallback for forhåndsvisning
+     */
+    function fetchFeaturedImageForPreview($postItem) {
+        // Få post ID fra DOM eller global variabel
+        var postId = $('input[name="post_ID"]').val() || $('#post_ID').val();
+        
+        if (!postId) {
+            console.log('No post ID found, showing placeholder');
+            showImagePlaceholder($postItem, 'Featured image vil blive brugt');
+            return;
+        }
+        
+        $.ajax({
+            url: fbPostScheduler.ajaxUrl,
+            type: 'POST',
+            data: {
+                action: 'fb_get_featured_image_info',
+                post_id: postId,
+                nonce: fbPostScheduler.nonce
+            },
+            success: function(response) {
+                if (response.success && response.data.url) {
+                    console.log('Featured image found, updating FB preview');
+                    updateFacebookPreview($postItem, response.data.url, response.data.alt);
+                } else {
+                    console.log('No featured image found, showing placeholder');
+                    showImagePlaceholder($postItem, 'Ingen billede fundet - tilføj et featured image eller vælg et billede');
+                }
+            },
+            error: function() {
+                console.log('Failed to fetch featured image');
+                showImagePlaceholder($postItem, 'Featured image vil blive brugt');
+            }
+        });
+    }
+    
+    /**
+     * Vis billede placeholder med besked
+     */
+    function showImagePlaceholder($postItem, message) {
+        var $fbPreviewImage = $postItem.find('.fb-preview-image');
+        var $fbImagePlaceholder = $postItem.find('.fb-image-placeholder');
+        
+        if ($fbImagePlaceholder.length) {
+            $fbImagePlaceholder.find('.fb-image-text').text(message);
+            $fbImagePlaceholder.show();
+            if ($fbPreviewImage.length) {
+                $fbPreviewImage.hide();
+            }
+        }
     }
 
 })(jQuery);

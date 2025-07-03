@@ -129,48 +129,202 @@
     font-style: italic;
 }
 
-/* Facebook preview */
+/* Facebook preview - Modern Facebook-like design */
 .fb-post-preview {
     margin-top: 20px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    padding: 15px;
-    background-color: #f9f9f9;
+    border: 1px solid #e4e6ea;
+    border-radius: 8px;
+    background-color: #ffffff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
 }
 
 .fb-post-preview h4 {
-    margin-top: 0;
-    margin-bottom: 10px;
-    border-bottom: 1px solid #ddd;
-    padding-bottom: 10px;
+    margin: 0;
+    padding: 12px 16px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e4e6ea;
+    font-size: 13px;
+    font-weight: 600;
+    color: #65676b;
 }
 
-.fb-post-preview-content {
-    padding: 10px;
+.fb-post-preview-container {
+    padding: 12px 16px 8px;
+}
+
+/* Facebook post header */
+.fb-post-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.fb-post-avatar {
+    margin-right: 8px;
+}
+
+.fb-avatar-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #1877f2, #42a5f5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.fb-avatar-placeholder::before {
+    content: "📄";
+}
+
+.fb-post-meta {
+    flex: 1;
+}
+
+.fb-page-name {
+    font-weight: 600;
+    font-size: 15px;
+    color: #050505;
+    line-height: 1.33;
+}
+
+.fb-post-time {
+    font-size: 13px;
+    color: #65676b;
+    line-height: 1.38;
+}
+
+.fb-visibility-icon {
+    font-size: 12px;
+}
+
+/* Facebook post text */
+.fb-post-text {
+    margin-bottom: 12px;
 }
 
 .fb-post-preview-text {
-    margin-bottom: 10px;
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.33;
+    color: #050505;
     white-space: pre-line;
 }
 
-.fb-post-preview-link {
-    background-color: #f7f7f7;
-    border: 1px solid #eee;
-    padding: 10px;
-    border-radius: 2px;
+/* Facebook link preview card */
+.fb-link-preview {
+    border: 1px solid #e4e6ea;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 8px;
 }
 
-.fb-post-preview-title {
-    font-weight: bold;
-    margin-bottom: 5px;
-    color: #1877f2;
+.fb-link-image {
+    position: relative;
+    width: 100%;
+    height: 200px;
+    background-color: #f0f2f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
 }
 
-.fb-post-preview-url {
-    color: #606770;
+.fb-preview-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.fb-image-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #65676b;
+    text-align: center;
+}
+
+.fb-image-icon {
+    font-size: 24px;
+    margin-bottom: 8px;
+}
+
+.fb-image-text {
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.fb-link-content {
+    padding: 12px;
+}
+
+.fb-link-domain {
     font-size: 12px;
-    word-break: break-all;
+    color: #65676b;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+    font-weight: 600;
+}
+
+.fb-link-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1877f2;
+    line-height: 1.25;
+    margin-bottom: 2px;
+    cursor: pointer;
+}
+
+.fb-link-title:hover {
+    text-decoration: underline;
+}
+
+.fb-link-description {
+    font-size: 14px;
+    color: #65676b;
+    line-height: 1.43;
+    margin-top: 2px;
+}
+
+/* Facebook post actions */
+.fb-post-actions {
+    border-top: 1px solid #e4e6ea;
+    margin: 8px -16px -8px;
+    padding: 8px 0;
+    display: flex;
+}
+
+.fb-action-button {
+    flex: 1;
+    text-align: center;
+    padding: 8px;
+    color: #65676b;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.fb-action-button:hover {
+    background-color: #f0f2f5;
+}
+
+.fb-icon {
+    margin-right: 6px;
+}
+
+/* Update existing preview styles to work with new structure */
+.fb-post-preview-content {
+    display: none; /* Hide old structure */
+}
+
+.fb-post-preview-link {
+    display: none; /* Hide old structure */
 }
 
 /* Image upload field */
@@ -424,6 +578,16 @@
 
 .fb-log-error {
     color: #dc3232;
+    font-weight: 600;
+}
+
+.fb-log-info {
+    color: #0073aa;
+    font-weight: 600;
+}
+
+.fb-log-default {
+    color: #666;
     font-weight: 600;
 }
 
@@ -854,4 +1018,86 @@
 #fb-exchange-result .notice-info {
     border-left: 4px solid #00a0d2;
     background-color: #e7f3ff;
+}
+
+/* Responsive design for Facebook preview */
+@media (max-width: 768px) {
+    .fb-post-preview-container {
+        padding: 8px 12px 6px;
+    }
+    
+    .fb-post-header {
+        margin-bottom: 8px;
+    }
+    
+    .fb-avatar-placeholder {
+        width: 32px;
+        height: 32px;
+        border-radius: 16px;
+        font-size: 14px;
+    }
+    
+    .fb-page-name {
+        font-size: 14px;
+    }
+    
+    .fb-post-time {
+        font-size: 12px;
+    }
+    
+    .fb-post-preview-text {
+        font-size: 14px;
+    }
+    
+    .fb-link-image {
+        height: 180px;
+    }
+    
+    .fb-action-button {
+        font-size: 14px;
+        padding: 6px;
+    }
+}
+
+/* Optimeret til Facebook's faktiske proportioner */
+.fb-link-preview {
+    max-width: 500px; /* Facebook's max content width */
+}
+
+.fb-link-image {
+    aspect-ratio: 1.91/1; /* Facebook's standard link preview ratio */
+    height: auto;
+    min-height: 200px;
+}
+
+/* Bedre billede skalering */
+.fb-preview-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 0;
+}
+
+/* Forbedret tekst styling */
+.fb-post-preview-text {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.fb-link-title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fb-link-description {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }

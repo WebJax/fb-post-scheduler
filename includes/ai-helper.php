@@ -85,14 +85,14 @@ function fb_post_scheduler_generate_ai_text($post_id) {
     
     // Tjek for fejl i API-kaldet
     if (is_wp_error($response)) {
-        fb_post_scheduler_log('AI API Error: ' . $response->get_error_message(), $post_id);
+        fb_post_scheduler_log('AI API Error: ' . $response->get_error_message(), $post_id, '', 'error');
         return $response;
     }
     
     $response_code = wp_remote_retrieve_response_code($response);
     if ($response_code !== 200) {
         $error_message = wp_remote_retrieve_response_message($response);
-        fb_post_scheduler_log('AI API Error: ' . $error_message . ' (Code: ' . $response_code . ')', $post_id);
+        fb_post_scheduler_log('AI API Error: ' . $error_message . ' (Code: ' . $response_code . ')', $post_id, '', 'error');
         return new WP_Error('api_error', $error_message . ' (Code: ' . $response_code . ')');
     }
     
@@ -101,14 +101,14 @@ function fb_post_scheduler_generate_ai_text($post_id) {
     // Tjek for fejl i API responsen
     if (isset($body['error'])) {
         $error_message = isset($body['error']['message']) ? $body['error']['message'] : __('Ukendt fejl fra Google Gemini API', 'fb-post-scheduler');
-        fb_post_scheduler_log('AI API Error: ' . $error_message, $post_id);
+        fb_post_scheduler_log('AI API Error: ' . $error_message, $post_id, '', 'error');
         return new WP_Error('api_error', $error_message);
     }
     
     // Hent genereret tekst fra Gemini response
     if (!empty($body['candidates']) && !empty($body['candidates'][0]['content']['parts'])) {
         $generated_text = trim($body['candidates'][0]['content']['parts'][0]['text']);
-        fb_post_scheduler_log('AI genereret tekst for post ID: ' . $post_id, $post_id);
+        fb_post_scheduler_log('AI genereret tekst succesfuldt', $post_id, '', 'success');
         return $generated_text;
     }
     
