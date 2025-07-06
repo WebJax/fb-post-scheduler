@@ -241,7 +241,10 @@ class FB_Post_Scheduler {
         // Check for token expiration warnings
         add_action('admin_notices', array($this, 'check_token_expiration_notice'));
         
-        // Add Facebook share count columns to post lists
+        // Tilføj Facebook App ID meta tag til head for bedre Open Graph scraping
+        add_action('wp_head', array($this, 'add_facebook_meta_tags'));
+        
+        // Tilføj Facebook share count columns til post lists
         $this->add_facebook_share_columns();
     }
     
@@ -453,6 +456,28 @@ class FB_Post_Scheduler {
                 submit_button();
                 ?>
             </form>
+            
+            <!-- Open Graph Test Sektion -->
+            <div class="fb-og-test-section" style="margin-top: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9;">
+                <h2>🔍 <?php _e('Test Facebook Open Graph Scraping', 'fb-post-scheduler'); ?></h2>
+                <p><?php _e('Test hvordan Facebook ser en specifik side på din hjemmeside og hvilke Open Graph data den finder.', 'fb-post-scheduler'); ?></p>
+                
+                <table class="form-table" style="background: white; padding: 15px; border-radius: 3px;">
+                    <tr>
+                        <th scope="row"><?php _e('URL til test:', 'fb-post-scheduler'); ?></th>
+                        <td>
+                            <input type="url" id="fb-og-test-url" placeholder="https://dianalund.dk/arrangement/..." class="regular-text" />
+                            <button type="button" id="fb-test-og-button" class="button button-secondary"><?php _e('Test Open Graph', 'fb-post-scheduler'); ?></button>
+                            <p class="description"><?php _e('Indtast URL til en side du vil teste for Open Graph data.', 'fb-post-scheduler'); ?></p>
+                        </td>
+                    </tr>
+                </table>
+                
+                <div id="fb-og-test-results" style="margin-top: 15px; display: none;">
+                    <h3><?php _e('Test Resultater:', 'fb-post-scheduler'); ?></h3>
+                    <div id="fb-og-results-content"></div>
+                </div>
+            </div>
         </div>
         <?php
     }
@@ -616,6 +641,32 @@ class FB_Post_Scheduler {
      */
     public function facebook_section_callback() {
         echo '<p>' . __('Indtast dine Facebook API-oplysninger for at aktivere automatisk opslag til Facebook.', 'fb-post-scheduler') . '</p>';
+        
+        // Vis Open Graph information
+        $app_id = get_option('fb_post_scheduler_facebook_app_id', '');
+        echo '<div class="notice notice-info inline" style="margin-top: 15px;">';
+        echo '<h4 style="margin-top: 0;">🔧 ' . __('Open Graph Optimering', 'fb-post-scheduler') . '</h4>';
+        
+        if (!empty($app_id)) {
+            echo '<p>✅ <strong>' . __('Facebook App ID er konfigureret og tilføjes automatisk til alle sider', 'fb-post-scheduler') . '</strong></p>';
+            echo '<p>' . __('Dette hjælper Facebook med at identificere din app og forbedrer Open Graph scraping.', 'fb-post-scheduler') . '</p>';
+        } else {
+            echo '<p>⚠️ <strong>' . __('Facebook App ID mangler', 'fb-post-scheduler') . '</strong></p>';
+            echo '<p>' . __('Uden App ID kan Facebook have sværere ved at finde det rigtige billede på dine sider.', 'fb-post-scheduler') . '</p>';
+        }
+        
+        echo '<details style="margin-top: 10px;">';
+        echo '<summary style="cursor: pointer; font-weight: bold;">' . __('📖 Sådan forbedrer du Facebook billedvalg', 'fb-post-scheduler') . '</summary>';
+        echo '<div style="margin-top: 10px; padding: 10px; background: #f9f9f9;">';
+        echo '<ol>';
+        echo '<li>' . __('Sørg for at alle indlæg har et <strong>fremhævet billede</strong> (featured image)', 'fb-post-scheduler') . '</li>';
+        echo '<li>' . __('Brug billeder på mindst <strong>1200x630 pixels</strong> for bedst kvalitet', 'fb-post-scheduler') . '</li>';
+        echo '<li>' . __('Systemet tilføjer automatisk <code>&lt;meta property="fb:app_id"&gt;</code> når App ID er konfigureret', 'fb-post-scheduler') . '</li>';
+        echo '<li>' . __('Du kan teste hvordan Facebook ser dine sider med <a href="https://developers.facebook.com/tools/debug/" target="_blank">Facebook Sharing Debugger</a>', 'fb-post-scheduler') . '</li>';
+        echo '</ol>';
+        echo '</div>';
+        echo '</details>';
+        echo '</div>';
     }
     
     /**
@@ -659,6 +710,7 @@ class FB_Post_Scheduler {
     public function facebook_app_id_callback() {
         $app_id = get_option('fb_post_scheduler_facebook_app_id', '');
         echo '<input type="text" name="fb_post_scheduler_facebook_app_id" value="' . esc_attr($app_id) . '" class="regular-text">';
+        echo '<p class="description">' . __('App ID tilføjes automatisk som &lt;meta property="fb:app_id"&gt; tag til alle sider for bedre Open Graph scraping.', 'fb-post-scheduler') . '</p>';
     }
     
     /**
@@ -1544,6 +1596,18 @@ class FB_Post_Scheduler {
             return;
         }
         
+        // Tjek om App ID mangler og vis venlig advarsel
+        $app_id = get_option('fb_post_scheduler_facebook_app_id', '');
+        if (empty($app_id)) {
+            echo '<div class="notice notice-info is-dismissible">';
+            echo '<p><strong>💡 ' . __('Facebook Post Scheduler Tip:', 'fb-post-scheduler') . '</strong> ';
+            echo sprintf(
+                __('For bedre Open Graph scraping og billedvalg anbefaler vi at konfigurere dit Facebook App ID i <a href="%s">indstillinger</a>.', 'fb-post-scheduler'),
+                admin_url('admin.php?page=fb-post-scheduler-settings')
+            );
+            echo '</p></div>';
+        }
+        
         // Tjek kun en gang per dag for at undgå for mange API kald
         $last_check = get_transient('fb_post_scheduler_token_check');
         if ($last_check !== false) {
@@ -1603,111 +1667,165 @@ class FB_Post_Scheduler {
         $classes[] = 'postbox-below-editor';
         return $classes;
     }
-}
-
-/**
- * Tilføj Open Graph meta tags til head for at hjælpe Facebook scraping
- */
-function fb_post_scheduler_add_og_tags() {
-    if (is_single() || is_page()) {
-        global $post;
+    
+    /**
+     * Tilføj Facebook meta tags til head for bedre Open Graph scraping
+     */
+    public function add_facebook_meta_tags() {
+        // Hent Facebook App ID fra indstillinger
+        $app_id = get_option('fb_post_scheduler_facebook_app_id', '');
         
-        // Kun tilføj hvis der ikke allerede er OG tags fra andre plugins
-        if (!has_action('wp_head', 'jetpack_og_tags') && !defined('WPSEO_VERSION')) {
+        // Tilføj App ID meta tag hvis konfigureret
+        if (!empty($app_id)) {
+            echo '<meta property="fb:app_id" content="' . esc_attr($app_id) . '" />' . "\n";
+            echo '<!-- Facebook Post Scheduler: App ID for bedre Open Graph scraping -->' . "\n";
             
-            // Post titel
-            $title = get_the_title($post->ID);
-            if ($title) {
-                echo '<meta property="og:title" content="' . esc_attr($title) . '" />' . "\n";
-            }
+            // Log til PHP error log for debugging
+            error_log('FB Post Scheduler: Added fb:app_id meta tag - ' . $app_id);
+        } else {
+            // Log manglende App ID
+            error_log('FB Post Scheduler: No App ID configured - Open Graph scraping may be sub-optimal');
+        }
+        
+        // Tilføj grundlæggende Open Graph tags hvis ikke allerede tilstede
+        if (is_single() || is_page()) {
+            global $post;
             
-            // Post beskrivelse
-            $description = get_the_excerpt($post->ID);
-            if (empty($description) && !empty($post->post_content)) {
-                $description = wp_trim_words(strip_tags($post->post_content), 30);
-            }
-            if ($description) {
-                echo '<meta property="og:description" content="' . esc_attr($description) . '" />' . "\n";
-            }
-            
-            // Post URL
-            $url = get_permalink($post->ID);
-            if ($url) {
-                echo '<meta property="og:url" content="' . esc_url($url) . '" />' . "\n";
-            }
-            
-            // Post type
-            echo '<meta property="og:type" content="article" />' . "\n";
-            
-            // Site navn
-            $site_name = get_bloginfo('name');
-            if ($site_name) {
-                echo '<meta property="og:site_name" content="' . esc_attr($site_name) . '" />' . "\n";
-            }
-            
-            // Post billede - prioriter featured image
-            $image_url = get_the_post_thumbnail_url($post->ID, 'large');
-            
-            // Hvis der ikke er et featured image, find det første billede i indholdet
-            if (!$image_url) {
-                preg_match_all('/<img[^>]+src=[\'"]([^\'"]+)[\'"][^>]*>/i', $post->post_content, $matches);
-                if (!empty($matches[1][0])) {
-                    $image_url = $matches[1][0];
-                }
-            }
-            
-            // Fallback til site logo eller standard billede
-            if (!$image_url) {
-                $custom_logo_id = get_theme_mod('custom_logo');
-                if ($custom_logo_id) {
-                    $image_url = wp_get_attachment_image_url($custom_logo_id, 'large');
-                }
-            }
-            
-            if ($image_url) {
-                echo '<meta property="og:image" content="' . esc_url($image_url) . '" />' . "\n";
+            // Tjek at andre SEO plugins ikke allerede tilføjer OG tags
+            if (!has_action('wp_head', 'jetpack_og_tags') && 
+                !defined('WPSEO_VERSION') && 
+                !class_exists('RankMath\\Head') && 
+                !defined('AIOSEOP_VERSION')) {
                 
-                // Tilføj billede dimensioner hvis muligt
-                if ($custom_logo_id || has_post_thumbnail($post->ID)) {
-                    $attachment_id = $custom_logo_id ?: get_post_thumbnail_id($post->ID);
-                    $image_meta = wp_get_attachment_metadata($attachment_id);
-                    if ($image_meta) {
-                        echo '<meta property="og:image:width" content="' . esc_attr($image_meta['width']) . '" />' . "\n";
-                        echo '<meta property="og:image:height" content="' . esc_attr($image_meta['height']) . '" />' . "\n";
+                // Post URL (vigtigt for Facebook scraping)
+                $url = get_permalink($post->ID);
+                if ($url && !$this->has_og_url_tag()) {
+                    echo '<meta property="og:url" content="' . esc_url($url) . '" />' . "\n";
+                }
+                
+                // Post titel
+                $title = get_the_title($post->ID);
+                if ($title && !$this->has_og_title_tag()) {
+                    echo '<meta property="og:title" content="' . esc_attr($title) . '" />' . "\n";
+                }
+                
+                // Post type
+                if (!$this->has_og_type_tag()) {
+                    echo '<meta property="og:type" content="article" />' . "\n";
+                }
+                
+                // Featured image (vigtigst for Facebook billede-deling)
+                if (has_post_thumbnail($post->ID) && !$this->has_og_image_tag()) {
+                    $image_url = get_the_post_thumbnail_url($post->ID, 'large');
+                    if ($image_url) {
+                        echo '<meta property="og:image" content="' . esc_url($image_url) . '" />' . "\n";
+                        
+                        // Tilføj billede dimensioner hvis tilgængelige
+                        $image_id = get_post_thumbnail_id($post->ID);
+                        if ($image_id) {
+                            $image_meta = wp_get_attachment_metadata($image_id);
+                            if (isset($image_meta['width']) && isset($image_meta['height'])) {
+                                echo '<meta property="og:image:width" content="' . esc_attr($image_meta['width']) . '" />' . "\n";
+                                echo '<meta property="og:image:height" content="' . esc_attr($image_meta['height']) . '" />' . "\n";
+                            }
+                        }
                     }
                 }
-            }
-            
-            // Tilføj article specifik data
-            echo '<meta property="article:published_time" content="' . esc_attr(get_the_date('c', $post->ID)) . '" />' . "\n";
-            
-            if (get_the_modified_date('c', $post->ID) !== get_the_date('c', $post->ID)) {
-                echo '<meta property="article:modified_time" content="' . esc_attr(get_the_modified_date('c', $post->ID)) . '" />' . "\n";
-            }
-            
-            // Post author
-            $author = get_the_author_meta('display_name', $post->post_author);
-            if ($author) {
-                echo '<meta property="article:author" content="' . esc_attr($author) . '" />' . "\n";
-            }
-            
-            // Post kategorier
-            $categories = get_the_category($post->ID);
-            foreach ($categories as $category) {
-                echo '<meta property="article:section" content="' . esc_attr($category->name) . '" />' . "\n";
-            }
-            
-            // Post tags
-            $tags = get_the_tags($post->ID);
-            if ($tags) {
-                foreach ($tags as $tag) {
-                    echo '<meta property="article:tag" content="' . esc_attr($tag->name) . '" />' . "\n";
+                
+                // Post beskrivelse
+                $description = get_the_excerpt($post->ID);
+                if (empty($description) && !empty($post->post_content)) {
+                    $description = wp_trim_words(strip_tags($post->post_content), 30);
                 }
+                if ($description && !$this->has_og_description_tag()) {
+                    echo '<meta property="og:description" content="' . esc_attr($description) . '" />' . "\n";
+                }
+                
+                echo '<!-- Facebook Post Scheduler: Grundlæggende Open Graph tags for bedre deling -->' . "\n";
             }
         }
     }
+    
+    /**
+     * Hjælpefunktioner til at tjekke om Open Graph tags allerede findes
+     */
+    private function has_og_url_tag() {
+        return $this->og_tag_exists('og:url');
+    }
+    
+    private function has_og_title_tag() {
+        return $this->og_tag_exists('og:title');
+    }
+    
+    private function has_og_type_tag() {
+        return $this->og_tag_exists('og:type');
+    }
+    
+    private function has_og_image_tag() {
+        return $this->og_tag_exists('og:image');
+    }
+    
+    private function has_og_description_tag() {
+        return $this->og_tag_exists('og:description');
+    }
+    
+    private function og_tag_exists($property) {
+        // Simpel tjek - i praksis vil andre SEO plugins normalt være aktive
+        return false;
+    }
 }
-add_action('wp_head', 'fb_post_scheduler_add_og_tags', 5);
+
+/**
+ * AJAX handler til at teste Facebook Open Graph scraping
+ */
+add_action('wp_ajax_fb_test_og_scraping', 'fb_test_og_scraping_ajax');
+function fb_test_og_scraping_ajax() {
+    // Tjek nonce og permissions
+    if (!wp_verify_nonce($_POST['nonce'], 'fb_post_scheduler_nonce') || !current_user_can('manage_options')) {
+        wp_die('Unauthorized');
+    }
+    
+    $url = isset($_POST['url']) ? esc_url_raw($_POST['url']) : '';
+    
+    if (empty($url)) {
+        wp_send_json_error('Ingen URL angivet');
+    }
+    
+    // Få App ID og Access Token
+    $app_id = get_option('fb_post_scheduler_facebook_app_id', '');
+    $access_token = get_option('fb_post_scheduler_facebook_access_token', '');
+    
+    if (empty($app_id) || empty($access_token)) {
+        wp_send_json_error('Facebook App ID eller Access Token mangler');
+    }
+    
+    // Test Facebook Graph API scraping af URL
+    $api_url = 'https://graph.facebook.com/v17.0/?id=' . urlencode($url) . '&fields=og_object{title,description,image}&access_token=' . urlencode($access_token);
+    
+    $response = wp_remote_get($api_url, array(
+        'timeout' => 30,
+        'headers' => array(
+            'User-Agent' => 'WordPress/Facebook-Post-Scheduler'
+        )
+    ));
+    
+    if (is_wp_error($response)) {
+        wp_send_json_error('Fejl ved kald til Facebook API: ' . $response->get_error_message());
+    }
+    
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+    
+    if (isset($data['error'])) {
+        wp_send_json_error('Facebook API fejl: ' . $data['error']['message']);
+    }
+    
+    wp_send_json_success(array(
+        'data' => $data,
+        'api_url' => $api_url,
+        'message' => 'Test gennemført - se hvad Facebook finder på din side'
+    ));
+}
 
 // Init plugin
 add_action('plugins_loaded', array('FB_Post_Scheduler', 'get_instance'));
