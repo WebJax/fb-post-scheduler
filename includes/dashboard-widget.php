@@ -34,6 +34,12 @@ function fb_post_scheduler_dashboard_widget_content() {
         return;
     }
     
+    // Tilføj info om scheduling
+    echo '<div class="notice notice-info inline" style="margin-bottom: 15px; padding: 10px; font-size: 12px;">';
+    echo '<p><strong>📅 ' . __('Scheduling Info:', 'fb-post-scheduler') . '</strong> ';
+    echo __('Opslag postes automatisk hver time når cron kører. Facebook finder selv det bedste billede på siden.', 'fb-post-scheduler');
+    echo '</p></div>';
+    
     // Få alle planlagte opslag fra databasen
     global $wpdb;
     $table_name = $wpdb->prefix . 'fb_scheduled_posts';

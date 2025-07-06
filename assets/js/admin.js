@@ -35,6 +35,11 @@
         
         // Initialiser eksisterende billeder i Facebook preview
         initializeExistingImages();
+        
+        // Vis billede best practices info
+        if ($('.fb-post-image-section').length > 0) {
+            showImageBestPracticesInfo();
+        }
 
         
         // Datepicker-initialisering (hvis på rediger post-side)
@@ -778,9 +783,9 @@
      */
     function initDateControls() {
         // Tjek dato for alle datoinput
-        $('[id^="fb_post_date_"], [id^="fb_post_time_"]').on('change', function() {
+        $('[id^="fb_post_date_"], [id^="fb_post_hour_"]').on('change', function() {
             var id = $(this).attr('id');
-            var index = id.replace('fb_post_date_', '').replace('fb_post_time_', '');
+            var index = id.replace('fb_post_date_', '').replace('fb_post_hour_', '');
             validateDate(index);
         });
         
@@ -793,26 +798,28 @@
         // Funktion til at validere dato
         function validateDate(index) {
             var dateString = $('#fb_post_date_' + index).val();
-            var timeString = $('#fb_post_time_' + index).val();
+            var hourValue = $('#fb_post_hour_' + index).val();
             
-            if (!dateString || !timeString) {
+            if (!dateString || hourValue === undefined) {
                 return;
             }
             
+            // Konstruer tidspunkt som hele timer
+            var timeString = String(hourValue).padStart(2, '0') + ':00';
             var selectedDate = new Date(dateString + 'T' + timeString);
             var now = new Date();
             
             // Hvis datoen er i fortiden, vis en advarsel
             if (selectedDate < now) {
                 // Tilføj advarsel hvis den ikke allerede findes
-                var $postItem = $('#fb_post_time_' + index).closest('.fb-post-item');
+                var $postItem = $('#fb_post_hour_' + index).closest('.fb-post-item');
                 if ($postItem.find('.date-warning').length === 0) {
-                    $('<div class="notice notice-warning inline date-warning"><p>Advarsel: Den valgte dato og tid er i fortiden. Facebook-opslaget vil blive forsøgt postet straks efter du gemmer.</p></div>')
-                        .insertAfter($postItem.find('[id^="fb_post_time_"]').closest('p'));
+                    $('<div class="notice notice-warning inline date-warning"><p>⚠️ Advarsel: Den valgte dato og tid er i fortiden. Facebook-opslaget vil blive forsøgt postet næste gang cron tjekker for planlagte opslag (typisk inden for en time).</p></div>')
+                        .insertAfter($postItem.find('[id^="fb_post_hour_"]').closest('p'));
                 }
             } else {
                 // Fjern advarsel hvis datoen nu er i fremtiden
-                $('#fb_post_time_' + index).closest('.fb-post-item').find('.date-warning').remove();
+                $('#fb_post_hour_' + index).closest('.fb-post-item').find('.date-warning').remove();
             }
         }
     }
@@ -1026,6 +1033,60 @@
                 $fbPreviewImage.hide();
             }
         }
+    }
+    
+    /**
+     * Vis hjælpe tekst om Facebook billede best practices
+     */
+    function showImageBestPracticesInfo() {
+        var $infoBox = $('<div class="fb-image-info notice notice-info inline">' +
+            '<p><strong>Facebook Billede Tips:</strong></p>' +
+            '<ul style="margin-left: 20px;">' +
+            '<li>Anbefalede dimensioner: 1200x630 pixels (1.91:1 ratio)</li>' +
+            '<li>Minimum størrelse: 600x315 pixels</li>' +
+            '<li>Maksimum filstørrelse: 8MB</li>' +
+            '<li>Understøttede formater: JPG, PNG, GIF, WebP</li>' +
+            '<li>Undgå mere end 20% tekst i billedet for bedst reach</li>' +
+            '</ul>' +
+            '<p><em>Plugin\'et uploader billeder direkte til Facebook for at sikre korrekt visning.</em></p>' +
+            '</div>');
+        
+        // Tilføj info box efter billede upload sektion
+        $('.fb-post-image-section').first().after($infoBox);
+    }
+    
+    /**
+     * Vis status for billede upload strategi
+     */
+    function showImageUploadStrategy($postItem, strategy, details) {
+        var $statusBox = $postItem.find('.fb-image-strategy-status');
+        
+        if ($statusBox.length === 0) {
+            $statusBox = $('<div class="fb-image-strategy-status notice inline"></div>');
+            $postItem.find('.fb-post-image-section').append($statusBox);
+        }
+        
+        var statusClass = 'notice-info';
+        var statusIcon = '📋';
+        
+        switch(strategy) {
+            case 'direct_upload':
+                statusClass = 'notice-success';
+                statusIcon = '✅';
+                break;
+            case 'link_share':
+                statusClass = 'notice-warning';
+                statusIcon = '⚠️';
+                break;
+            case 'fallback':
+                statusClass = 'notice-error';
+                statusIcon = '❌';
+                break;
+        }
+        
+        $statusBox.removeClass('notice-info notice-success notice-warning notice-error')
+                  .addClass(statusClass)
+                  .html('<p>' + statusIcon + ' <strong>Strategi:</strong> ' + details + '</p>');
     }
 
 })(jQuery);

@@ -50,8 +50,8 @@ class FB_Post_Scheduler_API {
      *
      * @param string $message Beskedtekst til Facebook-opslag
      * @param string $link URL til at inkludere i opslaget
-     * @param int $image_id Attachment ID of image to include (optional)
-     * @param int $post_id WordPress post ID for fallback to featured image (optional)
+     * @param int $image_id Ikke brugt - bevaret for kompatibilitet
+     * @param int $post_id WordPress post ID til logging
      * @return array|WP_Error Response fra Facebook eller fejl
      */
     public function post_to_facebook($message, $link, $image_id = 0, $post_id = 0) {
@@ -60,74 +60,75 @@ class FB_Post_Scheduler_API {
             return new WP_Error('missing_credentials', __('Manglende Facebook API-indstillinger', 'fb-post-scheduler'));
         }
         
-        // API endpoint
+        // Log start af posting
+        if (!empty($post_id)) {
+            fb_post_scheduler_log('Poster til Facebook med link sharing - Facebook finder automatisk det bedste billede på siden', $post_id, '', 'info');
+        }
+        
+        // Post direkte med link sharing - enkel og pålidelig metode
+        $result = $this->post_with_link_share($message, $link);
+        
+        // Log resultat
+        if (!is_wp_error($result) && !empty($post_id)) {
+            fb_post_scheduler_log('SUCCESS: Post oprettet på Facebook', $post_id, isset($result['id']) ? $result['id'] : '', 'success');
+        } elseif (is_wp_error($result) && !empty($post_id)) {
+            fb_post_scheduler_log('FEJL: Facebook posting fejlede: ' . $result->get_error_message(), $post_id, '', 'error');
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Post med link sharing til Facebook
+     * 
+     * Enkel og pålidelig metode - Facebook finder automatisk det bedste billede
+     * 
+     * @param string $message Beskedtekst
+     * @param string $link URL til at dele
+     * @return array|WP_Error Response fra Facebook eller fejl
+     */
+    private function post_with_link_share($message, $link) {
+        error_log('FB Post Scheduler: Starting simple link share to Facebook');
+        
         $url = "https://graph.facebook.com/{$this->page_id}/feed";
         
-        // Forbered data
-        $data = array(
+        $post_data = array(
             'message' => $message,
-            'link' => $link,
-            'access_token' => $this->access_token
+            'access_token' => $this->access_token,
+            'published' => 'true'
         );
         
-        // Find bedste billede URL - prioritet: valgt billede > post thumbnail
-        $image_url = null;
-        $image_source = '';
-        
-        // Prøv først det valgte billede
-        if (!empty($image_id)) {
-            $image_url = wp_get_attachment_url($image_id);
-            if ($image_url) {
-                $image_source = 'selected_image';
-            }
+        // Tilføj link hvis angivet
+        if (!empty($link)) {
+            $post_data['link'] = $link;
         }
         
-        // Hvis intet valgt billede eller det ikke kan hentes, prøv post thumbnail
-        if (empty($image_url) && !empty($post_id)) {
-            $image_url = get_the_post_thumbnail_url($post_id, 'large');
-            if ($image_url) {
-                $image_source = 'featured_image';
-            }
-        }
-        
-        // Log hvilket billede der bruges
-        if (!empty($image_url) && !empty($post_id)) {
-            $log_message = $image_source === 'selected_image' 
-                ? 'Bruger valgt billede til Facebook post'
-                : 'Bruger featured image som fallback til Facebook post';
-            fb_post_scheduler_log($log_message, $post_id, '', 'info');
-        }
-        
-        // Hvis vi har et gyldigt billede-URL, brug photos endpoint
-        if (!empty($image_url)) {
-            $url = "https://graph.facebook.com/{$this->page_id}/photos";
-            $data['url'] = $image_url;
-            $data['caption'] = $message;
-            // Tilføj link til caption
-            $data['caption'] .= "\n\n" . $link;
-        }
-        
-        // Send POST-anmodning til Facebook Graph API
         $response = wp_remote_post($url, array(
-            'method' => 'POST',
-            'timeout' => 45,
-            'redirection' => 5,
-            'httpversion' => '1.0',
-            'blocking' => true,
-            'body' => $data,
+            'timeout' => 30,
+            'body' => $post_data,
+            'headers' => array(
+                'User-Agent' => 'WordPress/Facebook-Post-Scheduler'
+            )
         ));
         
         if (is_wp_error($response)) {
-            return $response;
+            error_log('FB Post Scheduler: Link sharing failed - ' . $response->get_error_message());
+            return new WP_Error('post_error', sprintf(__('Link sharing fejlede: %s', 'fb-post-scheduler'), $response->get_error_message()));
         }
         
-        $body = json_decode(wp_remote_retrieve_body($response), true);
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
         
-        if (isset($body['error'])) {
-            return new WP_Error('facebook_api_error', $body['error']['message']);
+        error_log('FB Post Scheduler: Facebook response - ' . $body);
+        
+        if (isset($data['error'])) {
+            error_log('FB Post Scheduler: Facebook API error - ' . $data['error']['message']);
+            return new WP_Error('facebook_error', sprintf(__('Facebook fejl: %s', 'fb-post-scheduler'), $data['error']['message']));
         }
         
-        return $body;
+        error_log('FB Post Scheduler: Link sharing successful');
+        
+        return $data;
     }
     
     /**

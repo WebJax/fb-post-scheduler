@@ -612,14 +612,22 @@
 .fb-admin-buttons {
     margin: 20px 0;
     display: flex;
-    gap: 10px;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: flex-start;
 }
 
 .fb-admin-buttons .button {
-    padding: 5px 15px;
-    height: auto;
-    line-height: 2;
-    font-size: 14px;
+    margin-right: 10px;
+}
+
+.fb-admin-buttons .description {
+    display: block;
+    font-style: italic;
+    color: #666;
+    font-size: 13px;
+    margin-top: 5px;
+    max-width: 300px;
 }
 
 /* Drag and Drop Styles */
@@ -1100,4 +1108,50 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* Styling for scheduling information box */
+.fb-post-scheduler-meta-box .notice.notice-info {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-left: 4px solid #2271b1;
+}
+
+.fb-post-scheduler-meta-box .notice.notice-info p {
+    margin-bottom: 10px;
+}
+
+.fb-post-scheduler-meta-box .notice.notice-info ul {
+    margin-bottom: 10px;
+}
+
+.fb-post-scheduler-meta-box .notice.notice-info li {
+    margin-bottom: 5px;
+}
+
+.fb-post-scheduler-meta-box details summary {
+    padding: 8px 0;
+    color: #2271b1;
+    outline: none;
+}
+
+.fb-post-scheduler-meta-box details summary:hover {
+    color: #135e96;
+}
+
+.fb-post-scheduler-meta-box details[open] summary {
+    margin-bottom: 10px;
+}
+
+.fb-post-scheduler-meta-box details div {
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.fb-post-scheduler-meta-box details div p {
+    margin-bottom: 10px;
+}
+
+.fb-post-scheduler-meta-box details div p:last-child {
+    margin-bottom: 0;
 }
