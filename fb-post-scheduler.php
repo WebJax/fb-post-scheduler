@@ -247,6 +247,12 @@ class FB_Post_Scheduler {
         // Tilføj skjult billede efter body-tag for Facebook scraper backup
         add_action('wp_body_open', array($this, 'add_hidden_facebook_image'));
         
+        // Fallback for temaer der ikke understøtter wp_body_open
+        add_action('wp_footer', array($this, 'add_hidden_facebook_image_fallback'));
+        
+        // Debug hook (kun for admins)
+        add_action('wp_footer', array($this, 'debug_hidden_image_status'), 999);
+        
         // Tilføj Facebook share count columns til post lists
         $this->add_facebook_share_columns();
     }
@@ -1784,8 +1790,94 @@ class FB_Post_Scheduler {
             "\n"
         );
         
+        // Marker at billedet er tilføjet så fallback ikke kører
+        $GLOBALS['fb_post_scheduler_image_added'] = true;
+        
         // Log til debug
-        error_log('FB Post Scheduler: Added hidden backup image for post ' . $post->ID . ' - ' . $image_url);
+        error_log('FB Post Scheduler: Added hidden backup image via wp_body_open for post ' . $post->ID . ' - ' . $image_url);
+    }
+    
+    /**
+     * Fallback til at tilføje skjult billede via JavaScript
+     * 
+     * Denne funktion bruges hvis wp_body_open ikke er understøttet af temaet
+     */
+    public function add_hidden_facebook_image_fallback() {
+        // Kun på enkelt posts og sider
+        if (!is_single() && !is_page()) {
+            return;
+        }
+        
+        global $post;
+        
+        // Tjek om der er et featured image
+        if (!has_post_thumbnail($post->ID)) {
+            return;
+        }
+        
+        // Tjek om billedet allerede er tilføjet via wp_body_open
+        if (isset($GLOBALS['fb_post_scheduler_image_added']) && $GLOBALS['fb_post_scheduler_image_added']) {
+            return;
+        }
+        
+        // Hent featured image URL
+        $image_url = get_the_post_thumbnail_url($post->ID, 'large');
+        
+        if (!$image_url) {
+            return;
+        }
+        
+        // Indsæt JavaScript der tilføjer billedet til toppen af body
+        echo sprintf(
+            '<!-- Facebook Post Scheduler: Fallback JavaScript til at indsætte skjult billede -->%s<script type="text/javascript">%s(function() {%s    var img = document.createElement("img");%s    img.src = "%s";%s    img.alt = "Facebook Scraper Backup Image";%s    img.style.cssText = "position:absolute!important;top:-9999px!important;left:-9999px!important;width:1px!important;height:1px!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;";%s    img.id = "fb-scraper-backup-js-%d";%s    %s    // Indsæt som første element i body%s    if (document.body && document.body.firstChild) {%s        document.body.insertBefore(img, document.body.firstChild);%s    } else if (document.body) {%s        document.body.appendChild(img);%s    }%s})();%s</script>%s',
+            "\n",
+            "\n",
+            "\n",
+            "\n",
+            esc_url($image_url),
+            "\n",
+            "\n",
+            "\n",
+            $post->ID,
+            "\n",
+            "\n",
+            "\n",
+            "\n",
+            "\n",
+            "\n",
+            "\n",
+            "\n",
+            "\n"
+        );
+        
+        // Log til debug
+        error_log('FB Post Scheduler: Added hidden backup image via JavaScript fallback for post ' . $post->ID . ' - ' . $image_url);
+        
+        $GLOBALS['fb_post_scheduler_image_added'] = true;
+    }
+
+    /**
+     * Debug-funktion til at vise status for skjult billede
+     */
+    public function debug_hidden_image_status() {
+        if (!current_user_can('manage_options') || !is_single() && !is_page()) {
+            return;
+        }
+        
+        global $post;
+        
+        if (!has_post_thumbnail($post->ID)) {
+            return;
+        }
+        
+        // Tilføj debug-info til HTML kommentar
+        echo sprintf(
+            '<!-- FB Post Scheduler Debug: wp_body_open support: %s, Post ID: %d, Has featured image: %s -->%s',
+            did_action('wp_body_open') ? 'YES' : 'NO',
+            $post->ID,
+            has_post_thumbnail($post->ID) ? 'YES' : 'NO',
+            "\n"
+        );
     }
 
     /**
