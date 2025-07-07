@@ -244,6 +244,9 @@ class FB_Post_Scheduler {
         // Tilføj Facebook App ID meta tag til head for bedre Open Graph scraping
         add_action('wp_head', array($this, 'add_facebook_meta_tags'));
         
+        // Tilføj skjult billede efter body-tag for Facebook scraper backup
+        add_action('wp_body_open', array($this, 'add_hidden_facebook_image'));
+        
         // Tilføj Facebook share count columns til post lists
         $this->add_facebook_share_columns();
     }
@@ -1746,6 +1749,45 @@ class FB_Post_Scheduler {
         }
     }
     
+    /**
+     * Tilføj skjult billede efter body-tag for Facebook scraper backup
+     * 
+     * Dette sikrer at Facebook's scraper altid finder featured image,
+     * selv hvis Open Graph tags ikke er optimale
+     */
+    public function add_hidden_facebook_image() {
+        // Kun på enkelt posts og sider
+        if (!is_single() && !is_page()) {
+            return;
+        }
+        
+        global $post;
+        
+        // Tjek om der er et featured image
+        if (!has_post_thumbnail($post->ID)) {
+            return;
+        }
+        
+        // Hent featured image URL
+        $image_url = get_the_post_thumbnail_url($post->ID, 'large');
+        
+        if (!$image_url) {
+            return;
+        }
+        
+        // Indsæt skjult billede-tag (helt skjult, påvirker ikke layout)
+        echo sprintf(
+            '<!-- Facebook Post Scheduler: Skjult billede for scraper backup -->%s<img src="%s" alt="Facebook Scraper Backup Image" style="position:absolute;top:-9999px;left:-9999px;width:1px;height:1px;visibility:hidden;opacity:0;" id="fb-scraper-backup-%d" />%s',
+            "\n",
+            esc_url($image_url),
+            $post->ID,
+            "\n"
+        );
+        
+        // Log til debug
+        error_log('FB Post Scheduler: Added hidden backup image for post ' . $post->ID . ' - ' . $image_url);
+    }
+
     /**
      * Hjælpefunktioner til at tjekke om Open Graph tags allerede findes
      */

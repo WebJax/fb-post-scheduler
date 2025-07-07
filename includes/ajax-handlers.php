@@ -783,3 +783,68 @@ function fb_post_scheduler_get_featured_image_info() {
     exit;
 }
 add_action('wp_ajax_fb_get_featured_image_info', 'fb_post_scheduler_get_featured_image_info');
+
+/**
+ * AJAX-handler til at indsætte skjult billede-tag for Facebook scraper
+ */
+function fb_post_scheduler_insert_hidden_image_ajax() {
+    // Tjek nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Tjek brugerrettigheder
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+    
+    if (!$post_id) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig post ID', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Hent featured image URL
+    $featured_image_id = get_post_thumbnail_id($post_id);
+    
+    if (!$featured_image_id) {
+        wp_send_json_error(array(
+            'message' => __('Ingen featured image fundet', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    $image_url = wp_get_attachment_image_url($featured_image_id, 'large');
+    
+    if (!$image_url) {
+        wp_send_json_error(array(
+            'message' => __('Featured image URL ikke tilgængeligt', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+    
+    // Opret skjult billede-tag til Facebook scraper
+    $hidden_image_html = sprintf(
+        '<img src="%s" alt="Facebook Scraper Image" style="position:absolute;top:-9999px;left:-9999px;width:1px;height:1px;visibility:hidden;" id="fb-scraper-image-%d" />',
+        esc_url($image_url),
+        $post_id
+    );
+    
+    wp_send_json_success(array(
+        'message' => __('Skjult billede-tag oprettet', 'fb-post-scheduler'),
+        'html' => $hidden_image_html,
+        'image_url' => $image_url
+    ));
+    
+    exit;
+}
+add_action('wp_ajax_fb_post_scheduler_insert_hidden_image', 'fb_post_scheduler_insert_hidden_image_ajax');
