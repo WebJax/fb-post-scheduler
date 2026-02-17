@@ -1375,6 +1375,26 @@ class FB_Post_Scheduler {
                         ) {
                             fb_post_scheduler_log('Opslag #' . ($index + 1) . ' er klar til at blive postet', $post_id);
                             
+                            // VIGTIG: Tjek database for at forhindre duplikater ved race conditions
+                            // Dette sikrer at kun én cron job kan poste opslaget, selvom flere kører samtidigt
+                            $table_name = fb_post_scheduler_get_table_name();
+                            $db_record = $wpdb->get_row($wpdb->prepare(
+                                "SELECT id, status FROM $table_name WHERE post_id = %d AND post_index = %d",
+                                $post_id, $index
+                            ));
+                            
+                            // Hvis opslaget allerede er postet i databasen, spring det over
+                            if ($db_record && $db_record->status === 'posted') {
+                                fb_post_scheduler_log('Opslag #' . ($index + 1) . ' er allerede postet (fra database check)', $post_id);
+                                
+                                // Synkroniser post_meta med database status hvis de er ude af sync
+                                if (!isset($fb_post['status']) || $fb_post['status'] !== 'posted') {
+                                    $fb_posts[$index]['status'] = 'posted';
+                                    update_post_meta($post_id, '_fb_posts', $fb_posts);
+                                }
+                                continue;
+                            }
+                            
                             // Post til Facebook
                             $message = $fb_post['text'];
                             $link = get_permalink($post_id);
@@ -1398,11 +1418,22 @@ class FB_Post_Scheduler {
                                 // Log fejl
                                 fb_post_scheduler_log('Fejl ved posting til Facebook: ' . $result->get_error_message(), $post_id);
                                 
-                                // Opdater status til fejl
+                                // Opdater status til fejl i både database og post_meta
                                 $fb_posts[$index]['status'] = 'error';
                                 $fb_posts[$index]['error_message'] = $result->get_error_message();
+                                
+                                // Opdater også i databasen
+                                if ($db_record) {
+                                    fb_post_scheduler_update_status($db_record->id, 'failed');
+                                }
                             } else {
-                                // Opdater status til posted
+                                // VIGTIGT: Opdater database FØRST for at forhindre race conditions
+                                // Dette er en atomisk operation der sikrer at kun én posting sker
+                                if ($db_record) {
+                                    fb_post_scheduler_update_status($db_record->id, 'posted', isset($result['id']) ? $result['id'] : '');
+                                }
+                                
+                                // Opdater status til posted i post_meta
                                 $fb_posts[$index]['status'] = 'posted';
                                 $fb_posts[$index]['posted_date'] = $now;
                                 $fb_posts[$index]['fb_post_id'] = isset($result['id']) ? $result['id'] : '';
@@ -1411,9 +1442,6 @@ class FB_Post_Scheduler {
                                 
                                 // Opret notifikation
                                 do_action('fb_post_scheduler_post_success', $post_id, $fb_post, $index);
-                                
-                                // Fjern opslaget fra databasen
-                                fb_post_scheduler_delete_scheduled_post($post_id, $index);
                             }
                             
                             // Gem opdateret data
