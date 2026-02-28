@@ -1198,7 +1198,30 @@ class FB_Post_Scheduler {
         if (isset($_POST['fb_posts']) && is_array($_POST['fb_posts'])) {
             $fb_posts = array();
             
+            // Hent eksisterende data for at bevare audit-felter på allerede-postede opslag
+            $existing_fb_posts = get_post_meta($post_id, '_fb_posts', true);
+            if (!is_array($existing_fb_posts)) {
+                $existing_fb_posts = array();
+            }
+            
             foreach ($_POST['fb_posts'] as $index => $fb_post) {
+                // For allerede-postede opslag: brug de eksisterende gemte audit-data uændret
+                // (Disabled form-felter sendes ikke med, hvilket kan overskrive gyldige audit-data)
+                if (isset($fb_post['status']) && $fb_post['status'] === 'posted') {
+                    if (isset($existing_fb_posts[$index]) && is_array($existing_fb_posts[$index])) {
+                        $fb_posts[] = $existing_fb_posts[$index];
+                    } else {
+                        // Fallback: rekonstruer fra skjulte input-felter
+                        $fb_posts[] = array(
+                            'status'      => 'posted',
+                            'fb_post_id'  => isset($fb_post['fb_post_id']) ? sanitize_text_field($fb_post['fb_post_id']) : '',
+                            'posted_date' => isset($fb_post['posted_date']) ? sanitize_text_field($fb_post['posted_date']) : '',
+                            'target_type' => isset($fb_post['target_type']) ? sanitize_text_field($fb_post['target_type']) : 'page',
+                        );
+                    }
+                    continue;
+                }
+                
                 $enabled = isset($fb_post['enabled']) ? true : false;
                 $text = isset($fb_post['text']) ? sanitize_textarea_field($fb_post['text']) : '';
                 $date = isset($fb_post['date']) ? sanitize_text_field($fb_post['date']) : '';
@@ -1207,28 +1230,13 @@ class FB_Post_Scheduler {
                 $image_id = isset($fb_post['image_id']) ? absint($fb_post['image_id']) : 0;
                 $target_type = isset($fb_post['target_type']) ? sanitize_text_field($fb_post['target_type']) : 'page';
                 
-                $post_data = array(
-                    'text' => $text,
-                    'date' => $datetime,
-                    'enabled' => $enabled,
-                    'image_id' => $image_id,
-                    'target_type' => $target_type
+                $fb_posts[] = array(
+                    'text'        => $text,
+                    'date'        => $datetime,
+                    'enabled'     => $enabled,
+                    'image_id'    => $image_id,
+                    'target_type' => $target_type,
                 );
-                
-                // Bevar status og Facebook post ID hvis allerede postet
-                if (isset($fb_post['status']) && $fb_post['status'] === 'posted') {
-                    $post_data['status'] = 'posted';
-                    
-                    if (isset($fb_post['fb_post_id'])) {
-                        $post_data['fb_post_id'] = sanitize_text_field($fb_post['fb_post_id']);
-                    }
-                    
-                    if (isset($fb_post['posted_date'])) {
-                        $post_data['posted_date'] = sanitize_text_field($fb_post['posted_date']);
-                    }
-                }
-                
-                $fb_posts[] = $post_data;
             }
             
             // Opdater posts meta
@@ -1457,14 +1465,19 @@ class FB_Post_Scheduler {
                                 
                                 // Tjek om opslaget er blevet postet for at synkronisere post_meta
                                 $db_record = $wpdb->get_row($wpdb->prepare(
-                                    "SELECT id, status FROM $table_name WHERE post_id = %d AND post_index = %d",
+                                    "SELECT id, status, fb_post_id FROM $table_name WHERE post_id = %d AND post_index = %d",
                                     $post_id, $index
                                 ));
                                 
                                 if ($db_record && ($db_record->status === 'posted' || $db_record->status === 'posting')) {
-                                    // Synkroniser post_meta med database status hvis de er ude af sync
+                                    // Synkroniser post_meta med database status - behold kun essentielle audit-data
                                     if (!isset($fb_post['status']) || $fb_post['status'] !== 'posted') {
-                                        $fb_posts[$index]['status'] = 'posted';
+                                        $fb_posts[$index] = array(
+                                            'status'      => 'posted',
+                                            'posted_date' => $now,
+                                            'fb_post_id'  => !empty($db_record->fb_post_id) ? $db_record->fb_post_id : '',
+                                            'target_type' => isset($fb_post['target_type']) ? $fb_post['target_type'] : 'page',
+                                        );
                                         update_post_meta($post_id, '_fb_posts', $fb_posts);
                                     }
                                 }
