@@ -1055,3 +1055,41 @@ function fb_post_scheduler_clear_group_ajax() {
     exit;
 }
 add_action('wp_ajax_fb_post_scheduler_clear_group', 'fb_post_scheduler_clear_group_ajax');
+
+/**
+ * AJAX-handler til at hente kommende planlagte opslag til meta box overblik
+ */
+function fb_post_scheduler_get_upcoming_posts_ajax() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array('message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler')));
+        exit;
+    }
+
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(array('message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler')));
+        exit;
+    }
+
+    global $wpdb;
+    $table_name = esc_sql( $wpdb->prefix . 'fb_scheduled_posts' );
+    $now = current_time('mysql');
+
+    $posts = $wpdb->get_results($wpdb->prepare(
+        "SELECT scheduled_time, post_title FROM $table_name WHERE scheduled_time >= %s AND status = 'scheduled' ORDER BY scheduled_time ASC LIMIT 50",
+        $now
+    ));
+
+    $items = array();
+    foreach ($posts as $post) {
+        $date_parts = explode(' ', $post->scheduled_time);
+        $items[] = array(
+            'date'  => isset($date_parts[0]) ? $date_parts[0] : '',
+            'time'  => isset($date_parts[1]) ? substr($date_parts[1], 0, 5) : '',
+            'title' => $post->post_title,
+        );
+    }
+
+    wp_send_json_success($items);
+    exit;
+}
+add_action('wp_ajax_fb_post_scheduler_get_upcoming_posts', 'fb_post_scheduler_get_upcoming_posts_ajax');

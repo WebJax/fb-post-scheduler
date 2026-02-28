@@ -995,7 +995,11 @@ class FB_Post_Scheduler {
                     <p>
                         <label for="fb_post_time_<?php echo $index; ?>"><?php _e('Tidspunkt for opslag:', 'fb-post-scheduler'); ?></label>
                         <input type="time" id="fb_post_time_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][time]" value="<?php echo esc_attr($time); ?>" class="" <?php disabled($is_posted, true); ?>>
+                        <button type="button" class="button fb-toggle-schedule-overview" title="<?php esc_attr_e('Vis overblik over planlagte opslag', 'fb-post-scheduler'); ?>" style="margin-left:5px;">
+                            <span class="dashicons dashicons-calendar-alt" style="vertical-align:text-top;"></span>
+                        </button>
                     </p>
+                    <div class="fb-schedule-overview" style="display:none;"></div>
                     
                     <p>
                         <label for="fb_post_text_<?php echo $index; ?>"><?php _e('Tekst til Facebook-opslag:', 'fb-post-scheduler'); ?></label>
@@ -1117,7 +1121,11 @@ class FB_Post_Scheduler {
                 <p>
                     <label for="fb_post_time_{{index}}"><?php _e('Tidspunkt for opslag:', 'fb-post-scheduler'); ?></label>
                     <input type="time" id="fb_post_time_{{index}}" name="fb_posts[{{index}}][time]" value="12:00" class="widefat">
+                    <button type="button" class="button fb-toggle-schedule-overview" title="<?php esc_attr_e('Vis overblik over planlagte opslag', 'fb-post-scheduler'); ?>" style="margin-left:5px;">
+                        <span class="dashicons dashicons-calendar-alt" style="vertical-align:text-top;"></span>
+                    </button>
                 </p>
+                <div class="fb-schedule-overview" style="display:none;"></div>
                 
                 <p>
                     <label for="fb_post_text_{{index}}"><?php _e('Tekst til Facebook-opslag:', 'fb-post-scheduler'); ?></label>

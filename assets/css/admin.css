@@ -1216,6 +1216,56 @@
     }
 }
 
+/* Schedule overview panel (quick calendar view in meta box) */
+.fb-schedule-overview {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    margin-bottom: 10px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.fb-schedule-overview table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.fb-schedule-overview thead th {
+    background: #f1f1f1;
+    padding: 6px 10px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 1px solid #ddd;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.fb-schedule-overview tbody td {
+    padding: 5px 10px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: middle;
+}
+
+.fb-schedule-overview tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.fb-schedule-overview .no-upcoming-posts {
+    padding: 12px 10px;
+    color: #666;
+    font-style: italic;
+    text-align: center;
+}
+
+.fb-toggle-schedule-overview.active {
+    background: #2271b1;
+    border-color: #2271b1;
+    color: #fff;
+}
+
 /* Facebook Post Target Selection Styling */
 .fb-post-target-selection {
     background: #f8f9fa;

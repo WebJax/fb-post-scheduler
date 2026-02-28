@@ -1256,4 +1256,58 @@
         // Page selection buttons er allerede bound via bindTokenManagementButtons
     });
 
+    // Hurtigt overblik over planlagte opslag (kalender ikon i meta box)
+    $(document).on('click', '.fb-toggle-schedule-overview', function() {
+        var $btn = $(this);
+        var $overview = $btn.closest('p').next('.fb-schedule-overview');
+
+        if ($overview.is(':visible')) {
+            $overview.slideUp(150);
+            $btn.removeClass('active');
+            return;
+        }
+
+        $btn.addClass('active');
+
+        function escHtml(str) {
+            return $('<span>').text(str).html();
+        }
+
+        // Vis loading state hvis listen endnu ikke er hentet
+        if (!$overview.data('loaded')) {
+            $overview.html('<p class="no-upcoming-posts">Henter planlagte opslag&hellip;</p>').slideDown(150);
+
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_get_upcoming_posts',
+                    nonce: fbPostScheduler.nonce
+                },
+                success: function(response) {
+                    if (response.success && response.data.length > 0) {
+                        var html = '<table><thead><tr>' +
+                            '<th>Dato</th><th>Tid</th><th>Titel</th>' +
+                            '</tr></thead><tbody>';
+                        $.each(response.data, function(i, item) {
+                            html += '<tr><td>' + escHtml(item.date) + '</td>' +
+                                '<td>' + escHtml(item.time) + '</td>' +
+                                '<td>' + escHtml(item.title) + '</td></tr>';
+                        });
+                        html += '</tbody></table>';
+                        $overview.html(html);
+                    } else {
+                        $overview.html('<p class="no-upcoming-posts">Ingen planlagte opslag.</p>');
+                    }
+                    $overview.data('loaded', true);
+                },
+                error: function() {
+                    $overview.html('<p class="no-upcoming-posts">Kunne ikke hente planlagte opslag.</p>');
+                }
+            });
+        } else {
+            $overview.slideDown(150);
+        }
+    });
+
 })(jQuery);
