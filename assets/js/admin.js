@@ -1257,57 +1257,71 @@
     });
 
     // Hurtigt overblik over planlagte opslag (kalender ikon i meta box)
+    var fbScheduleOverviewCache = null; // global cache for alle panels
+
+    function escHtml(str) {
+        return $('<span>').text(str).html();
+    }
+
+    function renderScheduleOverview($overview, data) {
+        if (data.length > 0) {
+            var html = '<table><thead><tr>' +
+                '<th>Dato</th><th>Tid</th><th>Titel</th>' +
+                '</tr></thead><tbody>';
+            $.each(data, function(i, item) {
+                html += '<tr><td>' + escHtml(item.date) + '</td>' +
+                    '<td>' + escHtml(item.time) + '</td>' +
+                    '<td>' + escHtml(item.title) + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            $overview.html(html);
+        } else {
+            $overview.html('<p class="no-upcoming-posts">Ingen planlagte opslag.</p>');
+        }
+    }
+
     $(document).on('click', '.fb-toggle-schedule-overview', function() {
         var $btn = $(this);
         var $overview = $btn.closest('p').next('.fb-schedule-overview');
+        var isOpen = $overview.is(':visible');
 
-        if ($overview.is(':visible')) {
+        if (isOpen) {
             $overview.slideUp(150);
-            $btn.removeClass('active');
+            $btn.removeClass('active').attr('aria-expanded', 'false');
             return;
         }
 
-        $btn.addClass('active');
+        $btn.addClass('active').attr('aria-expanded', 'true');
 
-        function escHtml(str) {
-            return $('<span>').text(str).html();
-        }
-
-        // Vis loading state hvis listen endnu ikke er hentet
-        if (!$overview.data('loaded')) {
-            $overview.html('<p class="no-upcoming-posts">Henter planlagte opslag&hellip;</p>').slideDown(150);
-
-            $.ajax({
-                url: fbPostScheduler.ajaxUrl,
-                type: 'POST',
-                data: {
-                    action: 'fb_post_scheduler_get_upcoming_posts',
-                    nonce: fbPostScheduler.nonce
-                },
-                success: function(response) {
-                    if (response.success && response.data.length > 0) {
-                        var html = '<table><thead><tr>' +
-                            '<th>Dato</th><th>Tid</th><th>Titel</th>' +
-                            '</tr></thead><tbody>';
-                        $.each(response.data, function(i, item) {
-                            html += '<tr><td>' + escHtml(item.date) + '</td>' +
-                                '<td>' + escHtml(item.time) + '</td>' +
-                                '<td>' + escHtml(item.title) + '</td></tr>';
-                        });
-                        html += '</tbody></table>';
-                        $overview.html(html);
-                    } else {
-                        $overview.html('<p class="no-upcoming-posts">Ingen planlagte opslag.</p>');
-                    }
-                    $overview.data('loaded', true);
-                },
-                error: function() {
-                    $overview.html('<p class="no-upcoming-posts">Kunne ikke hente planlagte opslag.</p>');
-                }
-            });
-        } else {
+        // Reuse cached data if available
+        if (fbScheduleOverviewCache !== null) {
+            renderScheduleOverview($overview, fbScheduleOverviewCache);
             $overview.slideDown(150);
+            return;
         }
+
+        $overview.html('<p class="no-upcoming-posts">Henter planlagte opslag&hellip;</p>').slideDown(150);
+
+        $.ajax({
+            url: fbPostScheduler.ajaxUrl,
+            type: 'POST',
+            data: {
+                action: 'fb_post_scheduler_get_upcoming_posts',
+                nonce: fbPostScheduler.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    fbScheduleOverviewCache = response.data;
+                    renderScheduleOverview($overview, response.data);
+                } else {
+                    var msg = (response.data && response.data.message) ? response.data.message : 'Der opstod en fejl.';
+                    $overview.html('<p class="no-upcoming-posts">' + escHtml(msg) + '</p>');
+                }
+            },
+            error: function() {
+                $overview.html('<p class="no-upcoming-posts">Kunne ikke hente planlagte opslag.</p>');
+            }
+        });
     });
 
 })(jQuery);

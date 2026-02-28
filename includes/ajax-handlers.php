@@ -1071,7 +1071,7 @@ function fb_post_scheduler_get_upcoming_posts_ajax() {
     }
 
     global $wpdb;
-    $table_name = esc_sql( $wpdb->prefix . 'fb_scheduled_posts' );
+    $table_name = $wpdb->prefix . 'fb_scheduled_posts';
     $now = current_time('mysql');
 
     $posts = $wpdb->get_results($wpdb->prepare(
