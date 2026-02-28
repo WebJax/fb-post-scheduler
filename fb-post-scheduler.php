@@ -87,7 +87,7 @@ function fb_post_scheduler_activate() {
         scheduled_time datetime NOT NULL,
         created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
         PRIMARY KEY  (id),
-        KEY post_id (post_id),
+        UNIQUE KEY post_id_index (post_id, post_index),
         KEY status (status),
         KEY scheduled_time (scheduled_time)
     ) $charset_collate;";
@@ -95,6 +95,56 @@ function fb_post_scheduler_activate() {
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     dbDelta($logs_sql);
     dbDelta($scheduled_sql);
+    
+    // Kør schema migration hvis nødvendigt
+    fb_post_scheduler_migrate_schema();
+}
+
+/**
+ * Migrer database schema til den seneste version
+ * Tilføjer UNIQUE constraint på (post_id, post_index) for at forhindre duplikater
+ */
+function fb_post_scheduler_migrate_schema() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'fb_scheduled_posts';
+    
+    // Tjek om UNIQUE constraint allerede eksisterer
+    $constraint_exists = $wpdb->get_results($wpdb->prepare(
+        "SHOW INDEX FROM $table_name WHERE Key_name = %s",
+        'post_id_index'
+    ));
+    
+    if (!empty($constraint_exists)) {
+        // Constraint eksisterer allerede
+        return;
+    }
+    
+    // Før vi tilføjer UNIQUE constraint, skal vi fjerne eventuelle duplikater
+    // Behold kun den ældste post for hver (post_id, post_index) kombination
+    $duplicates_removed = $wpdb->query(
+        "DELETE t1 FROM $table_name t1
+         INNER JOIN $table_name t2
+         WHERE t1.post_id = t2.post_id
+           AND t1.post_index = t2.post_index
+           AND t1.id > t2.id"
+    );
+    
+    if ($duplicates_removed !== false && $duplicates_removed > 0) {
+        fb_post_scheduler_log('Schema migration: Fjernede ' . $duplicates_removed . ' duplikerede posts før UNIQUE constraint');
+    }
+    
+    // Tilføj UNIQUE constraint
+    $result = $wpdb->query(
+        "ALTER TABLE $table_name
+         ADD UNIQUE KEY post_id_index (post_id, post_index)"
+    );
+    
+    if ($result === false) {
+        // Log fejl hvis ALTER TABLE fejler
+        fb_post_scheduler_log('FEJL ved schema migration: Kunne ikke tilføje UNIQUE constraint. Database fejl: ' . $wpdb->last_error);
+    } else {
+        fb_post_scheduler_log('Schema migration gennemført: UNIQUE constraint tilføjet til (post_id, post_index)');
+    }
 }
 
 /**
@@ -1375,6 +1425,41 @@ class FB_Post_Scheduler {
                         ) {
                             fb_post_scheduler_log('Opslag #' . ($index + 1) . ' er klar til at blive postet', $post_id);
                             
+                            // VIGTIG: Atomisk "claim" operation for at forhindre duplikater ved race conditions
+                            // Kun ét cron job kan succesfuldt opdatere status fra 'scheduled' til 'posting'
+                            $table_name = fb_post_scheduler_get_table_name();
+                            $rows_updated = $wpdb->query($wpdb->prepare(
+                                "UPDATE $table_name
+                                 SET status = 'posting'
+                                 WHERE post_id = %d
+                                   AND post_index = %d
+                                   AND status = 'scheduled'",
+                                $post_id,
+                                $index
+                            ));
+                            
+                            // Hvis ingen rækker blev opdateret, er opslaget allerede håndteret af et andet cron job
+                            if ($rows_updated === 0) {
+                                fb_post_scheduler_log('Opslag #' . ($index + 1) . ' blev ikke claimed til posting (allerede håndteret af et andet cron job)', $post_id);
+                                
+                                // Tjek om opslaget er blevet postet for at synkronisere post_meta
+                                $db_record = $wpdb->get_row($wpdb->prepare(
+                                    "SELECT id, status FROM $table_name WHERE post_id = %d AND post_index = %d",
+                                    $post_id, $index
+                                ));
+                                
+                                if ($db_record && ($db_record->status === 'posted' || $db_record->status === 'posting')) {
+                                    // Synkroniser post_meta med database status hvis de er ude af sync
+                                    if (!isset($fb_post['status']) || $fb_post['status'] !== 'posted') {
+                                        $fb_posts[$index]['status'] = 'posted';
+                                        update_post_meta($post_id, '_fb_posts', $fb_posts);
+                                    }
+                                }
+                                continue;
+                            }
+                            
+                            fb_post_scheduler_log('Opslag #' . ($index + 1) . ' claimed til posting', $post_id);
+                            
                             // Post til Facebook
                             $message = $fb_post['text'];
                             $link = get_permalink($post_id);
@@ -1398,11 +1483,47 @@ class FB_Post_Scheduler {
                                 // Log fejl
                                 fb_post_scheduler_log('Fejl ved posting til Facebook: ' . $result->get_error_message(), $post_id);
                                 
-                                // Opdater status til fejl
+                                // Opdater status til error i både database og post_meta
                                 $fb_posts[$index]['status'] = 'error';
                                 $fb_posts[$index]['error_message'] = $result->get_error_message();
+                                
+                                // Opdater også i databasen - enten claim'et record eller opret ny
+                                $db_check = $wpdb->get_row($wpdb->prepare(
+                                    "SELECT id FROM $table_name WHERE post_id = %d AND post_index = %d",
+                                    $post_id, $index
+                                ));
+                                
+                                if ($db_check) {
+                                    fb_post_scheduler_update_status($db_check->id, 'error');
+                                } else {
+                                    // Database record mangler - log advarsel
+                                    fb_post_scheduler_log('ADVARSEL: Database record mangler for post_id=' . $post_id . ', index=' . $index . '. Kan ikke opdatere status.', $post_id);
+                                }
                             } else {
-                                // Opdater status til posted
+                                // Opdater database status til posted
+                                $db_check = $wpdb->get_row($wpdb->prepare(
+                                    "SELECT id FROM $table_name WHERE post_id = %d AND post_index = %d",
+                                    $post_id, $index
+                                ));
+                                
+                                if ($db_check) {
+                                    fb_post_scheduler_update_status($db_check->id, 'posted', isset($result['id']) ? $result['id'] : '');
+                                } else {
+                                    // Database record mangler - log advarsel og opret ny
+                                    fb_post_scheduler_log('ADVARSEL: Database record mangler for post_id=' . $post_id . ', index=' . $index . '. Opretter ny.', $post_id);
+                                    fb_post_scheduler_save_scheduled_post($post_id, $fb_post, $index);
+                                    
+                                    // Hent den nye record og opdater status
+                                    $db_check = $wpdb->get_row($wpdb->prepare(
+                                        "SELECT id FROM $table_name WHERE post_id = %d AND post_index = %d",
+                                        $post_id, $index
+                                    ));
+                                    if ($db_check) {
+                                        fb_post_scheduler_update_status($db_check->id, 'posted', isset($result['id']) ? $result['id'] : '');
+                                    }
+                                }
+                                
+                                // Opdater status til posted i post_meta
                                 $fb_posts[$index]['status'] = 'posted';
                                 $fb_posts[$index]['posted_date'] = $now;
                                 $fb_posts[$index]['fb_post_id'] = isset($result['id']) ? $result['id'] : '';
@@ -1411,9 +1532,6 @@ class FB_Post_Scheduler {
                                 
                                 // Opret notifikation
                                 do_action('fb_post_scheduler_post_success', $post_id, $fb_post, $index);
-                                
-                                // Fjern opslaget fra databasen
-                                fb_post_scheduler_delete_scheduled_post($post_id, $index);
                             }
                             
                             // Gem opdateret data

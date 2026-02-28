@@ -148,7 +148,7 @@ function fb_post_scheduler_get_scheduled_posts($start_date, $end_date) {
  * Opdater status for et opslag
  * 
  * @param int $id ID på det planlagte opslag i tabellen
- * @param string $status Ny status ('scheduled', 'posted', 'failed')
+ * @param string $status Ny status ('scheduled', 'posting', 'posted', 'error')
  * @param string $fb_post_id Optional Facebook post ID hvis status er 'posted'
  * @return int|false Antal opdaterede rækker eller false ved fejl
  */
