@@ -121,7 +121,7 @@ function fb_post_scheduler_migrate_schema() {
     
     // Før vi tilføjer UNIQUE constraint, skal vi fjerne eventuelle duplikater
     // Behold kun den ældste post for hver (post_id, post_index) kombination
-    $wpdb->query(
+    $duplicates_removed = $wpdb->query(
         "DELETE t1 FROM $table_name t1
          INNER JOIN $table_name t2
          WHERE t1.post_id = t2.post_id
@@ -129,13 +129,22 @@ function fb_post_scheduler_migrate_schema() {
            AND t1.id > t2.id"
     );
     
+    if ($duplicates_removed !== false && $duplicates_removed > 0) {
+        fb_post_scheduler_log('Schema migration: Fjernede ' . $duplicates_removed . ' duplikerede posts før UNIQUE constraint');
+    }
+    
     // Tilføj UNIQUE constraint
-    $wpdb->query(
+    $result = $wpdb->query(
         "ALTER TABLE $table_name
          ADD UNIQUE KEY post_id_index (post_id, post_index)"
     );
     
-    fb_post_scheduler_log('Schema migration gennemført: UNIQUE constraint tilføjet til (post_id, post_index)');
+    if ($result === false) {
+        // Log fejl hvis ALTER TABLE fejler
+        fb_post_scheduler_log('FEJL ved schema migration: Kunne ikke tilføje UNIQUE constraint. Database fejl: ' . $wpdb->last_error);
+    } else {
+        fb_post_scheduler_log('Schema migration gennemført: UNIQUE constraint tilføjet til (post_id, post_index)');
+    }
 }
 
 /**
