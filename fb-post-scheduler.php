@@ -218,6 +218,10 @@ class FB_Post_Scheduler {
         // Manual process hook
         add_action('admin_init', array($this, 'process_manual_post_check'));
         
+        // Handle post duplication - clear FB post data on duplicated posts
+        add_action('dp_duplicate_post', array($this, 'clear_fb_posts_on_duplicate'), 10, 2);
+        add_action('dp_duplicate_page', array($this, 'clear_fb_posts_on_duplicate'), 10, 2);
+        
         // Check for token expiration warnings
         add_action('admin_notices', array($this, 'check_token_expiration_notice'));
         
@@ -906,10 +910,10 @@ class FB_Post_Scheduler {
         <div class="fb-post-scheduler-meta-box">
             <div id="fb-posts-container">
                 <?php foreach ($fb_posts as $index => $fb_post) : 
-                    // Formatér dato til input-felt
-                    $date_parts = explode(' ', $fb_post['date']);
-                    $date = isset($date_parts[0]) ? $date_parts[0] : date('Y-m-d');
-                    $time = isset($date_parts[1]) ? substr($date_parts[1], 0, 5) : '12:00';
+                    // Formatér dato til input-felt (dato kan mangle for allerede-postede opslag)
+                    $date_parts = !empty($fb_post['date']) ? explode(' ', $fb_post['date']) : array();
+                    $date = !empty($date_parts[0]) ? $date_parts[0] : '';
+                    $time = !empty($date_parts[1]) ? substr($date_parts[1], 0, 5) : '';
                     
                     // Status
                     $is_posted = isset($fb_post['status']) && $fb_post['status'] === 'posted';
@@ -1010,7 +1014,7 @@ class FB_Post_Scheduler {
                         </button>
                         <span class="spinner fb-ai-spinner" style="float: none; margin-top: 0;"></span>
                         <?php endif; ?>
-                        <textarea id="fb_post_text_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][text]" class="widefat" rows="5" <?php disabled($is_posted, true); ?>><?php echo esc_textarea($fb_post['text']); ?></textarea>
+                        <textarea id="fb_post_text_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][text]" class="widefat" rows="5" <?php disabled($is_posted, true); ?>><?php echo esc_textarea(isset($fb_post['text']) ? $fb_post['text'] : ''); ?></textarea>
                         <span class="description"><?php _e('Denne tekst vil blive brugt til Facebook-opslaget. Link til indlægget vil automatisk blive tilføjet.', 'fb-post-scheduler'); ?></span>
                     </p>
                     
@@ -1035,7 +1039,7 @@ class FB_Post_Scheduler {
                     <div class="fb-post-preview">
                         <h4><?php _e('Forhåndsvisning af opslag', 'fb-post-scheduler'); ?></h4>
                         <div class="fb-post-preview-content">
-                            <p class="fb-post-preview-text"><?php echo wp_kses_post($fb_post['text']); ?></p>
+                            <p class="fb-post-preview-text"><?php echo wp_kses_post(isset($fb_post['text']) ? $fb_post['text'] : ''); ?></p>
                             <div class="fb-post-preview-link">
                                 <div class="fb-post-preview-title"><?php echo get_the_title($post->ID); ?></div>
                                 <div class="fb-post-preview-url"><?php echo get_permalink($post->ID); ?></div>
@@ -1194,7 +1198,30 @@ class FB_Post_Scheduler {
         if (isset($_POST['fb_posts']) && is_array($_POST['fb_posts'])) {
             $fb_posts = array();
             
+            // Hent eksisterende data for at bevare audit-felter på allerede-postede opslag
+            $existing_fb_posts = get_post_meta($post_id, '_fb_posts', true);
+            if (!is_array($existing_fb_posts)) {
+                $existing_fb_posts = array();
+            }
+            
             foreach ($_POST['fb_posts'] as $index => $fb_post) {
+                // For allerede-postede opslag: brug de eksisterende gemte audit-data uændret
+                // (Disabled form-felter sendes ikke med, hvilket kan overskrive gyldige audit-data)
+                if (isset($fb_post['status']) && $fb_post['status'] === 'posted') {
+                    if (isset($existing_fb_posts[$index]) && is_array($existing_fb_posts[$index])) {
+                        $fb_posts[] = $existing_fb_posts[$index];
+                    } else {
+                        // Fallback: rekonstruer fra skjulte input-felter
+                        $fb_posts[] = array(
+                            'status'      => 'posted',
+                            'fb_post_id'  => isset($fb_post['fb_post_id']) ? sanitize_text_field($fb_post['fb_post_id']) : '',
+                            'posted_date' => isset($fb_post['posted_date']) ? sanitize_text_field($fb_post['posted_date']) : '',
+                            'target_type' => isset($fb_post['target_type']) ? sanitize_text_field($fb_post['target_type']) : 'page',
+                        );
+                    }
+                    continue;
+                }
+                
                 $enabled = isset($fb_post['enabled']) ? true : false;
                 $text = isset($fb_post['text']) ? sanitize_textarea_field($fb_post['text']) : '';
                 $date = isset($fb_post['date']) ? sanitize_text_field($fb_post['date']) : '';
@@ -1203,28 +1230,13 @@ class FB_Post_Scheduler {
                 $image_id = isset($fb_post['image_id']) ? absint($fb_post['image_id']) : 0;
                 $target_type = isset($fb_post['target_type']) ? sanitize_text_field($fb_post['target_type']) : 'page';
                 
-                $post_data = array(
-                    'text' => $text,
-                    'date' => $datetime,
-                    'enabled' => $enabled,
-                    'image_id' => $image_id,
-                    'target_type' => $target_type
+                $fb_posts[] = array(
+                    'text'        => $text,
+                    'date'        => $datetime,
+                    'enabled'     => $enabled,
+                    'image_id'    => $image_id,
+                    'target_type' => $target_type,
                 );
-                
-                // Bevar status og Facebook post ID hvis allerede postet
-                if (isset($fb_post['status']) && $fb_post['status'] === 'posted') {
-                    $post_data['status'] = 'posted';
-                    
-                    if (isset($fb_post['fb_post_id'])) {
-                        $post_data['fb_post_id'] = sanitize_text_field($fb_post['fb_post_id']);
-                    }
-                    
-                    if (isset($fb_post['posted_date'])) {
-                        $post_data['posted_date'] = sanitize_text_field($fb_post['posted_date']);
-                    }
-                }
-                
-                $fb_posts[] = $post_data;
             }
             
             // Opdater posts meta
@@ -1453,14 +1465,19 @@ class FB_Post_Scheduler {
                                 
                                 // Tjek om opslaget er blevet postet for at synkronisere post_meta
                                 $db_record = $wpdb->get_row($wpdb->prepare(
-                                    "SELECT id, status FROM $table_name WHERE post_id = %d AND post_index = %d",
+                                    "SELECT id, status, fb_post_id FROM $table_name WHERE post_id = %d AND post_index = %d",
                                     $post_id, $index
                                 ));
                                 
                                 if ($db_record && ($db_record->status === 'posted' || $db_record->status === 'posting')) {
-                                    // Synkroniser post_meta med database status hvis de er ude af sync
+                                    // Synkroniser post_meta med database status - behold kun essentielle audit-data
                                     if (!isset($fb_post['status']) || $fb_post['status'] !== 'posted') {
-                                        $fb_posts[$index]['status'] = 'posted';
+                                        $fb_posts[$index] = array(
+                                            'status'      => 'posted',
+                                            'posted_date' => $now,
+                                            'fb_post_id'  => !empty($db_record->fb_post_id) ? $db_record->fb_post_id : '',
+                                            'target_type' => isset($fb_post['target_type']) ? $fb_post['target_type'] : 'page',
+                                        );
                                         update_post_meta($post_id, '_fb_posts', $fb_posts);
                                     }
                                 }
@@ -1532,10 +1549,13 @@ class FB_Post_Scheduler {
                                     }
                                 }
                                 
-                                // Opdater status til posted i post_meta
-                                $fb_posts[$index]['status'] = 'posted';
-                                $fb_posts[$index]['posted_date'] = $now;
-                                $fb_posts[$index]['fb_post_id'] = isset($result['id']) ? $result['id'] : '';
+                                // Opdater status til posted i post_meta - behold kun essentielle data
+                                $fb_posts[$index] = array(
+                                    'status'      => 'posted',
+                                    'posted_date' => $now,
+                                    'fb_post_id'  => isset($result['id']) ? $result['id'] : '',
+                                    'target_type' => isset($fb_post['target_type']) ? $fb_post['target_type'] : 'page',
+                                );
                                 
                                 fb_post_scheduler_log('Opslag blev postet til Facebook. Post ID: ' . (isset($result['id']) ? $result['id'] : 'N/A'), $post_id);
                                 
@@ -1853,6 +1873,21 @@ class FB_Post_Scheduler {
         $classes[] = 'fb-post-scheduler-metabox';
         $classes[] = 'postbox-below-editor';
         return $classes;
+    }
+
+    /**
+     * Ryd Facebook post data på duplikerede posts
+     * Forhindrer at planlagte/postede Facebook opslag kopieres ved duplikering.
+     * Sletter både post meta og eventuelle poster i scheduled-posts databasetabellen
+     * for den nye post, så den starter uden nogen planlagte Facebook-opslag.
+     *
+     * @param int     $new_post_id   ID på den nye (duplikerede) post
+     * @param WP_Post $original_post Det originale post objekt
+     */
+    public function clear_fb_posts_on_duplicate($new_post_id, $original_post) {
+        delete_post_meta($new_post_id, '_fb_posts');
+        delete_post_meta($new_post_id, '_fb_post_enabled');
+        fb_post_scheduler_delete_scheduled_posts($new_post_id);
     }
 }
 
