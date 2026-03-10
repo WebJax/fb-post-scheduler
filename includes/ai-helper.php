@@ -54,7 +54,7 @@ function fb_post_scheduler_generate_ai_text($post_id) {
     $prompt = $prompt_template . "\n\nTitel: " . $title . "\n\nIndhold: " . $content;
     
     // Kald Gemini API
-    $api_url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' . $api_key;
+    $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=' . $api_key;
     
     $body = array(
         'contents' => array(
@@ -68,10 +68,10 @@ function fb_post_scheduler_generate_ai_text($post_id) {
             )
         ),
         'generationConfig' => array(
-            'temperature' => 0.7,
+            'temperature' => 1.0,
             'maxOutputTokens' => 300,
-            'topP' => 0.95,
-            'topK' => 40
+            'topP' => 0.8,
+            'topK' => 10
         )
     );
     
