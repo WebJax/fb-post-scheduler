@@ -184,7 +184,7 @@ Alle endpoints følger mønstret `wp_ajax_fb_post_scheduler_<navn>` og er regist
 
 ## Hvad Copilot skal undgå
 - Introducer **ikke** Composer, npm, Webpack eller andre build-tools med mindre eksplicit bedt om det.
-- Undgå globale variabler i JavaScript – brug det eksisterende `fbPostScheduler`-objekt.
+- Undgå at introducere **nye** globale variabler i JavaScript – brug de eksisterende lokaliserede objekter (`fbPostScheduler`, `fbPostSchedulerData`, `fbPostSchedulerNotifications`, `fbPostSchedulerAuth`).
 - Undgå direkte `echo` af unsaniteret brugerinput.
 - Undgå `mysql_*`-funktioner – brug udelukkende `$wpdb`.
 - Undgå hardkodede tabelnavne – brug altid `$wpdb->prefix . 'fb_...'`.
