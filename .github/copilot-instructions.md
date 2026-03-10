@@ -98,7 +98,8 @@ function fb_post_scheduler_example_handler(): void {
 ```
 
 ### Database-forespørgsler
-Brug altid `$wpdb->prepare()` til parameteriserede forespørgsler. Brug aldrig rå string-interpolation i SQL.
+For alt **nyt eller ændret** kode skal du bruge `$wpdb->prepare()` til parameteriserede forespørgsler og **aldrig** rå string-interpolation i SQL.
+Eksisterende legacy-forespørgsler, der stadig bruger interpoleret SQL (fx i `includes/export.php`), skal løbende refaktoreres til `$wpdb->prepare()`, når koden alligevel berøres.
 
 ```php
 global $wpdb;
