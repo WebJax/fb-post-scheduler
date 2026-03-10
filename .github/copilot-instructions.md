@@ -38,7 +38,7 @@ fb-post-scheduler/
 │   │   └── notifications.js   # Frontend notifikationer
 │   └── css/
 │       └── admin.css          # Al admin-styling
-└── logs/                      # Runtime-logfiler (ignoreres af git)
+└── logs/                      # Mappe i git; nye runtime-logfiler i denne mappe ignoreres af git via .gitignore
 ```
 
 ---
