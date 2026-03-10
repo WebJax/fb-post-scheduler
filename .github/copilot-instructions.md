@@ -84,7 +84,7 @@ Alle AJAX-handlers skal:
 ```php
 add_action( 'wp_ajax_fb_post_scheduler_example', 'fb_post_scheduler_example_handler' );
 
-function fb_post_scheduler_example_handler(): void {
+function fb_post_scheduler_example_handler() {
     if ( ! wp_verify_nonce( $_POST['nonce'] ?? '', 'fb_post_scheduler_nonce' ) ) {
         wp_send_json_error( [ 'message' => 'Invalid nonce' ] );
     }
