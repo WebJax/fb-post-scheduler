@@ -7,7 +7,7 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 - Vælg hvilke post types der skal kunne planlægge Facebook-opslag
 - Tilføj Facebook-opslagstekst direkte i indholdsredigeringen
 - Planlæg, hvornår opslaget skal sendes til Facebook
-- AI-genereret opslagstekst med Google Gemini 2.0 Flash
+- AI-genereret opslagstekst med Google Gemini 3.0 Flash
 - **Automatisk Facebook Page selection og token management** 🆕
 - **Facebook Group support - del direkte til grupper du administrerer** 🆕
 - **Detaljeret Facebook App setup guide med rettigheder** 🆕
