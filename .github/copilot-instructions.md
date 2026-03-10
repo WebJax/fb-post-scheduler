@@ -1,7 +1,7 @@
 # Copilot Instructions – fb-post-scheduler
 
 ## Projektbeskrivelse
-`fb-post-scheduler` er et **WordPress-plugin** skrevet i PHP og Vanilla JavaScript. Det lader redaktører planlægge Facebook-opslag direkte fra WordPress-editoren, understøtter AI-genereret tekst via Google Gemini (`gemini-1.5-flash`) og viser en kalender over planlagte opslag.
+`fb-post-scheduler` er et **WordPress-plugin** skrevet i PHP og Vanilla JavaScript. Det lader redaktører planlægge Facebook-opslag direkte fra WordPress-editoren, understøtter AI-genereret tekst via Google Gemini (`gemini-3.0-flash`) og viser en kalender over planlagte opslag.
 
 ---
 
@@ -11,7 +11,7 @@
 | Backend | PHP 7.0+, WordPress hooks/filters, `$wpdb` |
 | Frontend | Vanilla JS (ES6), Custom CSS |
 | Database | MySQL/MariaDB via WordPress |
-| Ekstern API | Facebook Graph API (versionløs URL i koden), Google Gemini (`gemini-1.5-flash`) |
+| Ekstern API | Facebook Graph API (versionløs URL i koden), Google Gemini (`gemini-3.0-flash`) |
 | Afhængighedsstyring | Ingen (Composer/npm bruges ikke) |
 | Tests | Ingen automatiserede tests |
 | CI/CD | Ingen pipeline |
