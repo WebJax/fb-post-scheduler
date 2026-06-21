@@ -238,6 +238,95 @@
                 }
             });
         });
+
+        // Slet opslagsinformationer fra meta box (postet opslag)
+        $(document).on('click', '.fb-clear-post-record', function(e) {
+            e.preventDefault();
+
+            if (!confirm(fbPostScheduler.clearRecordConfirm)) {
+                return;
+            }
+
+            var button = $(this);
+            var postId = button.data('post-id');
+            var postIndex = button.data('post-index');
+
+            button.prop('disabled', true).text('Sletter...');
+
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_clear_post_record',
+                    post_id: postId,
+                    post_index: postIndex,
+                    nonce: fbPostScheduler.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Genindlæs siden så meta box opdateres
+                        window.location.reload();
+                    } else {
+                        button.prop('disabled', false).text('Slet opslagsinformationer');
+                        var message = response.data && response.data.message ? response.data.message : fbPostScheduler.ajaxError;
+                        showNotice(message, 'error');
+                    }
+                },
+                error: function() {
+                    button.prop('disabled', false).text('Slet opslagsinformationer');
+                    showNotice(fbPostScheduler.ajaxError, 'error');
+                }
+            });
+        });
+
+        // Slet postet opslag fra admin-oversigten
+        $(document).on('click', '.fb-delete-posted-record', function(e) {
+            e.preventDefault();
+
+            if (!confirm(fbPostScheduler.clearRecordConfirm)) {
+                return;
+            }
+
+            var button = $(this);
+            var postId = button.data('post-id');
+            var postIndex = button.data('post-index');
+            var row = button.closest('tr');
+
+            button.prop('disabled', true).text('Sletter...');
+
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_clear_post_record',
+                    post_id: postId,
+                    post_index: postIndex,
+                    nonce: fbPostScheduler.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        row.fadeOut(300, function() {
+                            $(this).remove();
+                            var tbody = $('#posted-posts-table tbody');
+                            if (tbody.find('tr').length === 0) {
+                                tbody.html('<tr><td colspan="5">' + 'Ingen postede Facebook-opslag fundet.' + '</td></tr>');
+                            }
+                        });
+                        if (typeof response.data.message !== 'undefined') {
+                            showNotice(response.data.message, 'success');
+                        }
+                    } else {
+                        button.prop('disabled', false).text('Slet');
+                        var message = response.data && response.data.message ? response.data.message : fbPostScheduler.ajaxError;
+                        showNotice(message, 'error');
+                    }
+                },
+                error: function() {
+                    button.prop('disabled', false).text('Slet');
+                    showNotice(fbPostScheduler.ajaxError, 'error');
+                }
+            });
+        });
     });
     
     /**

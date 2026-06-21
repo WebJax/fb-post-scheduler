@@ -1093,3 +1093,59 @@ function fb_post_scheduler_get_upcoming_posts_ajax() {
     exit;
 }
 add_action('wp_ajax_fb_post_scheduler_get_upcoming_posts', 'fb_post_scheduler_get_upcoming_posts_ajax');
+
+/**
+ * AJAX-handler til at slette opslagsinformationer fra databasen og post meta
+ *
+ * Bruges til at fjerne et allerede postet Facebook-opslag fra tabellen og post meta,
+ * så indlægget kan genplanlægges – fx efter genudgivelse via et tredjeparts-plugin.
+ */
+function fb_post_scheduler_clear_post_record_ajax() {
+    if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'fb_post_scheduler_nonce' ) ) {
+        wp_send_json_error( array( 'message' => __( 'Ugyldig sikkerhedsnøgle', 'fb-post-scheduler' ) ) );
+        exit;
+    }
+
+    if ( ! current_user_can( 'edit_posts' ) ) {
+        wp_send_json_error( array( 'message' => __( 'Utilstrækkelige rettigheder', 'fb-post-scheduler' ) ) );
+        exit;
+    }
+
+    $post_id    = isset( $_POST['post_id'] )    ? intval( $_POST['post_id'] )    : 0;
+    $post_index = isset( $_POST['post_index'] ) ? intval( $_POST['post_index'] ) : -1;
+
+    if ( ! $post_id || $post_index < 0 ) {
+        wp_send_json_error( array( 'message' => __( 'Ugyldig post ID eller opslag-indeks', 'fb-post-scheduler' ) ) );
+        exit;
+    }
+
+    // Slet posten fra databasen
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'fb_scheduled_posts';
+
+    $wpdb->delete(
+        $table_name,
+        array(
+            'post_id'    => $post_id,
+            'post_index' => $post_index,
+        ),
+        array( '%d', '%d' )
+    );
+
+    // Fjern posten fra _fb_posts meta
+    $fb_posts = get_post_meta( $post_id, '_fb_posts', true );
+    if ( is_array( $fb_posts ) && isset( $fb_posts[ $post_index ] ) ) {
+        array_splice( $fb_posts, $post_index, 1 );
+        $fb_posts = array_values( $fb_posts );
+        if ( empty( $fb_posts ) ) {
+            delete_post_meta( $post_id, '_fb_posts' );
+            delete_post_meta( $post_id, '_fb_post_enabled' );
+        } else {
+            update_post_meta( $post_id, '_fb_posts', $fb_posts );
+        }
+    }
+
+    wp_send_json_success( array( 'message' => __( 'Opslagsinformationer slettet', 'fb-post-scheduler' ) ) );
+    exit;
+}
+add_action( 'wp_ajax_fb_post_scheduler_clear_post_record', 'fb_post_scheduler_clear_post_record_ajax' );
