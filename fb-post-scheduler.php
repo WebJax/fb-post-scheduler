@@ -374,6 +374,61 @@ class FB_Post_Scheduler {
                 <?php
             endif;
             ?>
+
+            <h2><?php _e('Postede Facebook-opslag', 'fb-post-scheduler'); ?></h2>
+            <?php
+            $posted_posts = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM $table_name WHERE status = %s ORDER BY scheduled_time DESC LIMIT 50",
+                'posted'
+            ));
+
+            if (!empty($posted_posts)) :
+                ?>
+                <table class="widefat striped" id="posted-posts-table">
+                    <thead>
+                        <tr>
+                            <th><?php _e('Titel', 'fb-post-scheduler'); ?></th>
+                            <th><?php _e('Type', 'fb-post-scheduler'); ?></th>
+                            <th><?php _e('Postet', 'fb-post-scheduler'); ?></th>
+                            <th><?php _e('Facebook-tekst', 'fb-post-scheduler'); ?></th>
+                            <th><?php _e('Handlinger', 'fb-post-scheduler'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($posted_posts as $posted_post) : ?>
+                            <tr>
+                                <td>
+                                    <a href="<?php echo esc_url(admin_url('post.php?post=' . $posted_post->post_id . '&action=edit')); ?>"><?php echo esc_html($posted_post->post_title); ?></a>
+                                </td>
+                                <td>
+                                    <?php
+                                    $post_type_obj = get_post_type_object(get_post_type($posted_post->post_id));
+                                    echo $post_type_obj ? esc_html($post_type_obj->labels->singular_name) : esc_html(get_post_type($posted_post->post_id));
+                                    ?>
+                                </td>
+                                <td>
+                                    <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($posted_post->scheduled_time))); ?>
+                                </td>
+                                <td>
+                                    <?php echo esc_html(wp_trim_words($posted_post->message, 10)); ?>
+                                </td>
+                                <td>
+                                    <button type="button" class="button button-link-delete fb-delete-posted-record"
+                                        data-post-id="<?php echo esc_attr($posted_post->post_id); ?>"
+                                        data-post-index="<?php echo esc_attr($posted_post->post_index); ?>"
+                                        data-scheduled-id="<?php echo esc_attr($posted_post->id); ?>"><?php _e('Slet', 'fb-post-scheduler'); ?></button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <?php
+            else :
+                ?>
+                <p><?php _e('Ingen postede Facebook-opslag fundet.', 'fb-post-scheduler'); ?></p>
+                <?php
+            endif;
+            ?>
         </div>
         <?php
     }
@@ -991,6 +1046,16 @@ class FB_Post_Scheduler {
                     </p>
                     <?php endif; ?>
                     
+                    <?php if ($is_posted) : ?>
+                    <p>
+                        <button type="button" class="button button-link-delete fb-clear-post-record"
+                            data-post-id="<?php echo esc_attr($post->ID); ?>"
+                            data-post-index="<?php echo esc_attr($index); ?>">
+                            <?php _e('Slet opslagsinformationer', 'fb-post-scheduler'); ?>
+                        </button>
+                    </p>
+                    <?php endif; ?>
+                    
                     <p>
                         <label for="fb_post_date_<?php echo $index; ?>"><?php _e('Dato for opslag:', 'fb-post-scheduler'); ?></label>
                         <input type="date" id="fb_post_date_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][date]" value="<?php echo esc_attr($date); ?>" class="" <?php disabled($is_posted, true); ?>>
@@ -1306,7 +1371,8 @@ class FB_Post_Scheduler {
                     'nonce' => wp_create_nonce('fb_post_scheduler_nonce'),
                     'ajaxUrl' => admin_url('admin-ajax.php'),
                     'ajaxError' => __('Der opstod en fejl ved kommunikation med serveren. Prøv igen senere.', 'fb-post-scheduler'),
-                    'aiError' => __('Kunne ikke generere tekst med AI. Tjek dine indstillinger og prøv igen.', 'fb-post-scheduler')
+                    'aiError' => __('Kunne ikke generere tekst med AI. Tjek dine indstillinger og prøv igen.', 'fb-post-scheduler'),
+                    'clearRecordConfirm' => __('Er du sikker på, at du vil slette disse opslagsinformationer? Opslaget kan herefter planlægges igen.', 'fb-post-scheduler')
                 )
             );
             
