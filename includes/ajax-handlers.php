@@ -467,68 +467,6 @@ function fb_post_scheduler_delete_scheduled_ajax() {
 add_action('wp_ajax_fb_post_scheduler_delete_scheduled', 'fb_post_scheduler_delete_scheduled_ajax');
 
 /**
- * AJAX-handler til at slette et postet Facebook-opslag direkte fra Facebook
- */
-function fb_post_scheduler_delete_fb_post_ajax() {
-    // Tjek nonce
-    if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'fb_post_scheduler_nonce' ) ) {
-        wp_send_json_error( array( 'message' => __( 'Ugyldig sikkerhedsnøgle', 'fb-post-scheduler' ) ) );
-        exit;
-    }
-
-    // Tjek brugerrettigheder
-    if ( ! current_user_can( 'edit_posts' ) ) {
-        wp_send_json_error( array( 'message' => __( 'Utilstrækkelige rettigheder', 'fb-post-scheduler' ) ) );
-        exit;
-    }
-
-    $fb_post_id  = isset( $_POST['fb_post_id'] ) ? sanitize_text_field( $_POST['fb_post_id'] ) : '';
-    $post_id     = isset( $_POST['post_id'] )    ? intval( $_POST['post_id'] )    : 0;
-    $post_index  = isset( $_POST['post_index'] ) ? intval( $_POST['post_index'] ) : 0;
-
-    if ( empty( $fb_post_id ) || ! $post_id ) {
-        wp_send_json_error( array( 'message' => __( 'Manglende Facebook opslag-ID eller post-ID', 'fb-post-scheduler' ) ) );
-        exit;
-    }
-
-    // Kald Facebook API
-    $api    = new FB_Post_Scheduler_API();
-    $result = $api->delete_facebook_post( $fb_post_id );
-
-    if ( is_wp_error( $result ) ) {
-        wp_send_json_error( array( 'message' => $result->get_error_message() ) );
-        exit;
-    }
-
-    // Opdater status i databasen
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'fb_scheduled_posts';
-
-    $db_record = $wpdb->get_row( $wpdb->prepare(
-        "SELECT id FROM $table_name WHERE post_id = %d AND post_index = %d",
-        $post_id,
-        $post_index
-    ) );
-
-    if ( $db_record ) {
-        fb_post_scheduler_update_status( $db_record->id, 'deleted' );
-    }
-
-    // Fjern fb_post_id fra post_meta så UI opdateres korrekt
-    $fb_posts = get_post_meta( $post_id, '_fb_posts', true );
-    if ( is_array( $fb_posts ) && isset( $fb_posts[ $post_index ] ) ) {
-        $fb_posts[ $post_index ]['fb_post_id'] = '';
-        update_post_meta( $post_id, '_fb_posts', $fb_posts );
-    }
-
-    fb_post_scheduler_log( 'Facebook-opslag manuelt slettet. FB Post ID: ' . $fb_post_id, $post_id );
-
-    wp_send_json_success( array( 'message' => __( 'Facebook-opslaget blev slettet', 'fb-post-scheduler' ) ) );
-    exit;
-}
-add_action( 'wp_ajax_fb_post_scheduler_delete_fb_post', 'fb_post_scheduler_delete_fb_post_ajax' );
-
-/**
  * AJAX-handler til at teste Facebook API forbindelse
  */
 function fb_post_scheduler_test_api_connection_ajax() {

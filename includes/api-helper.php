@@ -107,52 +107,6 @@ class FB_Post_Scheduler_API {
     }
     
     /**
-     * Slet et opslag fra Facebook
-     *
-     * @param string $fb_post_id Facebook opslag-ID (format: "pageId_postId" eller blot post-ID)
-     * @return bool|WP_Error True ved succes, WP_Error ved fejl
-     */
-    public function delete_facebook_post( $fb_post_id ) {
-        if ( empty( $fb_post_id ) ) {
-            return new WP_Error( 'missing_post_id', __( 'Manglende Facebook opslag-ID', 'fb-post-scheduler' ) );
-        }
-
-        if ( empty( $this->access_token ) ) {
-            return new WP_Error( 'missing_credentials', __( 'Manglende Facebook access token', 'fb-post-scheduler' ) );
-        }
-
-        $url = 'https://graph.facebook.com/' . rawurlencode( $fb_post_id );
-
-        $response = wp_remote_request(
-            $url,
-            array(
-                'method'  => 'DELETE',
-                'timeout' => 30,
-                'body'    => array(
-                    'access_token' => $this->access_token,
-                ),
-            )
-        );
-
-        if ( is_wp_error( $response ) ) {
-            return $response;
-        }
-
-        $body = json_decode( wp_remote_retrieve_body( $response ), true );
-
-        if ( isset( $body['error'] ) ) {
-            return new WP_Error( 'facebook_api_error', $body['error']['message'] );
-        }
-
-        // Facebook returnerer {"success": true} ved succes
-        if ( isset( $body['success'] ) && $body['success'] ) {
-            return true;
-        }
-
-        return new WP_Error( 'delete_failed', __( 'Sletning mislykkedes – uventet svar fra Facebook', 'fb-post-scheduler' ) );
-    }
-    
-    /**
      * Tjek om Facebook API-indstillinger er gyldige
      *
      * @return boolean True hvis indstillinger er gyldige, ellers false

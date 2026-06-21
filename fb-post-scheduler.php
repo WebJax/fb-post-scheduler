@@ -374,66 +374,6 @@ class FB_Post_Scheduler {
                 <?php
             endif;
             ?>
-            
-            <h2><?php _e('Postede Facebook-opslag', 'fb-post-scheduler'); ?></h2>
-            
-            <?php
-            $posted_posts = $wpdb->get_results(
-                "SELECT * FROM $table_name
-                 WHERE status = 'posted'
-                 ORDER BY scheduled_time DESC
-                 LIMIT 50"
-            );
-            
-            if (!empty($posted_posts)) :
-                ?>
-                <table class="widefat striped" id="posted-posts-table">
-                    <thead>
-                        <tr>
-                            <th><?php _e('Titel', 'fb-post-scheduler'); ?></th>
-                            <th><?php _e('Postet', 'fb-post-scheduler'); ?></th>
-                            <th><?php _e('Facebook-tekst', 'fb-post-scheduler'); ?></th>
-                            <th><?php _e('Handlinger', 'fb-post-scheduler'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($posted_posts as $post) : ?>
-                            <tr>
-                                <td>
-                                    <a href="<?php echo admin_url('post.php?post=' . $post->post_id . '&action=edit'); ?>"><?php echo esc_html($post->post_title); ?></a>
-                                </td>
-                                <td>
-                                    <?php
-                                    echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($post->scheduled_time));
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php echo esc_html(wp_trim_words($post->message, 10)); ?>
-                                </td>
-                                <td>
-                                    <a href="<?php echo admin_url('post.php?post=' . $post->post_id . '&action=edit'); ?>" class="button"><?php _e('Rediger', 'fb-post-scheduler'); ?></a>
-                                    <?php if (!empty($post->fb_post_id)) : ?>
-                                    <button type="button"
-                                        class="button button-link-delete fb-delete-fb-post-admin"
-                                        data-post-id="<?php echo esc_attr($post->post_id); ?>"
-                                        data-post-index="<?php echo esc_attr($post->post_index); ?>"
-                                        data-fb-post-id="<?php echo esc_attr($post->fb_post_id); ?>"
-                                        data-scheduled-id="<?php echo esc_attr($post->id); ?>">
-                                        <?php _e('Slet fra Facebook', 'fb-post-scheduler'); ?>
-                                    </button>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-                <?php
-            else :
-                ?>
-                <p><?php _e('Ingen postede Facebook-opslag fundet.', 'fb-post-scheduler'); ?></p>
-                <?php
-            endif;
-            ?>
         </div>
         <?php
     }
@@ -528,11 +468,6 @@ class FB_Post_Scheduler {
             'fb_post_scheduler_ai_prompt'
         );
         
-        register_setting(
-            'fb_post_scheduler_settings',
-            'fb_post_scheduler_auto_delete_after_post'
-        );
-        
         add_settings_section(
             'fb_post_scheduler_post_types_section',
             __('Post Types Indstillinger', 'fb-post-scheduler'),
@@ -551,13 +486,6 @@ class FB_Post_Scheduler {
             'fb_post_scheduler_ai_section',
             __('AI Tekst Generator Indstillinger', 'fb-post-scheduler'),
             array($this, 'ai_section_callback'),
-            'fb-post-scheduler-settings'
-        );
-        
-        add_settings_section(
-            'fb_post_scheduler_advanced_section',
-            __('Avancerede Indstillinger', 'fb-post-scheduler'),
-            array($this, 'advanced_section_callback'),
             'fb-post-scheduler-settings'
         );
         
@@ -639,14 +567,6 @@ class FB_Post_Scheduler {
             array($this, 'ai_prompt_callback'),
             'fb-post-scheduler-settings',
             'fb_post_scheduler_ai_section'
-        );
-        
-        add_settings_field(
-            'fb_post_scheduler_auto_delete_after_post',
-            __('Slet Facebook-opslag automatisk', 'fb-post-scheduler'),
-            array($this, 'auto_delete_after_post_callback'),
-            'fb-post-scheduler-settings',
-            'fb_post_scheduler_advanced_section'
         );
     }
     
@@ -934,22 +854,6 @@ class FB_Post_Scheduler {
     }
     
     /**
-     * Avancerede indstillinger sektion callback
-     */
-    public function advanced_section_callback() {
-        echo '<p>' . __('Ekstra indstillinger for håndtering af postede Facebook-opslag.', 'fb-post-scheduler') . '</p>';
-    }
-    
-    /**
-     * Auto-slet efter posting callback
-     */
-    public function auto_delete_after_post_callback() {
-        $enabled = get_option('fb_post_scheduler_auto_delete_after_post', '');
-        echo '<input type="checkbox" name="fb_post_scheduler_auto_delete_after_post" value="1" ' . checked('1', $enabled, false) . '>';
-        echo '<p class="description">' . __('Når dette er aktiveret, slettes Facebook-opslaget automatisk fra Facebook, umiddelbart efter det er blevet postet af pluginnet. Brug dette f.eks. til at poste og hurtigt fjerne indhold igen.', 'fb-post-scheduler') . '</p>';
-    }
-    
-    /**
      * Tilføj meta boxe til valgte post types
      */
     public function add_meta_boxes() {
@@ -1076,29 +980,6 @@ class FB_Post_Scheduler {
                     <?php endif; ?>
                     
                     <?php if ($is_posted && isset($fb_post['fb_post_id'])) : ?>
-                    <p class="fb-post-success">
-                        <?php _e('Dette opslag blev postet til Facebook', 'fb-post-scheduler'); ?>
-                        <?php if (!empty($fb_post['posted_date'])) : ?>
-                        <br>
-                        <span class="fb-post-posted-date">
-                            <?php echo sprintf(__('Postet: %s', 'fb-post-scheduler'), date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($fb_post['posted_date']))); ?>
-                        </span>
-                        <?php endif; ?>
-                        <?php if (!empty($fb_post['fb_post_id'])) : ?>
-                        <br>
-                        <button type="button"
-                            class="button button-small fb-delete-fb-post"
-                            data-post-id="<?php echo esc_attr($post->ID); ?>"
-                            data-post-index="<?php echo esc_attr($index); ?>"
-                            data-fb-post-id="<?php echo esc_attr($fb_post['fb_post_id']); ?>"
-                            style="margin-top:6px; color:#b32d2e; border-color:#b32d2e;">
-                            <span class="dashicons dashicons-trash" style="vertical-align:text-top;"></span>
-                            <?php _e('Slet Facebook-opslag', 'fb-post-scheduler'); ?>
-                        </button>
-                        <span class="spinner fb-delete-fb-post-spinner" style="float:none; margin-left:4px;"></span>
-                        <?php endif; ?>
-                    </p>
-                    <?php elseif ($is_posted) : ?>
                     <p class="fb-post-success">
                         <?php _e('Dette opslag blev postet til Facebook', 'fb-post-scheduler'); ?>
                         <?php if (!empty($fb_post['posted_date'])) : ?>
@@ -1425,8 +1306,7 @@ class FB_Post_Scheduler {
                     'nonce' => wp_create_nonce('fb_post_scheduler_nonce'),
                     'ajaxUrl' => admin_url('admin-ajax.php'),
                     'ajaxError' => __('Der opstod en fejl ved kommunikation med serveren. Prøv igen senere.', 'fb-post-scheduler'),
-                    'aiError' => __('Kunne ikke generere tekst med AI. Tjek dine indstillinger og prøv igen.', 'fb-post-scheduler'),
-                    'deleteFbPostConfirm' => __('Er du sikker på, at du vil slette dette opslag fra Facebook? Handlingen kan ikke fortrydes.', 'fb-post-scheduler'),
+                    'aiError' => __('Kunne ikke generere tekst med AI. Tjek dine indstillinger og prøv igen.', 'fb-post-scheduler')
                 )
             );
             
@@ -1678,21 +1558,6 @@ class FB_Post_Scheduler {
                                 );
                                 
                                 fb_post_scheduler_log('Opslag blev postet til Facebook. Post ID: ' . (isset($result['id']) ? $result['id'] : 'N/A'), $post_id);
-                                
-                                // Auto-slet opslaget fra Facebook hvis indstillingen er aktiveret
-                                if ( get_option('fb_post_scheduler_auto_delete_after_post', '') && !empty($result['id']) ) {
-                                    $delete_result = $api->delete_facebook_post($result['id']);
-                                    if ( is_wp_error($delete_result) ) {
-                                        fb_post_scheduler_log('Auto-sletning af Facebook-opslag fejlede: ' . $delete_result->get_error_message(), $post_id);
-                                    } else {
-                                        fb_post_scheduler_log('Facebook-opslag automatisk slettet. FB Post ID: ' . $result['id'], $post_id);
-                                        // Markér som slettet i databasen og fjern fb_post_id fra meta
-                                        if ($db_check) {
-                                            fb_post_scheduler_update_status($db_check->id, 'deleted');
-                                        }
-                                        $fb_posts[$index]['fb_post_id'] = '';
-                                    }
-                                }
                                 
                                 // Opret notifikation
                                 do_action('fb_post_scheduler_post_success', $post_id, $fb_post, $index);
