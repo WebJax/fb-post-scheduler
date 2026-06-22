@@ -107,7 +107,13 @@ function fb_post_scheduler_generate_ai_text($post_id) {
     
     // Hent genereret tekst fra Gemini response
     if (!empty($body['candidates']) && !empty($body['candidates'][0]['content']['parts'])) {
-        $generated_text = trim($body['candidates'][0]['content']['parts'][0]['text']);
+        $generated_text = '';
+        foreach ($body['candidates'][0]['content']['parts'] as $part) {
+            if (!empty($part['text'])) {
+                $generated_text .= $part['text'];
+            }
+        }
+        $generated_text = trim($generated_text);
         fb_post_scheduler_log('AI genereret tekst for post ID: ' . $post_id, $post_id);
         return $generated_text;
     }
