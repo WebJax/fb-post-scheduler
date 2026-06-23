@@ -178,12 +178,6 @@ Dit Facebook API-nøgler, Google Gemini API-nøgle og tokens opbevares i WordPre
 ### Hvordan får jeg Facebook API-nøgler?
 Du skal oprette en Facebook-app på [Facebook for Developers](https://developers.facebook.com/) og anmode om nødvendige tilladelser til at poste på en Facebook-side.
 
-### Hvordan får jeg en Google Gemini API-nøgle?
-Du kan få en Google Gemini API-nøgle ved at oprette en konto på [Google AI Studio](https://ai.google.dev/) og generere en API-nøgle der.
-
-### Er der begrænsninger på AI-tekstgenerering?
-Ja, Google Gemini API har begrænsninger på hvor mange forespørgsler du kan sende. Se Google's dokumentation for de aktuelle begrænsninger for din konto.
-
 ### Hvor ofte tjekker pluginet for opslag der skal postes?
 Pluginet tjekker hver time for planlagte opslag, der skal postes til Facebook.
 
