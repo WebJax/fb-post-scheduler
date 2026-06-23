@@ -11,6 +11,96 @@ if (!defined('ABSPATH')) {
 }
 
 /**
+ * Uddrag hele den genererede tekst fra Gemini API-responsen.
+ *
+ * @param array $body Decodet API-respons.
+ * @return string
+ */
+function fb_post_scheduler_extract_gemini_text($body) {
+    if (!is_array($body)) {
+        return '';
+    }
+
+    $parts = array();
+
+    if (!empty($body['candidates']) && is_array($body['candidates'])) {
+        foreach ($body['candidates'] as $candidate) {
+            if (empty($candidate['content']['parts']) || !is_array($candidate['content']['parts'])) {
+                continue;
+            }
+
+            foreach ($candidate['content']['parts'] as $part) {
+                if (is_array($part) && !empty($part['text'])) {
+                    $parts[] = (string) $part['text'];
+                } elseif (is_string($part) && '' !== $part) {
+                    $parts[] = $part;
+                }
+            }
+        }
+    }
+
+    if (empty($parts) && !empty($body['text']) && is_string($body['text'])) {
+        $parts[] = $body['text'];
+    }
+
+    return trim(implode('', $parts));
+}
+
+/**
+ * Send request til Gemini API med simple retry ved rate limiting.
+ *
+ * @param string $api_url API URL.
+ * @param array  $body Request body.
+ * @param int    $post_id Post ID.
+ * @param int    $max_attempts Maksimalt antal forsøg.
+ * @return array|WP_Error
+ */
+function fb_post_scheduler_call_gemini_api($api_url, $body, $post_id, $max_attempts = 3) {
+    $last_error = null;
+
+    for ($attempt = 1; $attempt <= $max_attempts; $attempt++) {
+        $response = wp_remote_post($api_url, array(
+            'headers' => array(
+                'Content-Type' => 'application/json'
+            ),
+            'timeout' => 30,
+            'body' => json_encode($body)
+        ));
+
+        if (is_wp_error($response)) {
+            $last_error = $response;
+            if ($attempt < $max_attempts) {
+                sleep(2);
+                continue;
+            }
+            fb_post_scheduler_log('AI API Error: ' . $response->get_error_message(), $post_id);
+            return $response;
+        }
+
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code === 429 || $response_code === 503) {
+            $last_error = new WP_Error('rate_limited', __('Google Gemini API er midlertidigt overbelastet. Prøver igen…', 'fb-post-scheduler'));
+            if ($attempt < $max_attempts) {
+                $delay = $attempt * 2;
+                fb_post_scheduler_log('AI API rate limit, retrying in ' . $delay . 's (attempt ' . $attempt . '/' . $max_attempts . ')', $post_id);
+                sleep($delay);
+                continue;
+            }
+        }
+
+        if ($response_code !== 200) {
+            $error_message = wp_remote_retrieve_response_message($response);
+            fb_post_scheduler_log('AI API Error: ' . $error_message . ' (Code: ' . $response_code . ')', $post_id);
+            return new WP_Error('api_error', $error_message . ' (Code: ' . $response_code . ')');
+        }
+
+        return $response;
+    }
+
+    return $last_error ?: new WP_Error('unknown_error', __('Kunne ikke kalde Google Gemini API', 'fb-post-scheduler'));
+}
+
+/**
  * Generer tekst til Facebook-opslag med Google Gemini AI
  *
  * @param int $post_id Post ID
@@ -47,14 +137,14 @@ function fb_post_scheduler_generate_ai_text($post_id) {
     // Hent prompt skabelon
     $prompt_template = get_option('fb_post_scheduler_ai_prompt', '');
     if (empty($prompt_template)) {
-        $prompt_template = __('Skriv et kortfattet og engagerende Facebook-opslag på dansk baseret på følgende indhold. Opslaget skal være mellem 2-3 sætninger og motivere til at læse hele artiklen:', 'fb-post-scheduler');
+        $prompt_template = __('Skriv et komplet, engagerende Facebook-opslag på dansk baseret på følgende indhold. Brug 2-3 sætninger, undgå afkortninger og skriv hele teksten uden at afbryde midt i en sætning:', 'fb-post-scheduler');
     }
     
     // Samlet prompt
     $prompt = $prompt_template . "\n\nTitel: " . $title . "\n\nIndhold: " . $content;
     
     // Kald Gemini API
-    $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=' . $api_key;
+    $api_url = 'https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=' . $api_key;
     
     $body = array(
         'contents' => array(
@@ -68,24 +158,17 @@ function fb_post_scheduler_generate_ai_text($post_id) {
             )
         ),
         'generationConfig' => array(
-            'temperature' => 1.0,
-            'maxOutputTokens' => 300,
-            'topP' => 0.8,
-            'topK' => 10
+            'temperature' => 0.8,
+            'maxOutputTokens' => 800,
+            'topP' => 0.9,
+            'topK' => 40
         )
     );
     
-    $response = wp_remote_post($api_url, array(
-        'headers' => array(
-            'Content-Type' => 'application/json'
-        ),
-        'timeout' => 30,
-        'body' => json_encode($body)
-    ));
+    $response = fb_post_scheduler_call_gemini_api($api_url, $body, $post_id);
     
     // Tjek for fejl i API-kaldet
     if (is_wp_error($response)) {
-        fb_post_scheduler_log('AI API Error: ' . $response->get_error_message(), $post_id);
         return $response;
     }
     
@@ -106,14 +189,8 @@ function fb_post_scheduler_generate_ai_text($post_id) {
     }
     
     // Hent genereret tekst fra Gemini response
-    if (!empty($body['candidates']) && !empty($body['candidates'][0]['content']['parts'])) {
-        $generated_text = '';
-        foreach ($body['candidates'][0]['content']['parts'] as $part) {
-            if (!empty($part['text'])) {
-                $generated_text .= $part['text'];
-            }
-        }
-        $generated_text = trim($generated_text);
+    $generated_text = fb_post_scheduler_extract_gemini_text($body);
+    if (!empty($generated_text)) {
         fb_post_scheduler_log('AI genereret tekst for post ID: ' . $post_id, $post_id);
         return $generated_text;
     }
