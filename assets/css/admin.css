@@ -144,15 +144,57 @@
     background-color: #f9f9f9;
 }
 
-.fb-post-preview h4 {
+.fb-post-preview-toggle {
     margin-top: 0;
     margin-bottom: 10px;
     border-bottom: 1px solid #ddd;
     padding-bottom: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.fb-post-preview-toggle-icon {
+    transition: transform 0.2s ease;
+}
+
+.fb-post-preview.is-open .fb-post-preview-toggle-icon {
+    transform: rotate(180deg);
 }
 
 .fb-post-preview-content {
     padding: 10px;
+    display: none;
+}
+
+.fb-post-preview.is-open .fb-post-preview-content {
+    display: block;
+}
+
+.fb-post-preview-image {
+    margin-bottom: 12px;
+}
+
+.fb-post-preview-image-element {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    background: #fff;
+}
+
+.fb-post-preview-image-placeholder {
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed #c3c4c7;
+    border-radius: 4px;
+    color: #646970;
+    background: #f6f7f7;
+    font-style: italic;
 }
 
 .fb-post-preview-text {

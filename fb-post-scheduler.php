@@ -962,6 +962,78 @@ class FB_Post_Scheduler {
         }
         
         ?>
+        <style>
+        .fb-post-scheduler-meta-box .fb-image-control {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+
+        .fb-post-scheduler-meta-box .fb-image-info-wrapper {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .fb-post-scheduler-meta-box .fb-image-help-icon {
+            width: 22px;
+            height: 22px;
+            padding: 0;
+            border: 1px solid #2271b1;
+            border-radius: 50%;
+            background: #fff;
+            color: #2271b1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            line-height: 1;
+            box-shadow: none;
+        }
+
+        .fb-post-scheduler-meta-box .fb-image-help-icon:hover,
+        .fb-post-scheduler-meta-box .fb-image-help-icon:focus {
+            background: #2271b1;
+            color: #fff;
+            outline: none;
+            box-shadow: 0 0 0 1px #fff, 0 0 0 3px rgba(34, 113, 177, 0.2);
+        }
+
+        .fb-post-scheduler-meta-box .fb-image-help-icon .dashicons {
+            font-size: 14px;
+            width: 14px;
+            height: 14px;
+        }
+
+        .fb-post-scheduler-meta-box .fb-image-info-tooltip {
+            position: absolute;
+            left: calc(100% + 8px);
+            top: 50%;
+            transform: translateY(-50%);
+            width: 240px;
+            max-width: 280px;
+            padding: 8px 10px;
+            border-radius: 4px;
+            background: #1d2327;
+            color: #fff;
+            font-size: 12px;
+            line-height: 1.4;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            z-index: 999;
+            pointer-events: none;
+        }
+
+        .fb-post-scheduler-meta-box .fb-image-info-wrapper:hover .fb-image-info-tooltip,
+        .fb-post-scheduler-meta-box .fb-image-info-wrapper:focus-within .fb-image-info-tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+        </style>
         <div class="fb-post-scheduler-meta-box">
             <div id="fb-posts-container">
                 <?php foreach ($fb_posts as $index => $fb_post) : 
@@ -972,6 +1044,18 @@ class FB_Post_Scheduler {
                     
                     // Status
                     $is_posted = isset($fb_post['status']) && $fb_post['status'] === 'posted';
+                    $image_help_text = __('Vælg et billede der skal bruges til Facebook-opslaget. Hvis du ikke vælger et billede, vil Facebook bruge det første billede fra indlægget.', 'fb-post-scheduler');
+                    $preview_image_url = '';
+                    $preview_image_alt = '';
+
+                    if (!empty($fb_post['image_id'])) {
+                        $preview_image_url = wp_get_attachment_image_url($fb_post['image_id'], 'medium');
+                        $preview_image_alt = get_post_meta($fb_post['image_id'], '_wp_attachment_image_alt', true);
+                    } elseif (has_post_thumbnail($post->ID)) {
+                        $preview_image_url = get_the_post_thumbnail_url($post->ID, 'medium');
+                        $thumbnail_id = get_post_thumbnail_id($post->ID);
+                        $preview_image_alt = $thumbnail_id ? get_post_meta($thumbnail_id, '_wp_attachment_image_alt', true) : '';
+                    }
                 ?>
                 <div class="fb-post-item" data-index="<?php echo $index; ?>">
                     <div class="fb-post-header">
@@ -1094,20 +1178,40 @@ class FB_Post_Scheduler {
                                 <img src="<?php echo esc_url($image_url); ?>" alt="<?php echo esc_attr($image_alt); ?>" class="fb-post-image-preview">
                             <?php endif; ?>
                         </div>
-                        <button type="button" class="button fb-upload-image" data-index="<?php echo $index; ?>" <?php disabled($is_posted, true); ?>><?php _e('Vælg billede', 'fb-post-scheduler'); ?></button>
-                        <?php if (!empty($fb_post['image_id'])) : ?>
-                            <button type="button" class="button fb-remove-image" data-index="<?php echo $index; ?>" <?php disabled($is_posted, true); ?>><?php _e('Fjern billede', 'fb-post-scheduler'); ?></button>
-                        <?php endif; ?>
-                        <span class="description"><?php _e('Vælg et billede der skal bruges til Facebook-opslaget. Hvis du ikke vælger et billede, vil Facebook bruge det første billede fra indlægget.', 'fb-post-scheduler'); ?></span>
+                        <div class="fb-image-control">
+                            <button type="button" class="button fb-upload-image" data-index="<?php echo $index; ?>" <?php disabled($is_posted, true); ?>><?php _e('Vælg billede', 'fb-post-scheduler'); ?></button>
+                            <span class="fb-image-info-wrapper">
+                                <button type="button" class="fb-image-help-icon" aria-label="<?php esc_attr_e('Vis information om billedvalg', 'fb-post-scheduler'); ?>" title="<?php echo esc_attr($image_help_text); ?>">
+                                    <span class="dashicons dashicons-info-outline" aria-hidden="true"></span>
+                                </button>
+                                <span class="fb-image-info-tooltip" role="tooltip"><?php echo esc_html($image_help_text); ?></span>
+                            </span>
+                            <?php if (!empty($fb_post['image_id'])) : ?>
+                                <button type="button" class="button fb-remove-image" data-index="<?php echo $index; ?>" <?php disabled($is_posted, true); ?>><?php _e('Fjern billede', 'fb-post-scheduler'); ?></button>
+                            <?php endif; ?>
+                        </div>
+                        <span class="description"><?php echo esc_html($image_help_text); ?></span>
                     </p>
                     
-                    <div class="fb-post-preview">
-                        <h4><?php _e('Forhåndsvisning af opslag', 'fb-post-scheduler'); ?></h4>
-                        <div class="fb-post-preview-content">
+                    <div class="fb-post-preview" data-featured-image-url="<?php echo esc_attr($preview_image_url); ?>" data-featured-image-alt="<?php echo esc_attr($preview_image_alt); ?>">
+                        <h4 class="fb-post-preview-toggle" role="button" tabindex="0" aria-expanded="false">
+                            <?php _e('Forhåndsvisning af opslag', 'fb-post-scheduler'); ?>
+                            <span class="dashicons dashicons-arrow-down-alt2 fb-post-preview-toggle-icon" aria-hidden="true"></span>
+                        </h4>
+                        <div class="fb-post-preview-content" style="display:none;">
+                            <div class="fb-post-preview-image">
+                                <?php if (!empty($fb_post['image_id'])) : 
+                                    echo wp_get_attachment_image($fb_post['image_id'], 'medium', false, array('class' => 'fb-post-preview-image-element'));
+                                elseif (!empty($preview_image_url)) : ?>
+                                    <img src="<?php echo esc_url($preview_image_url); ?>" alt="<?php echo esc_attr($preview_image_alt); ?>" class="fb-post-preview-image-element">
+                                <?php else : ?>
+                                    <div class="fb-post-preview-image-placeholder"><?php _e('Udvalgt billede', 'fb-post-scheduler'); ?></div>
+                                <?php endif; ?>
+                            </div>
                             <p class="fb-post-preview-text"><?php echo wp_kses_post(isset($fb_post['text']) ? $fb_post['text'] : ''); ?></p>
                             <div class="fb-post-preview-link">
-                                <div class="fb-post-preview-title"><?php echo get_the_title($post->ID); ?></div>
-                                <div class="fb-post-preview-url"><?php echo get_permalink($post->ID); ?></div>
+                                <div class="fb-post-preview-title"><?php echo esc_html(get_the_title($post->ID)); ?></div>
+                                <div class="fb-post-preview-url"><?php echo esc_url(get_permalink($post->ID)); ?></div>
                             </div>
                         </div>
                     </div>
@@ -1218,13 +1322,23 @@ class FB_Post_Scheduler {
                     <span class="description"><?php _e('Vælg et billede der skal bruges til Facebook-opslaget. Hvis du ikke vælger et billede, vil Facebook bruge det første billede fra indlægget.', 'fb-post-scheduler'); ?></span>
                 </p>
                 
-                <div class="fb-post-preview">
-                    <h4><?php _e('Forhåndsvisning af opslag', 'fb-post-scheduler'); ?></h4>
-                    <div class="fb-post-preview-content">
+                <div class="fb-post-preview" data-featured-image-url="<?php echo esc_attr(has_post_thumbnail($post->ID) ? get_the_post_thumbnail_url($post->ID, 'medium') : ''); ?>" data-featured-image-alt="<?php echo esc_attr(has_post_thumbnail($post->ID) ? get_post_meta(get_post_thumbnail_id($post->ID), '_wp_attachment_image_alt', true) : ''); ?>">
+                    <h4 class="fb-post-preview-toggle" role="button" tabindex="0" aria-expanded="false">
+                        <?php _e('Forhåndsvisning af opslag', 'fb-post-scheduler'); ?>
+                        <span class="dashicons dashicons-arrow-down-alt2 fb-post-preview-toggle-icon" aria-hidden="true"></span>
+                    </h4>
+                    <div class="fb-post-preview-content" style="display:none;">
+                        <div class="fb-post-preview-image">
+                            <?php if (has_post_thumbnail($post->ID)) : ?>
+                                <img src="<?php echo esc_url(get_the_post_thumbnail_url($post->ID, 'medium')); ?>" alt="<?php echo esc_attr(get_post_meta(get_post_thumbnail_id($post->ID), '_wp_attachment_image_alt', true)); ?>" class="fb-post-preview-image-element">
+                            <?php else : ?>
+                                <div class="fb-post-preview-image-placeholder"><?php _e('Udvalgt billede', 'fb-post-scheduler'); ?></div>
+                            <?php endif; ?>
+                        </div>
                         <p class="fb-post-preview-text"></p>
                         <div class="fb-post-preview-link">
-                            <div class="fb-post-preview-title"><?php echo get_the_title($post->ID); ?></div>
-                            <div class="fb-post-preview-url"><?php echo get_permalink($post->ID); ?></div>
+                            <div class="fb-post-preview-title"><?php echo esc_html(get_the_title($post->ID)); ?></div>
+                            <div class="fb-post-preview-url"><?php echo esc_url(get_permalink($post->ID)); ?></div>
                         </div>
                     </div>
                 </div>

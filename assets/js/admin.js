@@ -90,6 +90,9 @@
                 
                 var previewContainer = button.siblings('.fb-post-image-preview-container');
                 previewContainer.html(img);
+
+                var $previewItem = button.closest('.fb-post-item').find('.fb-post-preview');
+                updatePreviewImage($previewItem, attachment.url, attachment.alt);
                 
                 // Tilføj knap til at fjerne billedet
                 if (button.siblings('.fb-remove-image').length === 0) {
@@ -118,6 +121,9 @@
             
             // Fjern preview
             button.siblings('.fb-post-image-preview-container').empty();
+
+            var $previewItem = button.closest('.fb-post-item').find('.fb-post-preview');
+            updatePreviewImage($previewItem, '', '');
             
             // Fjern denne knap
             button.remove();
@@ -788,6 +794,50 @@
         $btn.prop('disabled', false).text('Log ind med Facebook');
     }
     
+    function updatePreviewImage($previewItem, imageUrl, imageAlt) {
+        var $previewImage = $previewItem.find('.fb-post-preview-image');
+
+        if (!$previewImage.length) {
+            return;
+        }
+
+        if (imageUrl) {
+            $previewImage.html($('<img>').attr({
+                src: imageUrl,
+                alt: imageAlt || '',
+                class: 'fb-post-preview-image-element'
+            }));
+        } else {
+            var featuredImageUrl = $previewItem.attr('data-featured-image-url') || '';
+            var featuredImageAlt = $previewItem.attr('data-featured-image-alt') || '';
+
+            if (featuredImageUrl) {
+                $previewImage.html($('<img>').attr({
+                    src: featuredImageUrl,
+                    alt: featuredImageAlt,
+                    class: 'fb-post-preview-image-element'
+                }));
+            } else {
+                $previewImage.html('<div class="fb-post-preview-image-placeholder">Udvalgt billede</div>');
+            }
+        }
+    }
+
+    function togglePreview($previewItem, forceOpen) {
+        var $content = $previewItem.find('.fb-post-preview-content');
+        var $toggle = $previewItem.find('.fb-post-preview-toggle');
+        var shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !$previewItem.hasClass('is-open');
+
+        $previewItem.toggleClass('is-open', shouldOpen);
+        $toggle.attr('aria-expanded', shouldOpen ? 'true' : 'false');
+
+        if (shouldOpen) {
+            $content.stop(true, true).slideDown(200);
+        } else {
+            $content.stop(true, true).slideUp(200);
+        }
+    }
+
     /**
      * Initialiserer live-preview af Facebook-opslag for alle opslag
      */
@@ -796,8 +846,10 @@
         
         $textFields.each(function() {
             var $textField = $(this);
-            var index = $textField.attr('id').replace('fb_post_text_', '');
-            var $previewText = $textField.closest('.fb-post-item').find('.fb-post-preview-text');
+            var $postItem = $textField.closest('.fb-post-item');
+            var $previewText = $postItem.find('.fb-post-preview-text');
+            var $previewItem = $previewText.closest('.fb-post-preview');
+            var $previewToggle = $previewItem.find('.fb-post-preview-toggle');
             
             if ($previewText.length) {
                 // Opdater preview ved indlæsning
@@ -807,21 +859,48 @@
                 $textField.on('input change', function() {
                     updatePreview($textField, $previewText);
                 });
+
+                $previewToggle.on('click', function(e) {
+                    e.preventDefault();
+                    togglePreview($previewItem);
+                });
+
+                $previewToggle.on('keydown', function(e) {
+                    if (e.which === 13 || e.which === 32) {
+                        e.preventDefault();
+                        togglePreview($previewItem);
+                    }
+                });
             }
         });
         
         // Funktion til at opdatere preview
         function updatePreview($textField, $previewText) {
-            var text = $textField.val();
-            
+            var text = $textField.val() || '';
+            var $previewItem = $previewText.closest('.fb-post-preview');
+            var $selectedImage = $previewText.closest('.fb-post-item').find('.fb-post-image-preview-container img');
+            var $hiddenImageInput = $previewText.closest('.fb-post-item').find('input[id^="fb_post_image_id_"]');
+
             if (text) {
                 // Erstat linjeskift med <br>
                 text = text.replace(/\n/g, '<br>');
                 $previewText.html(text);
-                $previewText.closest('.fb-post-preview').show();
             } else {
                 $previewText.html('');
-                $previewText.closest('.fb-post-preview').show();
+            }
+
+            if ($selectedImage.length) {
+                updatePreviewImage($previewItem, $selectedImage.attr('src'), $selectedImage.attr('alt'));
+            } else if ($hiddenImageInput.length && $hiddenImageInput.val()) {
+                updatePreviewImage($previewItem, '', '');
+            } else {
+                updatePreviewImage($previewItem, '', '');
+            }
+
+            if ($previewItem.hasClass('is-open')) {
+                $previewItem.find('.fb-post-preview-content').show();
+            } else {
+                $previewItem.find('.fb-post-preview-content').hide();
             }
         }
     }
