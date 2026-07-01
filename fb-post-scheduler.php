@@ -1190,7 +1190,7 @@ class FB_Post_Scheduler {
                                 <button type="button" class="button fb-remove-image" data-index="<?php echo $index; ?>" <?php disabled($is_posted, true); ?>><?php _e('Fjern billede', 'fb-post-scheduler'); ?></button>
                             <?php endif; ?>
                         </div>
-                        <span class="description"><?php echo esc_html($image_help_text); ?></span>
+                        <span class="description"><?php //echo esc_html($image_help_text); ?></span>
                     </p>
                     
                     <div class="fb-post-preview" data-featured-image-url="<?php echo esc_attr($preview_image_url); ?>" data-featured-image-alt="<?php echo esc_attr($preview_image_alt); ?>">
