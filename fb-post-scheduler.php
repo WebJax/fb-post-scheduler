@@ -1918,7 +1918,7 @@ class FB_Post_Scheduler {
     /**
      * Forcer meta box position under editoren
      */
-    public function force_meta_box_position( string $post_type, string $context, WP_Post $post ): void {
+    public function force_meta_box_position( string $post_type, string $context, $post ): void {
         global $wp_meta_boxes;
         
         // Tjek om vores meta box eksisterer
