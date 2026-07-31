@@ -76,10 +76,11 @@ class FB_Post_Scheduler_API {
             
             if ($image_url) {
                 $url = "https://graph.facebook.com/{$this->page_id}/photos";
-                $data['url'] = $image_url;
-                $data['caption'] = $message;
-                // Tilføj link til caption
-                $data['caption'] .= "\n\n" . $link;
+                $data = array(
+                    'url' => $image_url,
+                    'caption' => $message . "\n\n" . $link,
+                    'access_token' => $this->access_token,
+                );
             }
         }
         
@@ -622,10 +623,11 @@ class FB_Post_Scheduler_API {
             
             if ($image_url) {
                 $url = "https://graph.facebook.com/{$group_id}/photos";
-                $data['url'] = $image_url;
-                $data['caption'] = $message;
-                // Tilføj link til caption
-                $data['caption'] .= "\n\n" . $link;
+                $data = array(
+                    'url' => $image_url,
+                    'caption' => $message . "\n\n" . $link,
+                    'access_token' => $this->access_token,
+                );
             }
         }
         

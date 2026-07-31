@@ -3,7 +3,7 @@
  * Plugin Name: Facebook Post Scheduler
  * Plugin URI: https://jaxweb.dk/fb-post-scheduler
  * Description: Planlæg og administrer Facebook-opslag direkte fra WordPress med automatisk link til indholdet, AI-tekst generering, og avanceret administration
- * Version: 1.1.2
+ * Version: 1.1.3
  * Author: Jacob Thygesen
  * Author URI: https://jaxweb.dk
  * License: GPL2
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 // Definér konstanter
 define('FB_POST_SCHEDULER_PATH', plugin_dir_path(__FILE__));
 define('FB_POST_SCHEDULER_URL', plugin_dir_url(__FILE__));
-define('FB_POST_SCHEDULER_VERSION', '1.1.0');
+define('FB_POST_SCHEDULER_VERSION', '1.1.3');
 
 // Inkluder nødvendige filer
 require_once FB_POST_SCHEDULER_PATH . 'includes/ajax-handlers.php';
@@ -1044,17 +1044,24 @@ class FB_Post_Scheduler {
                     
                     // Status
                     $is_posted = isset($fb_post['status']) && $fb_post['status'] === 'posted';
-                    $image_help_text = __('Vælg et billede der skal bruges til Facebook-opslaget. Hvis du ikke vælger et billede, vil Facebook bruge det første billede fra indlægget.', 'fb-post-scheduler');
+                    $image_help_text = __('Vælg et billede der skal bruges til Facebook-opslaget. Hvis du ikke vælger et billede, bruges indlæggets udvalgte billede (featured image).', 'fb-post-scheduler');
+                    $featured_image_url = '';
+                    $featured_image_alt = '';
                     $preview_image_url = '';
                     $preview_image_alt = '';
+
+                    if (has_post_thumbnail($post->ID)) {
+                        $featured_image_url = get_the_post_thumbnail_url($post->ID, 'medium');
+                        $thumbnail_id = get_post_thumbnail_id($post->ID);
+                        $featured_image_alt = $thumbnail_id ? get_post_meta($thumbnail_id, '_wp_attachment_image_alt', true) : '';
+                    }
 
                     if (!empty($fb_post['image_id'])) {
                         $preview_image_url = wp_get_attachment_image_url($fb_post['image_id'], 'medium');
                         $preview_image_alt = get_post_meta($fb_post['image_id'], '_wp_attachment_image_alt', true);
-                    } elseif (has_post_thumbnail($post->ID)) {
-                        $preview_image_url = get_the_post_thumbnail_url($post->ID, 'medium');
-                        $thumbnail_id = get_post_thumbnail_id($post->ID);
-                        $preview_image_alt = $thumbnail_id ? get_post_meta($thumbnail_id, '_wp_attachment_image_alt', true) : '';
+                    } else {
+                        $preview_image_url = $featured_image_url;
+                        $preview_image_alt = $featured_image_alt;
                     }
                 ?>
                 <div class="fb-post-item" data-index="<?php echo $index; ?>">
@@ -1193,16 +1200,14 @@ class FB_Post_Scheduler {
                         <span class="description"><?php //echo esc_html($image_help_text); ?></span>
                     </p>
                     
-                    <div class="fb-post-preview" data-featured-image-url="<?php echo esc_attr($preview_image_url); ?>" data-featured-image-alt="<?php echo esc_attr($preview_image_alt); ?>">
+                    <div class="fb-post-preview" data-featured-image-url="<?php echo esc_attr($featured_image_url); ?>" data-featured-image-alt="<?php echo esc_attr($featured_image_alt); ?>">
                         <h4 class="fb-post-preview-toggle" role="button" tabindex="0" aria-expanded="false">
                             <?php _e('Forhåndsvisning af opslag', 'fb-post-scheduler'); ?>
                             <span class="dashicons dashicons-arrow-down-alt2 fb-post-preview-toggle-icon" aria-hidden="true"></span>
                         </h4>
                         <div class="fb-post-preview-content" style="display:none;">
                             <div class="fb-post-preview-image">
-                                <?php if (!empty($fb_post['image_id'])) : 
-                                    echo wp_get_attachment_image($fb_post['image_id'], 'medium', false, array('class' => 'fb-post-preview-image-element'));
-                                elseif (!empty($preview_image_url)) : ?>
+                                <?php if (!empty($preview_image_url)) : ?>
                                     <img src="<?php echo esc_url($preview_image_url); ?>" alt="<?php echo esc_attr($preview_image_alt); ?>" class="fb-post-preview-image-element">
                                 <?php else : ?>
                                     <div class="fb-post-preview-image-placeholder"><?php _e('Udvalgt billede', 'fb-post-scheduler'); ?></div>
@@ -1319,7 +1324,7 @@ class FB_Post_Scheduler {
                     <input type="hidden" id="fb_post_image_id_{{index}}" name="fb_posts[{{index}}][image_id]" value="">
                     <div class="fb-post-image-preview-container"></div>
                     <button type="button" class="button fb-upload-image" data-index="{{index}}"><?php _e('Vælg billede', 'fb-post-scheduler'); ?></button>
-                    <span class="description"><?php _e('Vælg et billede der skal bruges til Facebook-opslaget. Hvis du ikke vælger et billede, vil Facebook bruge det første billede fra indlægget.', 'fb-post-scheduler'); ?></span>
+                    <span class="description"><?php _e('Vælg et billede der skal bruges til Facebook-opslaget. Hvis du ikke vælger et billede, bruges indlæggets udvalgte billede (featured image).', 'fb-post-scheduler'); ?></span>
                 </p>
                 
                 <div class="fb-post-preview" data-featured-image-url="<?php echo esc_attr(has_post_thumbnail($post->ID) ? get_the_post_thumbnail_url($post->ID, 'medium') : ''); ?>" data-featured-image-alt="<?php echo esc_attr(has_post_thumbnail($post->ID) ? get_post_meta(get_post_thumbnail_id($post->ID), '_wp_attachment_image_alt', true) : ''); ?>">
@@ -1670,8 +1675,15 @@ class FB_Post_Scheduler {
                             // Post til Facebook
                             $message = $fb_post['text'];
                             $link = get_permalink($post_id);
-                            $image_id = isset($fb_post['image_id']) ? $fb_post['image_id'] : 0;
+                            $image_id = isset($fb_post['image_id']) ? absint($fb_post['image_id']) : 0;
+                            $image_id = fb_post_scheduler_resolve_image_id($post_id, $image_id);
                             $target_type = isset($fb_post['target_type']) ? $fb_post['target_type'] : 'page';
+                            
+                            if ($image_id) {
+                                fb_post_scheduler_log('Bruger billede ID ' . $image_id . ' til opslag #' . ($index + 1), $post_id);
+                            } else {
+                                fb_post_scheduler_log('Ingen billede fundet til opslag #' . ($index + 1) . ' – poster som link', $post_id);
+                            }
                             
                             // Send til Facebook - enten side eller gruppe
                             if ($target_type === 'group') {
@@ -2115,6 +2127,30 @@ function fb_post_scheduler_run_scheduled_posts() {
 }
 
 /**
+ * Find billed-ID til et Facebook-opslag.
+ *
+ * Bruger det valgte billede hvis sat, ellers indlæggets featured image.
+ *
+ * @param int $post_id WordPress post ID
+ * @param int $image_id Valgt attachment ID (0 hvis intet valgt)
+ * @return int Attachment ID eller 0
+ */
+function fb_post_scheduler_resolve_image_id($post_id, $image_id = 0) {
+    $image_id = absint($image_id);
+
+    if ($image_id && wp_attachment_is_image($image_id)) {
+        return $image_id;
+    }
+
+    $thumbnail_id = get_post_thumbnail_id($post_id);
+    if ($thumbnail_id && wp_attachment_is_image($thumbnail_id)) {
+        return (int) $thumbnail_id;
+    }
+
+    return 0;
+}
+
+/**
  * Post et opslag til Facebook
  * 
  * @param int $post_id WordPress post ID
@@ -2135,6 +2171,9 @@ function fb_post_scheduler_post_to_facebook($post_id, $fb_text, $image_id = 0, $
         error_log("Facebook Post Scheduler fejl: Kunne ikke få permalink til post ID: $post_id");
         return false;
     }
+
+    // Brug valgt billede, ellers featured image
+    $image_id = fb_post_scheduler_resolve_image_id($post_id, $image_id);
     
     // Hent API-hjælper
     $api = fb_post_scheduler_get_api();
