@@ -203,7 +203,6 @@ function fb_post_scheduler_output_og_image_tags() {
         return;
     }
 
-    $has_override = fb_post_scheduler_has_og_image_override($post_id);
     $has_seo = fb_post_scheduler_has_seo_og_plugin();
 
     // SEO-plugins udskriver selv og:image. Ved override retter filtrene deres URL.
