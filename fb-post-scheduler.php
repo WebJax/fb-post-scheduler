@@ -3,7 +3,7 @@
  * Plugin Name: Facebook Post Scheduler
  * Plugin URI: https://jaxweb.dk/fb-post-scheduler
  * Description: Planlæg og administrer Facebook-opslag direkte fra WordPress med automatisk link til indholdet, AI-tekst generering, og avanceret administration
- * Version: 1.1.3
+ * Version: 1.1.4
  * Author: Jacob Thygesen
  * Author URI: https://jaxweb.dk
  * License: GPL2
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 // Definér konstanter
 define('FB_POST_SCHEDULER_PATH', plugin_dir_path(__FILE__));
 define('FB_POST_SCHEDULER_URL', plugin_dir_url(__FILE__));
-define('FB_POST_SCHEDULER_VERSION', '1.1.3');
+define('FB_POST_SCHEDULER_VERSION', '1.1.4');
 
 // Inkluder nødvendige filer
 require_once FB_POST_SCHEDULER_PATH . 'includes/ajax-handlers.php';
@@ -31,6 +31,7 @@ require_once FB_POST_SCHEDULER_PATH . 'includes/export.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/notifications.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/ai-helper.php';
 require_once FB_POST_SCHEDULER_PATH . 'includes/migration.php';
+require_once FB_POST_SCHEDULER_PATH . 'includes/open-graph.php';
 
 // Registrer aktivering og deaktivering hooks
 register_activation_hook(__FILE__, 'fb_post_scheduler_activate');
@@ -1044,7 +1045,7 @@ class FB_Post_Scheduler {
                     
                     // Status
                     $is_posted = isset($fb_post['status']) && $fb_post['status'] === 'posted';
-                    $image_help_text = __('Vælg et billede der skal bruges til Facebook-opslaget. Hvis du ikke vælger et billede, bruges indlæggets udvalgte billede (featured image).', 'fb-post-scheduler');
+                    $image_help_text = __('Vælg et billede til Facebook-linkets forhåndsvisning. Hvis du ikke vælger et, bruges indlæggets udvalgte billede. Opslaget postes som et klikbart link til artiklen.', 'fb-post-scheduler');
                     $featured_image_url = '';
                     $featured_image_alt = '';
                     $preview_image_url = '';
@@ -1324,7 +1325,7 @@ class FB_Post_Scheduler {
                     <input type="hidden" id="fb_post_image_id_{{index}}" name="fb_posts[{{index}}][image_id]" value="">
                     <div class="fb-post-image-preview-container"></div>
                     <button type="button" class="button fb-upload-image" data-index="{{index}}"><?php _e('Vælg billede', 'fb-post-scheduler'); ?></button>
-                    <span class="description"><?php _e('Vælg et billede der skal bruges til Facebook-opslaget. Hvis du ikke vælger et billede, bruges indlæggets udvalgte billede (featured image).', 'fb-post-scheduler'); ?></span>
+                    <span class="description"><?php _e('Vælg et billede til Facebook-linkets forhåndsvisning. Hvis du ikke vælger et, bruges indlæggets udvalgte billede. Opslaget postes som et klikbart link til artiklen.', 'fb-post-scheduler'); ?></span>
                 </p>
                 
                 <div class="fb-post-preview" data-featured-image-url="<?php echo esc_attr(has_post_thumbnail($post->ID) ? get_the_post_thumbnail_url($post->ID, 'medium') : ''); ?>" data-featured-image-alt="<?php echo esc_attr(has_post_thumbnail($post->ID) ? get_post_meta(get_post_thumbnail_id($post->ID), '_wp_attachment_image_alt', true) : ''); ?>">
@@ -1680,22 +1681,22 @@ class FB_Post_Scheduler {
                             $target_type = isset($fb_post['target_type']) ? $fb_post['target_type'] : 'page';
                             
                             if ($image_id) {
-                                fb_post_scheduler_log('Bruger billede ID ' . $image_id . ' til opslag #' . ($index + 1), $post_id);
+                                fb_post_scheduler_log('Bruger billede ID ' . $image_id . ' som link-preview til opslag #' . ($index + 1), $post_id);
                             } else {
-                                fb_post_scheduler_log('Ingen billede fundet til opslag #' . ($index + 1) . ' – poster som link', $post_id);
+                                fb_post_scheduler_log('Ingen billede fundet til opslag #' . ($index + 1) . ' – poster link uden styret preview-billede', $post_id);
                             }
                             
                             // Send til Facebook - enten side eller gruppe
                             if ($target_type === 'group') {
                                 $group_id = get_option('fb_post_scheduler_facebook_group_id', '');
                                 if (!empty($group_id)) {
-                                    $result = $api->post_to_facebook_group($message, $link, $group_id, $image_id);
+                                    $result = $api->post_to_facebook_group($message, $link, $group_id, $image_id, $post_id);
                                 } else {
                                     $result = new WP_Error('no_group', __('Ingen Facebook-gruppe valgt', 'fb-post-scheduler'));
                                 }
                             } else {
                                 // Standard posting til side
-                                $result = $api->post_to_facebook($message, $link, $image_id);
+                                $result = $api->post_to_facebook($message, $link, $image_id, $post_id);
                             }
                             
                             if (is_wp_error($result)) {
@@ -2182,13 +2183,13 @@ function fb_post_scheduler_post_to_facebook($post_id, $fb_text, $image_id = 0, $
     if ($target_type === 'group') {
         $group_id = get_option('fb_post_scheduler_facebook_group_id', '');
         if (!empty($group_id)) {
-            $result = $api->post_to_facebook_group($fb_text, $permalink, $group_id, $image_id);
+            $result = $api->post_to_facebook_group($fb_text, $permalink, $group_id, $image_id, $post_id);
         } else {
             $result = new WP_Error('no_group', __('Ingen Facebook-gruppe valgt', 'fb-post-scheduler'));
         }
     } else {
         // Standard posting til side
-        $result = $api->post_to_facebook($fb_text, $permalink, $image_id);
+        $result = $api->post_to_facebook($fb_text, $permalink, $image_id, $post_id);
     }
     
     if (is_wp_error($result)) {

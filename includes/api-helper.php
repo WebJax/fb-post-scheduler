@@ -46,44 +46,138 @@ class FB_Post_Scheduler_API {
     }
     
     /**
-     * Post til Facebook
+     * Opdater Facebooks cache af Open Graph-data for en URL.
+     *
+     * @param string $link URL der skal scrapes
+     * @return array|WP_Error Scrape-svar eller fejl
+     */
+    public function scrape_url($link) {
+        if (empty($this->access_token)) {
+            return new WP_Error('missing_credentials', __('Manglende Facebook access token', 'fb-post-scheduler'));
+        }
+
+        if (empty($link)) {
+            return new WP_Error('missing_link', __('Manglende URL til scrape', 'fb-post-scheduler'));
+        }
+
+        $response = wp_remote_post('https://graph.facebook.com/', array(
+            'timeout' => 45,
+            'body' => array(
+                'id' => $link,
+                'scrape' => 'true',
+                'access_token' => $this->access_token,
+            ),
+        ));
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if (isset($body['error'])) {
+            $message = isset($body['error']['message']) ? $body['error']['message'] : __('Ukendt scrape-fejl', 'fb-post-scheduler');
+            return new WP_Error('facebook_scrape_error', $message);
+        }
+
+        return $body;
+    }
+
+    /**
+     * Forbered link-preview billede og opdater Facebooks scrape-cache.
+     *
+     * @param string $link URL der postes
+     * @param int $post_id WordPress post ID
+     * @param int $image_id Attachment ID til preview-billede
+     * @return void
+     */
+    private function prepare_link_preview($link, $post_id = 0, $image_id = 0) {
+        $post_id = absint($post_id);
+        $image_id = absint($image_id);
+
+        if ($post_id && $image_id) {
+            fb_post_scheduler_set_og_image_override($post_id, $image_id);
+        }
+
+        $scrape = $this->scrape_url($link);
+        if (is_wp_error($scrape)) {
+            fb_post_scheduler_log('Advarsel: Facebook scrape fejlede før posting: ' . $scrape->get_error_message(), $post_id ? $post_id : null);
+        } else {
+            $image_from_scrape = '';
+            if (isset($scrape['image'][0]['url'])) {
+                $image_from_scrape = $scrape['image'][0]['url'];
+            } elseif (isset($scrape['og_object']['image'][0]['url'])) {
+                $image_from_scrape = $scrape['og_object']['image'][0]['url'];
+            }
+            if ($image_from_scrape) {
+                fb_post_scheduler_log('Facebook scrape OK. Preview-billede: ' . $image_from_scrape, $post_id ? $post_id : null);
+            } else {
+                fb_post_scheduler_log('Facebook scrape OK (ingen billede i scrape-svar)', $post_id ? $post_id : null);
+            }
+        }
+    }
+
+    /**
+     * Ryd midlertidigt OG-override og genopfrisk cache til featured image.
+     *
+     * @param string $link URL der er postet
+     * @param int $post_id WordPress post ID
+     * @param int $image_id Attachment ID der blev brugt til preview
+     * @return void
+     */
+    private function cleanup_link_preview($link, $post_id = 0, $image_id = 0) {
+        $post_id = absint($post_id);
+        $image_id = absint($image_id);
+
+        if (!$post_id) {
+            return;
+        }
+
+        fb_post_scheduler_clear_og_image_override($post_id);
+
+        // Hvis et andet billede end featured blev brugt, scrape igen så
+        // organiske delinger fremover viser featured image
+        $featured_id = (int) get_post_thumbnail_id($post_id);
+        if ($image_id && $featured_id && $image_id !== $featured_id) {
+            $scrape = $this->scrape_url($link);
+            if (is_wp_error($scrape)) {
+                fb_post_scheduler_log('Advarsel: Kunne ikke genskrape featured image efter posting: ' . $scrape->get_error_message(), $post_id);
+            }
+        }
+    }
+
+    /**
+     * Post til Facebook som link-opslag (klikbart preview til artiklen).
+     *
+     * Preview-billedet styres via og:image på den delte URL (valgt billede
+     * eller featured image), ikke via photos-endpointet.
      *
      * @param string $message Beskedtekst til Facebook-opslag
      * @param string $link URL til at inkludere i opslaget
-     * @param int $image_id Attachment ID of image to include (optional)
+     * @param int $image_id Attachment ID til link-preview (optional)
+     * @param int $post_id WordPress post ID (bruges til OG override/scrape)
      * @return array|WP_Error Response fra Facebook eller fejl
      */
-    public function post_to_facebook($message, $link, $image_id = 0) {
+    public function post_to_facebook($message, $link, $image_id = 0, $post_id = 0) {
         // Tjek at alle nødvendige indstillinger er sat
         if (empty($this->page_id) || empty($this->access_token)) {
             return new WP_Error('missing_credentials', __('Manglende Facebook API-indstillinger', 'fb-post-scheduler'));
         }
-        
-        // API endpoint
+
+        $image_id = absint($image_id);
+        $post_id = absint($post_id);
+
+        $this->prepare_link_preview($link, $post_id, $image_id);
+
+        // API endpoint – altid link-post via feed
         $url = "https://graph.facebook.com/{$this->page_id}/feed";
-        
-        // Forbered data
+
         $data = array(
             'message' => $message,
             'link' => $link,
-            'access_token' => $this->access_token
+            'access_token' => $this->access_token,
         );
-        
-        // Hvis der er et billede, brug photos endpoint i stedet
-        if (!empty($image_id)) {
-            // Få billedfil-url
-            $image_url = wp_get_attachment_url($image_id);
-            
-            if ($image_url) {
-                $url = "https://graph.facebook.com/{$this->page_id}/photos";
-                $data = array(
-                    'url' => $image_url,
-                    'caption' => $message . "\n\n" . $link,
-                    'access_token' => $this->access_token,
-                );
-            }
-        }
-        
+
         // Send POST-anmodning til Facebook Graph API
         $response = wp_remote_post($url, array(
             'method' => 'POST',
@@ -93,17 +187,19 @@ class FB_Post_Scheduler_API {
             'blocking' => true,
             'body' => $data,
         ));
-        
+
+        $this->cleanup_link_preview($link, $post_id, $image_id);
+
         if (is_wp_error($response)) {
             return $response;
         }
-        
+
         $body = json_decode(wp_remote_retrieve_body($response), true);
-        
+
         if (isset($body['error'])) {
             return new WP_Error('facebook_api_error', $body['error']['message']);
         }
-        
+
         return $body;
     }
     
@@ -592,45 +688,35 @@ class FB_Post_Scheduler_API {
     }
     
     /**
-     * Post til Facebook Gruppe
+     * Post til Facebook Gruppe som link-opslag (klikbart preview til artiklen).
      *
      * @param string $message Beskedtekst til Facebook-opslag
      * @param string $link URL til at inkludere i opslaget
      * @param string $group_id Facebook gruppe ID
-     * @param int $image_id Attachment ID of image to include (optional)
+     * @param int $image_id Attachment ID til link-preview (optional)
+     * @param int $post_id WordPress post ID (bruges til OG override/scrape)
      * @return array|WP_Error Response fra Facebook eller fejl
      */
-    public function post_to_facebook_group($message, $link, $group_id, $image_id = 0) {
+    public function post_to_facebook_group($message, $link, $group_id, $image_id = 0, $post_id = 0) {
         // Tjek at alle nødvendige indstillinger er sat
         if (empty($group_id) || empty($this->access_token)) {
             return new WP_Error('missing_credentials', __('Manglende Facebook API-indstillinger for gruppe', 'fb-post-scheduler'));
         }
-        
-        // API endpoint for gruppe
+
+        $image_id = absint($image_id);
+        $post_id = absint($post_id);
+
+        $this->prepare_link_preview($link, $post_id, $image_id);
+
+        // API endpoint for gruppe – altid link-post via feed
         $url = "https://graph.facebook.com/{$group_id}/feed";
-        
-        // Forbered data
+
         $data = array(
             'message' => $message,
             'link' => $link,
-            'access_token' => $this->access_token
+            'access_token' => $this->access_token,
         );
-        
-        // Hvis der er et billede, brug photos endpoint i stedet
-        if (!empty($image_id)) {
-            // Få billedfil-url
-            $image_url = wp_get_attachment_url($image_id);
-            
-            if ($image_url) {
-                $url = "https://graph.facebook.com/{$group_id}/photos";
-                $data = array(
-                    'url' => $image_url,
-                    'caption' => $message . "\n\n" . $link,
-                    'access_token' => $this->access_token,
-                );
-            }
-        }
-        
+
         // Send POST-anmodning til Facebook Graph API
         $response = wp_remote_post($url, array(
             'method' => 'POST',
@@ -640,17 +726,19 @@ class FB_Post_Scheduler_API {
             'blocking' => true,
             'body' => $data,
         ));
-        
+
+        $this->cleanup_link_preview($link, $post_id, $image_id);
+
         if (is_wp_error($response)) {
             return $response;
         }
-        
+
         $body = json_decode(wp_remote_retrieve_body($response), true);
-        
+
         if (isset($body['error'])) {
             return new WP_Error('facebook_error', $body['error']['message']);
         }
-        
+
         return $body;
     }
 }
