@@ -202,6 +202,63 @@
     white-space: pre-line;
 }
 
+.fb-page-mention {
+    color: #1877f2;
+    font-weight: 600;
+}
+
+.fb-page-mention-dropdown {
+    position: absolute;
+    z-index: 100000;
+    margin: 0;
+    padding: 4px 0;
+    list-style: none;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.fb-page-mention-dropdown li {
+    margin: 0;
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+}
+
+.fb-page-mention-dropdown li.is-active,
+.fb-page-mention-dropdown li:hover {
+    background: #f0f6fc;
+}
+
+.fb-page-mention-dropdown .fb-page-mention-name {
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.fb-page-mention-dropdown .fb-page-mention-id {
+    color: #646970;
+    font-size: 12px;
+}
+
+.fb-page-mention-dropdown .fb-page-mention-status {
+    cursor: default;
+    color: #646970;
+    font-style: italic;
+    display: block;
+    white-space: normal;
+    line-height: 1.45;
+}
+
+.fb-page-mention-dropdown .fb-page-mention-status:hover {
+    background: transparent;
+}
+
 .fb-post-preview-link {
     background-color: #f7f7f7;
     border: 1px solid #eee;

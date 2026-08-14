@@ -3,7 +3,7 @@
  * Plugin Name: Facebook Post Scheduler
  * Plugin URI: https://jaxweb.dk/fb-post-scheduler
  * Description: Planlæg og administrer Facebook-opslag direkte fra WordPress med automatisk link til indholdet, AI-tekst generering, og avanceret administration
- * Version: 1.1.4
+ * Version: 1.1.5
  * Author: Jacob Thygesen
  * Author URI: https://jaxweb.dk
  * License: GPL2
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 // Definér konstanter
 define('FB_POST_SCHEDULER_PATH', plugin_dir_path(__FILE__));
 define('FB_POST_SCHEDULER_URL', plugin_dir_url(__FILE__));
-define('FB_POST_SCHEDULER_VERSION', '1.1.4');
+define('FB_POST_SCHEDULER_VERSION', '1.1.5');
 
 // Inkluder nødvendige filer
 require_once FB_POST_SCHEDULER_PATH . 'includes/ajax-handlers.php';
@@ -1162,7 +1162,7 @@ class FB_Post_Scheduler {
                     </p>
                     <div id="fb_schedule_overview_<?php echo esc_attr($index); ?>" class="fb-schedule-overview" style="display:none;"></div>
                     
-                    <p>
+                    <p class="fb-post-text-field">
                         <label for="fb_post_text_<?php echo $index; ?>"><?php _e('Tekst til Facebook-opslag:', 'fb-post-scheduler'); ?></label>
                         <?php if (get_option('fb_post_scheduler_ai_enabled', '') && !$is_posted) : ?>
                         <button type="button" class="button fb-generate-ai-text" data-index="<?php echo $index; ?>" data-post-id="<?php echo $post->ID; ?>">
@@ -1171,8 +1171,8 @@ class FB_Post_Scheduler {
                         </button>
                         <span class="spinner fb-ai-spinner" style="float: none; margin-top: 0;"></span>
                         <?php endif; ?>
-                        <textarea id="fb_post_text_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][text]" class="widefat" rows="5" <?php disabled($is_posted, true); ?>><?php echo esc_textarea(isset($fb_post['text']) ? $fb_post['text'] : ''); ?></textarea>
-                        <span class="description"><?php _e('Denne tekst vil blive brugt til Facebook-opslaget. Link til indlægget vil automatisk blive tilføjet.', 'fb-post-scheduler'); ?></span>
+                        <textarea id="fb_post_text_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][text]" class="widefat" rows="5" autocomplete="off" <?php disabled($is_posted, true); ?>><?php echo esc_textarea(isset($fb_post['text']) ? $fb_post['text'] : ''); ?></textarea>
+                        <span class="description"><?php _e('Skriv @ og mindst 3 bogstaver for at tagge en offentlig Facebook-side. Tagget gemmes som @[PAGE_ID] og vises som et blåt @-tag på Facebook. Link til indlægget tilføjes automatisk.', 'fb-post-scheduler'); ?></span>
                     </p>
                     
                     <p class="fb-post-image-field">
@@ -1307,7 +1307,7 @@ class FB_Post_Scheduler {
                 </p>
                 <div id="fb_schedule_overview_{{index}}" class="fb-schedule-overview" style="display:none;"></div>
                 
-                <p>
+                <p class="fb-post-text-field">
                     <label for="fb_post_text_{{index}}"><?php _e('Tekst til Facebook-opslag:', 'fb-post-scheduler'); ?></label>
                     <?php if (get_option('fb_post_scheduler_ai_enabled', '')) : ?>
                     <button type="button" class="button fb-generate-ai-text" data-index="{{index}}" data-post-id="<?php echo $post->ID; ?>">
@@ -1316,8 +1316,8 @@ class FB_Post_Scheduler {
                     </button>
                     <span class="spinner fb-ai-spinner" style="float: none; margin-top: 0;"></span>
                     <?php endif; ?>
-                    <textarea id="fb_post_text_{{index}}" name="fb_posts[{{index}}][text]" class="widefat" rows="5"></textarea>
-                    <span class="description"><?php _e('Denne tekst vil blive brugt til Facebook-opslaget. Link til indlægget vil automatisk blive tilføjet.', 'fb-post-scheduler'); ?></span>
+                    <textarea id="fb_post_text_{{index}}" name="fb_posts[{{index}}][text]" class="widefat" rows="5" autocomplete="off"></textarea>
+                    <span class="description"><?php _e('Skriv @ og mindst 3 bogstaver for at tagge en offentlig Facebook-side. Tagget gemmes som @[PAGE_ID] og vises som et blåt @-tag på Facebook. Link til indlægget tilføjes automatisk.', 'fb-post-scheduler'); ?></span>
                 </p>
                 
                 <p class="fb-post-image-field">
@@ -1492,9 +1492,22 @@ class FB_Post_Scheduler {
                     'ajaxUrl' => admin_url('admin-ajax.php'),
                     'ajaxError' => __('Der opstod en fejl ved kommunikation med serveren. Prøv igen senere.', 'fb-post-scheduler'),
                     'aiError' => __('Kunne ikke generere tekst med AI. Tjek dine indstillinger og prøv igen.', 'fb-post-scheduler'),
-                    'clearRecordConfirm' => __('Er du sikker på, at du vil slette disse opslagsinformationer? Opslaget kan herefter planlægges igen.', 'fb-post-scheduler')
+                    'clearRecordConfirm' => __('Er du sikker på, at du vil slette disse opslagsinformationer? Opslaget kan herefter planlægges igen.', 'fb-post-scheduler'),
+                    'mentionSearching' => __('Søger Facebook-sider…', 'fb-post-scheduler'),
+                    'mentionNoResults' => __('Ingen Facebook-sider fundet', 'fb-post-scheduler'),
+                    'mentionError' => __('Kunne ikke søge efter Facebook-sider.', 'fb-post-scheduler'),
                 )
             );
+
+            if ($hook === 'post.php' || $hook === 'post-new.php') {
+                wp_enqueue_script(
+                    'fb-post-scheduler-page-mentions',
+                    FB_POST_SCHEDULER_URL . 'assets/js/page-mentions.js',
+                    array('jquery', 'fb-post-scheduler-admin-js'),
+                    FB_POST_SCHEDULER_VERSION,
+                    true
+                );
+            }
             
             // Kun på kalender-siden
             if (strpos($hook, 'fb-post-scheduler-calendar') !== false) {

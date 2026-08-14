@@ -173,6 +173,83 @@ Pluginet er udviklet af Jacob Thygesen til brug på danske WordPress-hjemmesider
 ## Sikkerhed
 Dit Facebook API-nøgler, Google Gemini API-nøgle og tokens opbevares i WordPress-databasen. Sørg for at holde disse oplysninger sikre og brug kun pluginet på sikre websites med opdateret WordPress og relevante sikkerhedsforanstaltninger.
 
+## App Review: Page Public Content Access
+
+This section is the description to paste into Meta App Review for the **Page Public Content Access** feature. English is included because Meta reviewers read English.
+
+**Related docs:** [Pages Search](https://developers.facebook.com/docs/pages-api/search-pages) · [Page Feed mentions](https://developers.facebook.com/docs/graph-api/reference/page/feed/) · [Page Public Content Access](https://developers.facebook.com/docs/apps/review/feature#reference-PAGES_ACCESS)
+
+---
+
+### Feature use (copy for Meta App Review)
+
+**App name:** Facebook Post Scheduler (WordPress plugin)  
+**Feature requested:** Page Public Content Access  
+**User-facing purpose:** Let a Page admin look up *public Facebook Pages they do not manage* and insert an official @-mention (`@[PAGE_ID]`) into a scheduled post.
+
+#### Why this feature is required
+
+Facebook Post Scheduler is used by website editors (for example a municipality or local news site) to compose and schedule posts that are published as the organization’s Facebook Page via `POST /{page-id}/feed`.
+
+Editors often need to tag **official public Pages they do not administer** — for example a royal household, a government agency, a museum, or a partner organization — so the mention appears as a blue, clickable @-tag on Facebook.
+
+`pages_read_engagement` and `pages_show_list` only return Pages the logged-in user already manages. They cannot resolve a public Page such as “Dronninglund” or “Meteo” to a Page ID. The Graph API Pages Search endpoint (`GET /pages/search`) requires **Page Public Content Access** or **Page Public Metadata Access** for that lookup.
+
+Without this feature, the editor would have to find and paste raw numeric Page IDs by hand, which is error-prone and not usable in a CMS workflow.
+
+#### What the app does with the feature (and nothing else)
+
+1. A WordPress editor opens a post and types in the plugin’s Facebook post text field.
+2. When they type `@` followed by at least 3 characters (example: `@Mete`), the plugin sends an authenticated admin AJAX request to WordPress. The browser never calls Graph API directly.
+3. The WordPress server calls:
+
+   `GET https://graph.facebook.com/v18.0/pages/search?q={search_term}&fields=id,name`
+
+   using an app access token (`{app-id}|{app-secret}`). A user token is tried first for Pages the user already manages; public search uses the app token once this feature is approved.
+
+4. **Only two fields are requested:** `id` (Facebook Page ID) and `name` (Page name). The app does **not** request or store posts, comments, reactions, followers, emails, or any other Page content.
+5. Up to 8 matching Pages are shown in an autocomplete dropdown (name + ID). No other Graph data is displayed.
+6. If the editor selects a Page, the plugin inserts `@[PAGE_ID:Page Name]` into the draft text (for example `@[123456789:Météo-France]`). That string is saved with the WordPress post as ordinary post meta.
+7. At publish time the name is stripped and the Graph `message` parameter is sent as Meta’s official mention syntax, e.g. `Check out this article about @[123456789]!`, together with `pages_manage_posts` on `POST /{page-id}/feed`. Facebook then renders the blue @-tag.
+
+#### Data use, storage, and retention
+
+- Search is **on-demand and ephemeral**. Query results are not cached, not written to a database, and not used for analytics, advertising, scraping, or building a Page directory.
+- The only persisted values are the Page ID (and optionally the display name) that the editor explicitly chose, stored inside the scheduled post’s message text in WordPress.
+- Access tokens stay on the server (WordPress options). They are never exposed to site visitors.
+- The feature is available only to logged-in WordPress users with the `edit_posts` capability. Requests are protected with a WordPress nonce.
+
+#### What this app does not do
+
+- It does not crawl, archive, or display public Page feed posts, photos, videos, or comments.
+- It does not read Pages in bulk or run unattended search jobs.
+- It does not mention Pages without an explicit editor action (selecting a result or typing `@[PAGE_ID]`).
+- It does not use public Page data for ads, lookalike audiences, or resale.
+
+#### Step-by-step for reviewers (screencast script)
+
+1. Log in to WordPress as an editor.
+2. Open **FB Opslag → Indstillinger** and confirm the Facebook App ID, App Secret, and Page are connected.
+3. Create or edit a WordPress post.
+4. In the **Facebook Opslag** meta box, enable the post and click the text field **Tekst til Facebook-opslag**.
+5. Type `@` plus at least three letters of a **public Page the connected user does not manage**.
+6. Confirm a dropdown of matching public Pages (name + ID) appears.
+7. Click a result. Confirm the field contains `@[PAGE_ID:Page Name]`.
+8. Schedule or publish. Confirm the Facebook post shows a blue @-mention of that Page.
+
+#### API summary
+
+| Item | Value |
+|---|---|
+| Endpoint | `GET /v18.0/pages/search` |
+| Query | `q` = characters typed after `@` (minimum 3) |
+| Fields | `id`, `name` only |
+| Token | App access token (`{app-id}|{app-secret}`) for public search |
+| Publish | `POST /{page-id}/feed` with `message` containing `@[PAGE_ID]` |
+| Related permission | `pages_manage_posts` (already used to publish as the Page) |
+
+---
+
 ## FAQ
 
 ### Hvordan får jeg Facebook API-nøgler?

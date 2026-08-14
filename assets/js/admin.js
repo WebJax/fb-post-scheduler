@@ -12,16 +12,6 @@
         // Bind token management buttons directly
         bindTokenManagementButtons();
         
-        // Also try binding after a short delay in case elements load later
-        setTimeout(function() {
-            bindTokenManagementButtons();
-        }, 500);
-        
-        // Try again with a longer delay for settings pages
-        setTimeout(function() {
-            bindTokenManagementButtons();
-        }, 2000);
-        
         // Fallback event delegation method
         setupFallbackEventHandlers();
         
@@ -339,6 +329,7 @@
      * Bind token management buttons
      */
     function bindTokenManagementButtons() {
+        console.log('bindTokenManagementButtons');
         // Facebook API test knap
         $('#fb-test-connection').off('click').on('click', function(e) {
             e.preventDefault();
@@ -794,6 +785,19 @@
         $btn.prop('disabled', false).text('Log ind med Facebook');
     }
     
+    /**
+     * Escape text and render @[PAGE_ID] / @[PAGE_ID:Name] as a blue @-mention.
+     */
+    function formatPreviewMentions(text) {
+        var escaped = $('<div>').text(text || '').html();
+        escaped = escaped.replace(/\n/g, '<br>');
+        escaped = escaped.replace(/@\[(\d+)(?::([^\]]+))?\]/g, function(match, id, name) {
+            var label = name || id;
+            return '<span class="fb-page-mention" data-page-id="' + id + '">@' + label + '</span>';
+        });
+        return escaped;
+    }
+
     function updatePreviewImage($previewItem, imageUrl, imageAlt) {
         var $previewImage = $previewItem.find('.fb-post-preview-image');
 
@@ -882,9 +886,7 @@
             var $hiddenImageInput = $previewText.closest('.fb-post-item').find('input[id^="fb_post_image_id_"]');
 
             if (text) {
-                // Erstat linjeskift med <br>
-                text = text.replace(/\n/g, '<br>');
-                $previewText.html(text);
+                $previewText.html(formatPreviewMentions(text));
             } else {
                 $previewText.html('');
             }
@@ -1027,8 +1029,10 @@
     
     // Facebook Page Selection functionality
     function bindPageSelectionButtons() {
+        console.log('bindPageSelectionButtons');
         // Gem bruger access token
-        $(document).off('click.fb-page-selection').on('click.fb-page-selection', '#fb-save-user-token', function(e) {
+        $('#fb-save-user-token').click('', function(e) {
+            console.log('save user token');
             e.preventDefault();
             
             var button = $(this);
@@ -1074,7 +1078,7 @@
         });
         
         // Indlæs Facebook Pages
-        $(document).off('click.fb-page-selection').on('click.fb-page-selection', '#fb-load-pages', function(e) {
+        $('#fb-load-pages').on('click', function(e) {
             e.preventDefault();
             
             var button = $(this);
@@ -1132,7 +1136,7 @@
         });
         
         // Vælg Facebook Page
-        $(document).off('click.fb-page-selection').on('click.fb-page-selection', '#fb-select-page', function(e) {
+        $('#fb-select-page').on('click', function(e) {
             e.preventDefault();
             
             var button = $(this);
@@ -1246,7 +1250,7 @@
     // Facebook Group Selection functionality
     function bindGroupSelectionButtons() {
         // Indlæs Facebook Groups
-        $(document).off('click.fb-group-selection').on('click.fb-group-selection', '#fb-load-groups', function(e) {
+        $('#fb-load-groups').on('click', function(e) {
             e.preventDefault();
             
             var button = $(this);

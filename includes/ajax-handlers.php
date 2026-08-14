@@ -1149,3 +1149,45 @@ function fb_post_scheduler_clear_post_record_ajax() {
     exit;
 }
 add_action( 'wp_ajax_fb_post_scheduler_clear_post_record', 'fb_post_scheduler_clear_post_record_ajax' );
+
+/**
+ * AJAX-handler: live-søgning efter offentlige Facebook Pages til @-mentions.
+ *
+ * Uses Meta Pages Search. Tries user token, then app token, then page token.
+ *
+ * @see FB_Post_Scheduler_API::search_pages() for App Review permission docs.
+ */
+function fb_post_scheduler_search_pages_ajax() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler'),
+        ));
+    }
+
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler'),
+        ));
+    }
+
+    $search_term = isset($_POST['q']) ? sanitize_text_field(wp_unslash($_POST['q'])) : '';
+    $term_length = function_exists('mb_strlen') ? mb_strlen($search_term, 'UTF-8') : strlen($search_term);
+
+    if ($term_length < 3) {
+        wp_send_json_error(array(
+            'message' => __('Søgningen skal være mindst 3 tegn', 'fb-post-scheduler'),
+        ));
+    }
+
+    $api = fb_post_scheduler_get_api();
+    $result = $api->search_pages($search_term);
+
+    if (is_wp_error($result)) {
+        wp_send_json_error(array(
+            'message' => $result->get_error_message(),
+        ));
+    }
+
+    wp_send_json_success($result);
+}
+add_action('wp_ajax_fb_post_scheduler_search_pages', 'fb_post_scheduler_search_pages_ajax');
