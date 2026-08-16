@@ -259,6 +259,60 @@
     background: transparent;
 }
 
+.fb-saved-mention-pages-form {
+    max-width: 520px;
+    margin-bottom: 12px;
+}
+
+.fb-saved-mention-pages-form p {
+    margin: 0 0 10px;
+}
+
+.fb-saved-pages-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-width: 520px;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    background: #fff;
+}
+
+.fb-saved-pages-list li {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 0;
+    padding: 10px 12px;
+    border-bottom: 1px solid #dcdcde;
+}
+
+.fb-saved-pages-list li:last-child {
+    border-bottom: none;
+}
+
+.fb-saved-pages-list .fb-saved-page-name {
+    font-weight: 600;
+    color: #1d2327;
+    flex: 1 1 auto;
+}
+
+.fb-saved-pages-list .fb-saved-page-id {
+    color: #646970;
+    font-size: 12px;
+}
+
+.fb-saved-pages-list .fb-remove-saved-page {
+    margin-left: auto;
+    color: #b32d2e;
+}
+
+.fb-saved-pages-list .fb-saved-pages-empty {
+    color: #646970;
+    font-style: italic;
+    display: block;
+}
+
 .fb-post-preview-link {
     background-color: #f7f7f7;
     border: 1px solid #eee;

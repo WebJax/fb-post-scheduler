@@ -92,6 +92,10 @@ Ja, du kan oprette flere Facebook-opslag til samme WordPress-indlæg med forskel
 
 == Changelog ==
 
+= 1.1.6 =
+* Gemte Facebook-sider (navn + Page ID) under Indstillinger
+* @[søgning] i opslagsteksten indsætter @[PAGE_ID] fra gemte sider
+
 = 1.0.0 =
 * Første udgivelse
 * Facebook login integration
