@@ -1,14 +1,16 @@
 /**
  * Facebook Page @-mention autocomplete for the plugin meta box textarea.
  *
- * Listens on #fb_post_text_* fields. After '@' + 3 characters, queries
- * admin-ajax.php → fb_post_scheduler_search_pages. Selecting a result
- * inserts @[PAGE_ID:Page Name], which is converted to @[PAGE_ID] on publish.
+ * Two modes:
+ * 1) @[query  → AJAX search in locally saved pages (Indstillinger)
+ * 2) @query   → AJAX search via Facebook Pages Search (min. 3 tegn)
+ *
+ * Selecting a result inserts @[PAGE_ID:Page Name], converted to @[PAGE_ID] on publish.
  */
 (function($) {
     'use strict';
 
-    var MIN_CHARS = 3;
+    var GRAPH_MIN_CHARS = 3;
     var DEBOUNCE_MS = 300;
     var $dropdown = null;
     var activeTextarea = null;
@@ -57,12 +59,22 @@
         activeTextarea = textarea;
         activeMention = mention;
 
-        if (!mention || mention.query.length < MIN_CHARS) {
+        if (!mention) {
             hideDropdown();
             return;
         }
 
-        scheduleSearch(mention.query);
+        if (mention.source === 'saved') {
+            scheduleSearch(mention.query, 'saved');
+            return;
+        }
+
+        if (mention.query.length < GRAPH_MIN_CHARS) {
+            hideDropdown();
+            return;
+        }
+
+        scheduleSearch(mention.query, 'graph');
     }
 
     function onTextKeydown(e) {
@@ -98,32 +110,84 @@
         }
     }
 
+    /**
+     * Detect @[saved] or @graph mention fragment before the caret.
+     * @[ takes priority so typing @[Skoring does not fall through to Graph search.
+     */
     function getMentionAtCaret(textarea) {
         var pos = textarea.selectionStart;
         var before = textarea.value.substring(0, pos);
-        var match = before.match(/(^|[\s])@([^\s@]*)$/);
 
-        if (!match) {
+        var savedMatch = before.match(/(^|[\s])@\[([^\s\]]*)$/);
+        if (savedMatch) {
+            return {
+                source: 'saved',
+                query: savedMatch[2],
+                start: pos - savedMatch[2].length - 2,
+                end: pos
+            };
+        }
+
+        var graphMatch = before.match(/(^|[\s])@([^\s@\[]*)$/);
+        if (!graphMatch) {
             return null;
         }
 
-        var query = match[2];
-
         return {
-            query: query,
-            start: pos - query.length - 1,
+            source: 'graph',
+            query: graphMatch[2],
+            start: pos - graphMatch[2].length - 1,
             end: pos
         };
     }
 
-    function scheduleSearch(query) {
+    function scheduleSearch(query, source) {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(function() {
-            searchPages(query);
+            if (source === 'saved') {
+                searchSavedPages(query);
+            } else {
+                searchGraphPages(query);
+            }
         }, DEBOUNCE_MS);
     }
 
-    function searchPages(query) {
+    function searchSavedPages(query) {
+        if (currentRequest && currentRequest.readyState !== 4) {
+            currentRequest.abort();
+        }
+
+        showStatus(fbPostScheduler.savedMentionSearching || 'Søger gemte sider…');
+
+        currentRequest = $.ajax({
+            url: fbPostScheduler.ajaxUrl,
+            type: 'POST',
+            data: {
+                action: 'fb_post_scheduler_search_saved_pages',
+                nonce: fbPostScheduler.nonce,
+                q: query
+            },
+            success: function(response) {
+                if (!activeMention || activeMention.source !== 'saved' || activeMention.query !== query) {
+                    return;
+                }
+
+                if (response.success && $.isArray(response.data) && response.data.length) {
+                    renderResults(response.data);
+                } else {
+                    showStatus(fbPostScheduler.savedMentionNoResults || 'Ingen gemte sider fundet');
+                }
+            },
+            error: function(xhr) {
+                if (xhr.statusText === 'abort') {
+                    return;
+                }
+                showStatus(fbPostScheduler.savedMentionError || fbPostScheduler.ajaxError);
+            }
+        });
+    }
+
+    function searchGraphPages(query) {
         if (currentRequest && currentRequest.readyState !== 4) {
             currentRequest.abort();
         }
@@ -139,7 +203,7 @@
                 q: query
             },
             success: function(response) {
-                if (!activeMention || activeMention.query !== query) {
+                if (!activeMention || activeMention.source !== 'graph' || activeMention.query !== query) {
                     return;
                 }
 
@@ -182,7 +246,10 @@
         });
 
         if (!$dropdown.children().length) {
-            showStatus(fbPostScheduler.mentionNoResults || 'Ingen sider fundet');
+            var emptyMsg = (activeMention && activeMention.source === 'saved')
+                ? (fbPostScheduler.savedMentionNoResults || 'Ingen gemte sider fundet')
+                : (fbPostScheduler.mentionNoResults || 'Ingen sider fundet');
+            showStatus(emptyMsg);
             return;
         }
 
@@ -229,6 +296,7 @@
         }
 
         var name = String(page.name || '').replace(/[\[\]]/g, '');
+        // Editor keeps :name for readability; publish strips to @[PAGE_ID].
         var insertion = '@[' + page.id + (name ? ':' + name : '') + '] ';
         var value = activeTextarea.value;
         var start = activeMention.start;

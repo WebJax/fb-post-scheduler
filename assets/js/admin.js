@@ -11,6 +11,7 @@
     $(document).ready(function() {
         // Bind token management buttons directly
         bindTokenManagementButtons();
+        bindSavedMentionPages();
         
         // Fallback event delegation method
         setupFallbackEventHandlers();
@@ -1420,6 +1421,157 @@
                     button.prop('disabled', false).text('Ryd gruppe-valg');
                 }
             });
+        });
+    }
+
+    /**
+     * Indstillinger: tilføj/fjern gemte sider til @[mention]-autocomplete.
+     */
+    function bindSavedMentionPages() {
+        var $root = $('#fb-saved-mention-pages');
+        if (!$root.length || typeof fbPostScheduler === 'undefined') {
+            return;
+        }
+
+        function renderSavedPagesList(pages) {
+            var $list = $('#fb-saved-pages-list');
+            $list.empty();
+
+            if (!pages || !pages.length) {
+                $list.append(
+                    $('<li>', {
+                        class: 'fb-saved-pages-empty',
+                        text: fbPostScheduler.savedPagesEmpty || 'Ingen gemte sider endnu.'
+                    })
+                );
+                return;
+            }
+
+            $.each(pages, function(index, page) {
+                if (!page || !page.id || !page.name) {
+                    return;
+                }
+
+                var $item = $('<li>', { 'data-page-id': page.id });
+                $item.append($('<span>', { class: 'fb-saved-page-name', text: page.name }));
+                $item.append($('<span>', { class: 'fb-saved-page-id', text: page.id }));
+                $item.append(
+                    $('<button>', {
+                        type: 'button',
+                        class: 'button-link-delete fb-remove-saved-page',
+                        'data-page-id': page.id,
+                        text: fbPostScheduler.savedPageRemoveLabel || 'Fjern'
+                    })
+                );
+                $list.append($item);
+            });
+        }
+
+        function showSavedPagesMessage(type, message) {
+            var className = type === 'success' ? 'notice-success' : 'notice-error';
+            $('#fb-saved-pages-result').html(
+                '<div class="notice ' + className + ' inline"><p>' + $('<div>').text(message).html() + '</p></div>'
+            );
+        }
+
+        $('#fb-add-saved-page').on('click', function(e) {
+            e.preventDefault();
+
+            var $button = $(this);
+            var $spinner = $('#fb-saved-pages-spinner');
+            var name = $.trim($('#fb-saved-page-name').val() || '');
+            var id = $.trim($('#fb-saved-page-id').val() || '');
+
+            if (!name || !id) {
+                showSavedPagesMessage('error', 'Udfyld både side-navn og Page ID.');
+                return;
+            }
+
+            $button.prop('disabled', true);
+            $spinner.addClass('is-active');
+            $('#fb-saved-pages-result').empty();
+
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_add_saved_page',
+                    nonce: fbPostScheduler.nonce,
+                    name: name,
+                    id: id
+                },
+                success: function(response) {
+                    if (response.success) {
+                        showSavedPagesMessage('success', response.data.message || 'Siden er gemt.');
+                        renderSavedPagesList(response.data.pages || []);
+                        $('#fb-saved-page-name').val('');
+                        $('#fb-saved-page-id').val('');
+                    } else {
+                        var message = response.data && response.data.message
+                            ? response.data.message
+                            : (fbPostScheduler.savedPageAddError || 'Kunne ikke tilføje siden.');
+                        showSavedPagesMessage('error', message);
+                    }
+                },
+                error: function() {
+                    showSavedPagesMessage('error', fbPostScheduler.ajaxError || 'Der opstod en fejl');
+                },
+                complete: function() {
+                    $button.prop('disabled', false);
+                    $spinner.removeClass('is-active');
+                }
+            });
+        });
+
+        $(document).on('click', '.fb-remove-saved-page', function(e) {
+            e.preventDefault();
+
+            var pageId = String($(this).data('page-id') || '');
+            if (!pageId) {
+                return;
+            }
+
+            if (!window.confirm(fbPostScheduler.savedPageRemoveConfirm || 'Fjern denne gemte side?')) {
+                return;
+            }
+
+            var $spinner = $('#fb-saved-pages-spinner');
+            $spinner.addClass('is-active');
+            $('#fb-saved-pages-result').empty();
+
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_remove_saved_page',
+                    nonce: fbPostScheduler.nonce,
+                    id: pageId
+                },
+                success: function(response) {
+                    if (response.success) {
+                        showSavedPagesMessage('success', response.data.message || 'Siden er fjernet.');
+                        renderSavedPagesList(response.data.pages || []);
+                    } else {
+                        var message = response.data && response.data.message
+                            ? response.data.message
+                            : fbPostScheduler.ajaxError;
+                        showSavedPagesMessage('error', message);
+                    }
+                },
+                error: function() {
+                    showSavedPagesMessage('error', fbPostScheduler.ajaxError || 'Der opstod en fejl');
+                },
+                complete: function() {
+                    $spinner.removeClass('is-active');
+                }
+            });
+        });
+
+        $('#fb-saved-page-name, #fb-saved-page-id').on('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                $('#fb-add-saved-page').trigger('click');
+            }
         });
     }
     

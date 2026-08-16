@@ -170,6 +170,13 @@ Pluginet opretter automatisk en logfil med oplysninger om alle opslag, der poste
 ## Udviklet til
 Pluginet er udviklet af Jacob Thygesen til brug på danske WordPress-hjemmesider.
 
+## Gemte sider til @-tags
+Under **FB Opslag → Indstillinger** kan du gemme Facebook-sider med **side-navn** og **Page ID**.
+
+I tekstfeltet til Facebook-opslag skriver du `@[` efterfulgt af (en del af) navnet — f.eks. `@[Skoring` — og vælger siden i listen. Pluginet indsætter `@[PAGE_ID:Side-navn]`, som ved publicering sendes til Facebook som `@[PAGE_ID]`.
+
+Du kan stadig søge offentlige sider via Facebook med `@` + mindst 3 bogstaver (kræver App Review-tilladelser).
+
 ## Sikkerhed
 Dit Facebook API-nøgler, Google Gemini API-nøgle og tokens opbevares i WordPress-databasen. Sørg for at holde disse oplysninger sikre og brug kun pluginet på sikre websites med opdateret WordPress og relevante sikkerhedsforanstaltninger.
 

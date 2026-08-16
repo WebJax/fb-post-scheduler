@@ -3,7 +3,7 @@
  * Plugin Name: Facebook Post Scheduler
  * Plugin URI: https://jaxweb.dk/fb-post-scheduler
  * Description: Planlæg og administrer Facebook-opslag direkte fra WordPress med automatisk link til indholdet, AI-tekst generering, og avanceret administration
- * Version: 1.1.5
+ * Version: 1.1.6
  * Author: Jacob Thygesen
  * Author URI: https://jaxweb.dk
  * License: GPL2
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 // Definér konstanter
 define('FB_POST_SCHEDULER_PATH', plugin_dir_path(__FILE__));
 define('FB_POST_SCHEDULER_URL', plugin_dir_url(__FILE__));
-define('FB_POST_SCHEDULER_VERSION', '1.1.5');
+define('FB_POST_SCHEDULER_VERSION', '1.1.6');
 
 // Inkluder nødvendige filer
 require_once FB_POST_SCHEDULER_PATH . 'includes/ajax-handlers.php';
@@ -592,6 +592,14 @@ class FB_Post_Scheduler {
             'fb-post-scheduler-settings',
             'fb_post_scheduler_facebook_section'
         );
+
+        add_settings_field(
+            'fb_post_scheduler_saved_mention_pages',
+            __('Gemte sider til @-tags', 'fb-post-scheduler'),
+            array($this, 'saved_mention_pages_callback'),
+            'fb-post-scheduler-settings',
+            'fb_post_scheduler_facebook_section'
+        );
         
         add_settings_field(
             'fb_post_scheduler_facebook_access_token',
@@ -879,6 +887,52 @@ class FB_Post_Scheduler {
         echo '</div>';
         
         echo '<p class="description">' . __('Vælg en Facebook-gruppe hvor du er administrator for at kunne dele opslag direkte til gruppen.', 'fb-post-scheduler') . '</p>';
+    }
+
+    /**
+     * Settings UI: gem navn + Page ID til @[mention]-autocomplete i opslagsteksten.
+     */
+    public function saved_mention_pages_callback(): void {
+        $pages = function_exists('fb_post_scheduler_get_saved_mention_pages')
+            ? fb_post_scheduler_get_saved_mention_pages()
+            : array();
+
+        echo '<div class="fb-saved-mention-pages" id="fb-saved-mention-pages">';
+        echo '<p class="description" style="margin-top:0;">' . esc_html__(
+            'Gem Facebook-sider (navn + Page ID). I opslagsteksten kan du skrive @[ efterfulgt af navnet for at indsætte @[PAGE_ID].',
+            'fb-post-scheduler'
+        ) . '</p>';
+
+        echo '<div class="fb-saved-mention-pages-form">';
+        echo '<p>';
+        echo '<label for="fb-saved-page-name"><strong>' . esc_html__('Side-navn', 'fb-post-scheduler') . '</strong></label><br>';
+        echo '<input type="text" id="fb-saved-page-name" class="regular-text" placeholder="' . esc_attr__('f.eks. Skoringen', 'fb-post-scheduler') . '" autocomplete="off">';
+        echo '</p>';
+        echo '<p>';
+        echo '<label for="fb-saved-page-id"><strong>' . esc_html__('Facebook Page ID', 'fb-post-scheduler') . '</strong></label><br>';
+        echo '<input type="text" id="fb-saved-page-id" class="regular-text" placeholder="' . esc_attr__('f.eks. 123456789012345', 'fb-post-scheduler') . '" inputmode="numeric" autocomplete="off">';
+        echo '</p>';
+        echo '<p>';
+        echo '<button type="button" id="fb-add-saved-page" class="button button-secondary">' . esc_html__('Tilføj side', 'fb-post-scheduler') . '</button>';
+        echo '<span class="spinner" id="fb-saved-pages-spinner" style="float:none;margin-left:10px;"></span>';
+        echo '</p>';
+        echo '<div id="fb-saved-pages-result"></div>';
+        echo '</div>';
+
+        echo '<ul id="fb-saved-pages-list" class="fb-saved-pages-list">';
+        if (empty($pages)) {
+            echo '<li class="fb-saved-pages-empty">' . esc_html__('Ingen gemte sider endnu.', 'fb-post-scheduler') . '</li>';
+        } else {
+            foreach ($pages as $page) {
+                echo '<li data-page-id="' . esc_attr($page['id']) . '">';
+                echo '<span class="fb-saved-page-name">' . esc_html($page['name']) . '</span>';
+                echo '<span class="fb-saved-page-id">' . esc_html($page['id']) . '</span>';
+                echo '<button type="button" class="button-link-delete fb-remove-saved-page" data-page-id="' . esc_attr($page['id']) . '">' . esc_html__('Fjern', 'fb-post-scheduler') . '</button>';
+                echo '</li>';
+            }
+        }
+        echo '</ul>';
+        echo '</div>';
     }
     
     /**
@@ -1172,7 +1226,7 @@ class FB_Post_Scheduler {
                         <span class="spinner fb-ai-spinner" style="float: none; margin-top: 0;"></span>
                         <?php endif; ?>
                         <textarea id="fb_post_text_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][text]" class="widefat" rows="5" autocomplete="off" <?php disabled($is_posted, true); ?>><?php echo esc_textarea(isset($fb_post['text']) ? $fb_post['text'] : ''); ?></textarea>
-                        <span class="description"><?php _e('Skriv @ og mindst 3 bogstaver for at tagge en offentlig Facebook-side. Tagget gemmes som @[PAGE_ID] og vises som et blåt @-tag på Facebook. Link til indlægget tilføjes automatisk.', 'fb-post-scheduler'); ?></span>
+                        <span class="description"><?php _e('Skriv @[ og begynd at skrive et gemt side-navn (f.eks. @[Skoring) for at indsætte @[PAGE_ID]. Du kan også skrive @ + mindst 3 bogstaver for at søge offentlige Facebook-sider. Link til indlægget tilføjes automatisk.', 'fb-post-scheduler'); ?></span>
                     </p>
                     
                     <p class="fb-post-image-field">
@@ -1317,7 +1371,7 @@ class FB_Post_Scheduler {
                     <span class="spinner fb-ai-spinner" style="float: none; margin-top: 0;"></span>
                     <?php endif; ?>
                     <textarea id="fb_post_text_{{index}}" name="fb_posts[{{index}}][text]" class="widefat" rows="5" autocomplete="off"></textarea>
-                    <span class="description"><?php _e('Skriv @ og mindst 3 bogstaver for at tagge en offentlig Facebook-side. Tagget gemmes som @[PAGE_ID] og vises som et blåt @-tag på Facebook. Link til indlægget tilføjes automatisk.', 'fb-post-scheduler'); ?></span>
+                    <span class="description"><?php _e('Skriv @[ og begynd at skrive et gemt side-navn (f.eks. @[Skoring) for at indsætte @[PAGE_ID]. Du kan også skrive @ + mindst 3 bogstaver for at søge offentlige Facebook-sider. Link til indlægget tilføjes automatisk.', 'fb-post-scheduler'); ?></span>
                 </p>
                 
                 <p class="fb-post-image-field">
@@ -1496,6 +1550,13 @@ class FB_Post_Scheduler {
                     'mentionSearching' => __('Søger Facebook-sider…', 'fb-post-scheduler'),
                     'mentionNoResults' => __('Ingen Facebook-sider fundet', 'fb-post-scheduler'),
                     'mentionError' => __('Kunne ikke søge efter Facebook-sider.', 'fb-post-scheduler'),
+                    'savedMentionSearching' => __('Søger gemte sider…', 'fb-post-scheduler'),
+                    'savedMentionNoResults' => __('Ingen gemte sider fundet', 'fb-post-scheduler'),
+                    'savedMentionError' => __('Kunne ikke søge i gemte sider.', 'fb-post-scheduler'),
+                    'savedPageAddError' => __('Kunne ikke tilføje siden.', 'fb-post-scheduler'),
+                    'savedPageRemoveConfirm' => __('Fjern denne gemte side?', 'fb-post-scheduler'),
+                    'savedPagesEmpty' => __('Ingen gemte sider endnu.', 'fb-post-scheduler'),
+                    'savedPageRemoveLabel' => __('Fjern', 'fb-post-scheduler'),
                 )
             );
 
