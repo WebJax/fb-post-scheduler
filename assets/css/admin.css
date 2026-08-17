@@ -165,12 +165,41 @@
 }
 
 .fb-post-preview-content {
-    padding: 10px;
+    background-color: white;
     display: none;
 }
 
 .fb-post-preview.is-open .fb-post-preview-content {
     display: block;
+}
+
+.fb-post-preview-content.fb-post-preview-title-background {
+    background-color: #f0f2f5;
+    padding: .2rem .4rem;
+}
+
+.editor-post-featured-image__preview-image {
+    aspect-ratio: 2 / 1;
+    object-fit: cover;
+    object-position: 50% 50%;
+    width: 100%;
+}
+
+.fb-post-preview-link-container .editor-post-featured-image__container {
+    line-height: 0;
+}
+
+.fb-post-preview-link-content {
+    background-color: #f0f2f5;
+    padding: .2rem .4rem;
+    border: 1px solid #e0e1e4;
+    border-top: 0px;
+}
+
+.fb-post-preview-website-name {
+    text-transform: uppercase;
+    font-size: .7rem;
+    color: #a1a1a1;
 }
 
 .fb-post-preview-image {
@@ -198,7 +227,7 @@
 }
 
 .fb-post-preview-text {
-    margin-bottom: 10px;
+    font-family: system-ui, -apple-system, "system-ui", ".SFNSText-Regular", sans-serif;
     white-space: pre-line;
 }
 

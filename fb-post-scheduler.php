@@ -1106,13 +1106,13 @@ class FB_Post_Scheduler {
                     $preview_image_alt = '';
 
                     if (has_post_thumbnail($post->ID)) {
-                        $featured_image_url = get_the_post_thumbnail_url($post->ID, 'medium');
+                        $featured_image_url = get_the_post_thumbnail_url($post->ID, 'high-res');
                         $thumbnail_id = get_post_thumbnail_id($post->ID);
                         $featured_image_alt = $thumbnail_id ? get_post_meta($thumbnail_id, '_wp_attachment_image_alt', true) : '';
                     }
 
                     if (!empty($fb_post['image_id'])) {
-                        $preview_image_url = wp_get_attachment_image_url($fb_post['image_id'], 'medium');
+                        $preview_image_url = wp_get_attachment_image_url($fb_post['image_id'], 'high-res');
                         $preview_image_alt = get_post_meta($fb_post['image_id'], '_wp_attachment_image_alt', true);
                     } else {
                         $preview_image_url = $featured_image_url;
@@ -1234,7 +1234,7 @@ class FB_Post_Scheduler {
                         <input type="hidden" id="fb_post_image_id_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][image_id]" value="<?php echo isset($fb_post['image_id']) ? esc_attr($fb_post['image_id']) : ''; ?>" <?php disabled($is_posted, true); ?>>
                         <div class="fb-post-image-preview-container">
                             <?php if (!empty($fb_post['image_id'])) : 
-                                $image_url = wp_get_attachment_image_url($fb_post['image_id'], 'medium');
+                                $image_url = wp_get_attachment_image_url($fb_post['image_id'], 'high-res');
                                 $image_alt = get_post_meta($fb_post['image_id'], '_wp_attachment_image_alt', true);
                             ?>
                                 <img src="<?php echo esc_url($image_url); ?>" alt="<?php echo esc_attr($image_alt); ?>" class="fb-post-image-preview">
@@ -1269,9 +1269,19 @@ class FB_Post_Scheduler {
                                 <?php endif; ?>
                             </div>
                             <p class="fb-post-preview-text"><?php echo wp_kses_post(isset($fb_post['text']) ? $fb_post['text'] : ''); ?></p>
-                            <div class="fb-post-preview-link">
-                                <div class="fb-post-preview-title"><?php echo esc_html(get_the_title($post->ID)); ?></div>
-                                <div class="fb-post-preview-url"><?php echo esc_url(get_permalink($post->ID)); ?></div>
+                            <div class="fb-post-preview-link-container">
+                                <div class="editor-post-featured-image__container">
+                                    <?php if (!empty($featured_image_url)) : ?>
+                                        <img src="<?php echo esc_url($featured_image_url); ?>" alt="<?php echo esc_attr($featured_image_alt); ?>" class="editor-post-featured-image__preview-image">
+                                    <?php else : ?>
+                                        <div class="fb-post-preview-featured-image-placeholder"><?php _e('Udvalgt billede', 'fb-post-scheduler'); ?></div>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="fb-post-preview-link-content">
+                                    <div class="fb-post-preview-website-name"><?php echo esc_html(wp_parse_url(home_url(), PHP_URL_HOST)); ?></div>
+                                    <div class="fb-post-preview-title"><?php echo esc_html(get_the_title($post->ID)); ?></div>
+                                    <div class="fb-post-preview-url"><?php echo esc_url(get_permalink($post->ID)); ?></div>
+                                </div>
                             </div>
                         </div>
                     </div>
