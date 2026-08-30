@@ -32,6 +32,47 @@
             initDateControls();
         }
         
+        $(document).on('submit', '.fb-delete-revision-schedules', function(e) {
+            var message = $(this).attr('data-confirm');
+            if (message && !window.confirm(message)) {
+                e.preventDefault();
+            }
+        });
+
+        $(document).on('change', '.fb-select-all', function() {
+            var target = $(this).attr('data-target');
+            $(this).closest('form').find('.' + target).prop('checked', this.checked);
+        });
+
+        $(document).on('change', '.fb-bulk-posts-form input[name="fb_row_ids[]"]', function() {
+            var $form = $(this).closest('form');
+            var $rows = $form.find('input[name="fb_row_ids[]"]');
+            var $selectAll = $form.find('.fb-select-all');
+            $selectAll.prop('checked', $rows.length > 0 && $rows.filter(':checked').length === $rows.length);
+        });
+
+        $(document).on('submit', '.fb-bulk-posts-form', function(e) {
+            var $form = $(this);
+            var action = $form.find('select[name="fb_bulk_action"]').val();
+            var checked = $form.find('input[name="fb_row_ids[]"]:checked').length;
+
+            if (action !== 'delete') {
+                e.preventDefault();
+                window.alert(fbPostScheduler.bulkDeleteNoAction);
+                return;
+            }
+
+            if (!checked) {
+                e.preventDefault();
+                window.alert(fbPostScheduler.bulkDeleteNone);
+                return;
+            }
+
+            if (!window.confirm(fbPostScheduler.bulkDeleteConfirm)) {
+                e.preventDefault();
+            }
+        });
+
         // Håndter tilføjelse af nye opslag
         $('#add-fb-post').on('click', function() {
             addNewPost();
@@ -302,7 +343,7 @@
                             $(this).remove();
                             var tbody = $('#posted-posts-table tbody');
                             if (tbody.find('tr').length === 0) {
-                                tbody.html('<tr><td colspan="5">' + 'Ingen postede Facebook-opslag fundet.' + '</td></tr>');
+                                tbody.html('<tr><td colspan="6">' + 'Ingen postede Facebook-opslag fundet.' + '</td></tr>');
                             }
                         });
                         if (typeof response.data.message !== 'undefined') {

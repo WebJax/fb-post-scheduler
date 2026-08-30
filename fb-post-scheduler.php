@@ -3,7 +3,7 @@
  * Plugin Name: Facebook Post Scheduler
  * Plugin URI: https://jaxweb.dk/fb-post-scheduler
  * Description: Planlæg og administrer Facebook-opslag direkte fra WordPress med automatisk link til indholdet, AI-tekst generering, og avanceret administration
- * Version: 1.1.7
+ * Version: 1.2.0
  * Author: Jacob Thygesen
  * Author URI: https://jaxweb.dk
  * License: GPL2
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 // Definér konstanter
 define('FB_POST_SCHEDULER_PATH', plugin_dir_path(__FILE__));
 define('FB_POST_SCHEDULER_URL', plugin_dir_url(__FILE__));
-define('FB_POST_SCHEDULER_VERSION', '1.1.7');
+define('FB_POST_SCHEDULER_VERSION', '1.2.0');
 
 // Inkluder nødvendige filer
 require_once FB_POST_SCHEDULER_PATH . 'includes/ajax-handlers.php';
@@ -218,6 +218,8 @@ class FB_Post_Scheduler {
         
         // Manual process hook
         add_action('admin_init', array($this, 'process_manual_post_check'));
+        add_action('admin_init', array($this, 'process_delete_revision_schedules'));
+        add_action('admin_init', array($this, 'process_bulk_delete_list_rows'));
         
         // Handle post duplication - clear FB post data on duplicated posts
         add_action('dp_duplicate_post', array($this, 'clear_fb_posts_on_duplicate'), 10, 2);
@@ -289,6 +291,36 @@ class FB_Post_Scheduler {
             if (isset($_GET['posts_processed']) && $_GET['posts_processed'] === 'true') {
                 echo '<div class="notice notice-success is-dismissible"><p>' . __('Planlagte Facebook-opslag er blevet behandlet.', 'fb-post-scheduler') . '</p></div>';
             }
+
+            if (isset($_GET['revision_schedules_deleted'])) {
+                $deleted_revisions = absint($_GET['revision_schedules_deleted']);
+                echo '<div class="notice notice-success is-dismissible"><p>' .
+                    sprintf(
+                        _n(
+                            '%d planlagt opslag knyttet til en revision blev slettet.',
+                            '%d planlagte opslag knyttet til revisioner blev slettet.',
+                            $deleted_revisions,
+                            'fb-post-scheduler'
+                        ),
+                        $deleted_revisions
+                    ) .
+                    '</p></div>';
+            }
+
+            if (isset($_GET['bulk_deleted'])) {
+                $bulk_deleted = absint($_GET['bulk_deleted']);
+                echo '<div class="notice notice-success is-dismissible"><p>' .
+                    sprintf(
+                        _n(
+                            '%d opslag blev slettet.',
+                            '%d opslag blev slettet.',
+                            $bulk_deleted,
+                            'fb-post-scheduler'
+                        ),
+                        $bulk_deleted
+                    ) .
+                    '</p></div>';
+            }
             
             // Vis besked om migrering gennemført
             if (isset($_GET['migration_complete']) && $_GET['migration_complete'] === 'true') {
@@ -312,6 +344,32 @@ class FB_Post_Scheduler {
             </div>
             
             <h2><?php _e('Kommende Facebook-opslag', 'fb-post-scheduler'); ?></h2>
+            <?php
+            $revision_schedule_count = fb_post_scheduler_count_scheduled_revision_posts();
+            if ($revision_schedule_count > 0) :
+                ?>
+                <form method="post" class="fb-delete-revision-schedules" data-confirm="<?php echo esc_attr(__('Slet alle planlagte Facebook-opslag der er knyttet til en WordPress-revision? De rigtige indlæg (fx begivenheder) berøres ikke.', 'fb-post-scheduler')); ?>">
+                    <?php wp_nonce_field('fb_post_scheduler_delete_revision_schedules'); ?>
+                    <input type="hidden" name="fb_post_scheduler_delete_revision_schedules" value="1">
+                    <p>
+                        <button type="submit" class="button button-link-delete">
+                            <?php
+                            printf(
+                                _n(
+                                    'Fjern %d planlagt opslag knyttet til en revision',
+                                    'Fjern %d planlagte opslag knyttet til revisioner',
+                                    $revision_schedule_count,
+                                    'fb-post-scheduler'
+                                ),
+                                $revision_schedule_count
+                            );
+                            ?>
+                        </button>
+                    </p>
+                </form>
+                <?php
+            endif;
+            ?>
             
             <?php
             // Få alle planlagte opslag fra databasen
@@ -328,50 +386,52 @@ class FB_Post_Scheduler {
             
             if (!empty($scheduled_posts)) :
                 ?>
-                <table class="widefat striped" id="scheduled-posts-table">
-                    <thead>
-                        <tr>
-                            <th><?php _e('Titel', 'fb-post-scheduler'); ?></th>
-                            <th><?php _e('Type', 'fb-post-scheduler'); ?></th>
-                            <th><?php _e('Planlagt til', 'fb-post-scheduler'); ?></th>
-                            <th><?php _e('Facebook-tekst', 'fb-post-scheduler'); ?></th>
-                            <th><?php _e('Handlinger', 'fb-post-scheduler'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($scheduled_posts as $post) : ?>
+                <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=fb-post-scheduler')); ?>" class="fb-bulk-posts-form">
+                    <?php $this->render_list_bulk_actions('scheduled'); ?>
+                    <table class="widefat striped" id="scheduled-posts-table">
+                        <thead>
                             <tr>
-                                <td>
-                                    <a href="<?php echo admin_url('post.php?post=' . $post->post_id . '&action=edit'); ?>"><?php echo esc_html($post->post_title); ?></a>
+                                <td class="check-column">
+                                    <input id="cb-select-all-scheduled" class="fb-select-all" type="checkbox" data-target="fb-row-scheduled" aria-label="<?php esc_attr_e('Vælg alle planlagte opslag', 'fb-post-scheduler'); ?>">
                                 </td>
-                                <td>
-                                    <?php 
-                                    $post_type = get_post_type($post->post_id);
-                                    if ($post_type) {   // Check if post type is valid
-                                        echo get_post_type_object($post_type)->labels->singular_name; 
-                                    } else {
-                                        echo 'Unknown'; // If post type is not valid, show 'Unknown'
-                                    }
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php 
-                                    echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($post->scheduled_time));
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php 
-                                    echo wp_trim_words($post->message, 10);
-                                    ?>
-                                </td>
-                                <td>
-                                    <a href="<?php echo admin_url('post.php?post=' . $post->post_id . '&action=edit'); ?>" class="button"><?php _e('Rediger', 'fb-post-scheduler'); ?></a>
-                                    <button type="button" class="button button-link-delete fb-delete-scheduled-post" data-post-id="<?php echo $post->post_id; ?>" data-index="<?php echo $post->post_index; ?>" data-scheduled-id="<?php echo $post->id; ?>"><?php _e('Slet', 'fb-post-scheduler'); ?></button>
-                                </td>
+                                <th><?php _e('Titel', 'fb-post-scheduler'); ?></th>
+                                <th><?php _e('Type', 'fb-post-scheduler'); ?></th>
+                                <th><?php _e('Planlagt til', 'fb-post-scheduler'); ?></th>
+                                <th><?php _e('Facebook-tekst', 'fb-post-scheduler'); ?></th>
+                                <th><?php _e('Handlinger', 'fb-post-scheduler'); ?></th>
                             </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($scheduled_posts as $post) : ?>
+                                <tr>
+                                    <th class="check-column">
+                                        <input class="fb-row-scheduled" type="checkbox" name="fb_row_ids[]" value="<?php echo esc_attr((string) $post->id); ?>" aria-label="<?php echo esc_attr(sprintf(__('Vælg %s', 'fb-post-scheduler'), $post->post_title)); ?>">
+                                    </th>
+                                    <td>
+                                        <a href="<?php echo admin_url('post.php?post=' . $post->post_id . '&action=edit'); ?>"><?php echo esc_html($post->post_title); ?></a>
+                                    </td>
+                                    <td>
+                                        <?php echo esc_html(fb_post_scheduler_get_linked_post_type_label($post->post_id)); ?>
+                                    </td>
+                                    <td>
+                                        <?php 
+                                        echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($post->scheduled_time));
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <?php 
+                                        echo wp_trim_words($post->message, 10);
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <a href="<?php echo admin_url('post.php?post=' . $post->post_id . '&action=edit'); ?>" class="button"><?php _e('Rediger', 'fb-post-scheduler'); ?></a>
+                                        <button type="button" class="button button-link-delete fb-delete-scheduled-post" data-post-id="<?php echo $post->post_id; ?>" data-index="<?php echo $post->post_index; ?>" data-scheduled-id="<?php echo $post->id; ?>"><?php _e('Slet', 'fb-post-scheduler'); ?></button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </form>
                 <?php
             else :
                 ?>
@@ -389,50 +449,50 @@ class FB_Post_Scheduler {
 
             if (!empty($posted_posts)) :
                 ?>
-                <table class="widefat striped" id="posted-posts-table">
-                    <thead>
-                        <tr>
-                            <th><?php _e('Titel', 'fb-post-scheduler'); ?></th>
-                            <th><?php _e('Type', 'fb-post-scheduler'); ?></th>
-                            <th><?php _e('Postet', 'fb-post-scheduler'); ?></th>
-                            <th><?php _e('Facebook-tekst', 'fb-post-scheduler'); ?></th>
-                            <th><?php _e('Handlinger', 'fb-post-scheduler'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($posted_posts as $posted_post) : ?>
+                <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=fb-post-scheduler')); ?>" class="fb-bulk-posts-form">
+                    <?php $this->render_list_bulk_actions('posted'); ?>
+                    <table class="widefat striped" id="posted-posts-table">
+                        <thead>
                             <tr>
-                                <td>
-                                    <a href="<?php echo esc_url(admin_url('post.php?post=' . $posted_post->post_id . '&action=edit')); ?>"><?php echo esc_html($posted_post->post_title); ?></a>
+                                <td class="check-column">
+                                    <input id="cb-select-all-posted" class="fb-select-all" type="checkbox" data-target="fb-row-posted" aria-label="<?php esc_attr_e('Vælg alle postede opslag', 'fb-post-scheduler'); ?>">
                                 </td>
-                                <td>
-                                    <?php
-                                    $post_type = get_post_type($posted_post->post_id);
-                                    if ($post_type) {
-                                        $post_type_obj = get_post_type_object($post_type);
-                                        echo $post_type_obj ? esc_html($post_type_obj->labels->singular_name) : esc_html($post_type);
-                                    } else {
-                                        echo 'Unknown'; // If post type is not valid, show 'Unknown'
-                                    }
-                                    echo $post_type_obj ? esc_html($post_type_obj->labels->singular_name) : esc_html(get_post_type($posted_post->post_id));
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($posted_post->scheduled_time))); ?>
-                                </td>
-                                <td>
-                                    <?php echo esc_html(wp_trim_words($posted_post->message, 10)); ?>
-                                </td>
-                                <td>
-                                    <button type="button" class="button button-link-delete fb-delete-posted-record"
-                                        data-post-id="<?php echo esc_attr($posted_post->post_id); ?>"
-                                        data-post-index="<?php echo esc_attr($posted_post->post_index); ?>"
-                                        data-scheduled-id="<?php echo esc_attr($posted_post->id); ?>"><?php _e('Slet', 'fb-post-scheduler'); ?></button>
-                                </td>
+                                <th><?php _e('Titel', 'fb-post-scheduler'); ?></th>
+                                <th><?php _e('Type', 'fb-post-scheduler'); ?></th>
+                                <th><?php _e('Postet', 'fb-post-scheduler'); ?></th>
+                                <th><?php _e('Facebook-tekst', 'fb-post-scheduler'); ?></th>
+                                <th><?php _e('Handlinger', 'fb-post-scheduler'); ?></th>
                             </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($posted_posts as $posted_post) : ?>
+                                <tr>
+                                    <th class="check-column">
+                                        <input class="fb-row-posted" type="checkbox" name="fb_row_ids[]" value="<?php echo esc_attr((string) $posted_post->id); ?>" aria-label="<?php echo esc_attr(sprintf(__('Vælg %s', 'fb-post-scheduler'), $posted_post->post_title)); ?>">
+                                    </th>
+                                    <td>
+                                        <a href="<?php echo esc_url(admin_url('post.php?post=' . $posted_post->post_id . '&action=edit')); ?>"><?php echo esc_html($posted_post->post_title); ?></a>
+                                    </td>
+                                    <td>
+                                        <?php echo esc_html(fb_post_scheduler_get_linked_post_type_label($posted_post->post_id)); ?>
+                                    </td>
+                                    <td>
+                                        <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($posted_post->scheduled_time))); ?>
+                                    </td>
+                                    <td>
+                                        <?php echo esc_html(wp_trim_words($posted_post->message, 10)); ?>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="button button-link-delete fb-delete-posted-record"
+                                            data-post-id="<?php echo esc_attr($posted_post->post_id); ?>"
+                                            data-post-index="<?php echo esc_attr($posted_post->post_index); ?>"
+                                            data-scheduled-id="<?php echo esc_attr($posted_post->id); ?>"><?php _e('Slet', 'fb-post-scheduler'); ?></button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </form>
                 <?php
             else :
                 ?>
@@ -1365,6 +1425,14 @@ class FB_Post_Scheduler {
      * Gem meta box data
      */
     public function save_meta_box_data( int $post_id ): void {
+        if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) {
+            return;
+        }
+
+        if (get_post_type($post_id) === 'revision') {
+            return;
+        }
+
         // Tjek om nonce er sat
         if (!isset($_POST['fb_post_scheduler_meta_box_nonce'])) {
             return;
@@ -1522,6 +1590,9 @@ class FB_Post_Scheduler {
                     'facebookNotScraped' => __('Facebook har endnu ikke scrapet denne URL. Prøv at opdatere Facebooks cache.', 'fb-post-scheduler'),
                     'facebookCacheConfirm' => __('Dette opdaterer Facebooks cache for artikel-URL’en. Fortsæt?', 'fb-post-scheduler'),
                     'facebookCacheUpdated' => __('Facebooks cache er opdateret.', 'fb-post-scheduler'),
+                    'bulkDeleteConfirm' => __('Slet de valgte opslag? Handlingen kan ikke fortrydes.', 'fb-post-scheduler'),
+                    'bulkDeleteNone' => __('Vælg mindst ét opslag.', 'fb-post-scheduler'),
+                    'bulkDeleteNoAction' => __('Vælg en massehandling.', 'fb-post-scheduler'),
                 )
             );
 
@@ -1835,6 +1906,88 @@ class FB_Post_Scheduler {
             wp_redirect(admin_url('admin.php?page=fb-post-scheduler&posts_processed=true'));
             exit;
         }
+    }
+
+    /**
+     * Slet planlagte opslag der ved en fejl er knyttet til en revision.
+     */
+    public function process_delete_revision_schedules(): void {
+        if (!isset($_POST['fb_post_scheduler_delete_revision_schedules'])) {
+            return;
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Du har ikke tilstrækkelige rettigheder til at udføre denne handling.', 'fb-post-scheduler'));
+        }
+
+        check_admin_referer('fb_post_scheduler_delete_revision_schedules');
+
+        $deleted = fb_post_scheduler_delete_scheduled_revision_posts();
+
+        wp_safe_redirect(add_query_arg(
+            array(
+                'page' => 'fb-post-scheduler',
+                'revision_schedules_deleted' => $deleted,
+            ),
+            admin_url('admin.php')
+        ));
+        exit;
+    }
+
+    /**
+     * Masse-slet valgte rækker fra planlagt- eller postet-listen.
+     */
+    public function process_bulk_delete_list_rows(): void {
+        if (!isset($_POST['fb_bulk_delete_posts'])) {
+            return;
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Du har ikke tilstrækkelige rettigheder til at udføre denne handling.', 'fb-post-scheduler'));
+        }
+
+        check_admin_referer('fb_post_scheduler_bulk_delete');
+
+        $action = isset($_POST['fb_bulk_action']) ? sanitize_text_field(wp_unslash($_POST['fb_bulk_action'])) : '';
+        $scope = isset($_POST['fb_bulk_scope']) ? sanitize_text_field(wp_unslash($_POST['fb_bulk_scope'])) : 'scheduled';
+        $ids = isset($_POST['fb_row_ids']) ? array_map('absint', (array) wp_unslash($_POST['fb_row_ids'])) : array();
+
+        $deleted = 0;
+        if ($action === 'delete') {
+            $deleted = fb_post_scheduler_bulk_delete_list_rows($ids, $scope);
+        }
+
+        wp_safe_redirect(add_query_arg(
+            array(
+                'page' => 'fb-post-scheduler',
+                'bulk_deleted' => $deleted,
+            ),
+            admin_url('admin.php')
+        ));
+        exit;
+    }
+
+    /**
+     * Render WordPress-agtig massehandling over en liste.
+     *
+     * @param string $scope 'scheduled' eller 'posted'
+     */
+    private function render_list_bulk_actions(string $scope): void {
+        $select_id = 'fb-bulk-action-' . $scope;
+        ?>
+        <div class="tablenav top fb-list-bulk-nav">
+            <div class="alignleft actions bulkactions">
+                <label for="<?php echo esc_attr($select_id); ?>" class="screen-reader-text"><?php esc_html_e('Vælg massehandling', 'fb-post-scheduler'); ?></label>
+                <select id="<?php echo esc_attr($select_id); ?>" name="fb_bulk_action">
+                    <option value=""><?php esc_html_e('Massehandlinger', 'fb-post-scheduler'); ?></option>
+                    <option value="delete"><?php esc_html_e('Slet valgte', 'fb-post-scheduler'); ?></option>
+                </select>
+                <input type="hidden" name="fb_bulk_scope" value="<?php echo esc_attr($scope); ?>">
+                <?php wp_nonce_field('fb_post_scheduler_bulk_delete'); ?>
+                <button type="submit" name="fb_bulk_delete_posts" value="1" class="button action"><?php esc_html_e('Udfør', 'fb-post-scheduler'); ?></button>
+            </div>
+        </div>
+        <?php
     }
     
     /**

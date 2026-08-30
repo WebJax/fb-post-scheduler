@@ -19,7 +19,8 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 - Kalenderoversigt over alle planlagte opslag (månedlig og ugentlig visning)
 - Kopier, flyt og slet opslag direkte i kalenderoversigten
 - Dashboard for hurtig oversigt over planlagte opslag
-- **Slet planlagte opslag direkte fra admin listen** 🆕
+- **Slet planlagte og postede opslag fra admin-listen** — enkeltvis eller med flueben og “Slet valgte”
+- **Oprydning af revision-opslag** — fjerner planlagte rækker der ved en fejl peger på en WordPress-revision (“Udgave”)
 - **Facebook delings-kolonne på post oversigter** - se hvor mange gange hvert indlæg er blevet delt 🆕
 - Robust Facebook API connection testing og token expiry checks
 - Long-term access token exchange og management
@@ -148,8 +149,18 @@ Prioritet for preview-billedet:
 
 Titel og beskrivelse kommer fra `og:title` og `og:description`. **Tjek hos Facebook** læser Facebooks cache via Graph API uden `scrape=true`. **Opdater Facebooks cache** tvinger et nyt scrape.
 
+### Massehandlinger på FB Opslag-listen (1.1.7)
+På **FB Opslag** kan du vælge rækker med flueben på både **Kommende** og **Postede** opslag. Vælg **Slet valgte** i dropdownen **Massehandlinger** og klik **Udfør**. Der er også “vælg alle” i kolonneoverskriften. Enkelt-slet knappen findes stadig på hver række.
+
+Sletning fjerner kun posten i WordPress/plugin-databasen — det sletter ikke opslaget på Facebook.
+
+### Revisioner vises ikke længere som “Udgave”
+Gutenberg kan gemme metabox-data på en WordPress-**revision**. I dansk WP hedder den type “Udgave”. Det gav dublerede planlagte rækker knyttet til revisionen i stedet for selve indlægget (fx en begivenhed).
+
+Pluginnet ignorerer nu revision/autosave ved gem. Hvis der stadig ligger gamle rækker, vises knappen **Fjern X planlagte opslag knyttet til revisioner** over listen. Den sletter kun `scheduled`-rækker på revisioner — ikke postede opslag og ikke det rigtige indlæg.
+
 ### Slet planlagte opslag fra admin listen
-Du kan nu slette planlagte opslag direkte fra listen over "Kommende Facebook-opslag" ved at klikke på den røde "Slet" knap. Dette giver hurtig adgang til at fjerne opslag uden at skulle redigere det originale indhold.
+Du kan slette planlagte og postede opslag direkte fra listerne på **FB Opslag** med den røde **Slet**-knap, eller flere ad gangen via massehandlingerne.
 
 ### Facebook delings-kolonne
 I oversigterne for posts, sider og events kan du nu se en "FB Delinger" kolonne, der viser hvor mange gange hvert indlæg er blevet delt på Facebook. Kolonnen kan sorteres og viser:
@@ -280,3 +291,6 @@ Pluginet tjekker hver time for planlagte opslag, der skal postes til Facebook.
 
 ### Hvad sker der hvis et opslag ikke bliver postet?
 Hvis et opslag ikke bliver postet, forbliver det i kalenderen og vil blive forsøgt postet igen ved næste tjek. Du kan også manuelt trigge et post ved at redigere og gemme indlægget igen.
+
+### Hvorfor står der “Udgave” i Type-kolonnen?
+“Udgave” er WordPress’ danske navn for post typen `revision` (en gemt ændring). Ældre planlagte rækker kan pege på en revision i stedet for selve indlægget. Brug knappen til at fjerne dem under **FB Opslag**. Nye gem påvirker ikke længere revisioner.
