@@ -347,7 +347,11 @@ class FB_Post_Scheduler {
                                 <td>
                                     <?php 
                                     $post_type = get_post_type($post->post_id);
-                                    echo get_post_type_object($post_type)->labels->singular_name; 
+                                    if ($post_type) {   // Check if post type is valid
+                                        echo get_post_type_object($post_type)->labels->singular_name; 
+                                    } else {
+                                        echo 'Unknown'; // If post type is not valid, show 'Unknown'
+                                    }
                                     ?>
                                 </td>
                                 <td>
@@ -403,7 +407,13 @@ class FB_Post_Scheduler {
                                 </td>
                                 <td>
                                     <?php
-                                    $post_type_obj = get_post_type_object(get_post_type($posted_post->post_id));
+                                    $post_type = get_post_type($posted_post->post_id);
+                                    if ($post_type) {
+                                        $post_type_obj = get_post_type_object($post_type);
+                                        echo $post_type_obj ? esc_html($post_type_obj->labels->singular_name) : esc_html($post_type);
+                                    } else {
+                                        echo 'Unknown'; // If post type is not valid, show 'Unknown'
+                                    }
                                     echo $post_type_obj ? esc_html($post_type_obj->labels->singular_name) : esc_html(get_post_type($posted_post->post_id));
                                     ?>
                                 </td>
@@ -1009,7 +1019,7 @@ class FB_Post_Scheduler {
             $fb_posts = array(
                 array(
                     'text' => '',
-                    'date' => date('Y-m-d H:i:s', strtotime('+1 day')),
+                    'date' => date('Y-m-d H:i:s', strtotime('+1 day') ?: time()),
                     'enabled' => false,
                     'status' => 'scheduled'
                 )
@@ -1100,24 +1110,6 @@ class FB_Post_Scheduler {
                     // Status
                     $is_posted = isset($fb_post['status']) && $fb_post['status'] === 'posted';
                     $image_help_text = __('Vælg et billede til Facebook-linkets forhåndsvisning. Hvis du ikke vælger et, bruges indlæggets udvalgte billede. Opslaget postes som et klikbart link til artiklen.', 'fb-post-scheduler');
-                    $featured_image_url = '';
-                    $featured_image_alt = '';
-                    $preview_image_url = '';
-                    $preview_image_alt = '';
-
-                    if (has_post_thumbnail($post->ID)) {
-                        $featured_image_url = get_the_post_thumbnail_url($post->ID, 'high-res');
-                        $thumbnail_id = get_post_thumbnail_id($post->ID);
-                        $featured_image_alt = $thumbnail_id ? get_post_meta($thumbnail_id, '_wp_attachment_image_alt', true) : '';
-                    }
-
-                    if (!empty($fb_post['image_id'])) {
-                        $preview_image_url = wp_get_attachment_image_url($fb_post['image_id'], 'high-res');
-                        $preview_image_alt = get_post_meta($fb_post['image_id'], '_wp_attachment_image_alt', true);
-                    } else {
-                        $preview_image_url = $featured_image_url;
-                        $preview_image_alt = $featured_image_alt;
-                    }
                 ?>
                 <div class="fb-post-item" data-index="<?php echo $index; ?>">
                     <div class="fb-post-header">
@@ -1255,36 +1247,7 @@ class FB_Post_Scheduler {
                         <span class="description"><?php //echo esc_html($image_help_text); ?></span>
                     </p>
                     
-                    <div class="fb-post-preview" data-featured-image-url="<?php echo esc_attr($featured_image_url); ?>" data-featured-image-alt="<?php echo esc_attr($featured_image_alt); ?>">
-                        <h4 class="fb-post-preview-toggle" role="button" tabindex="0" aria-expanded="false">
-                            <?php _e('Forhåndsvisning af opslag', 'fb-post-scheduler'); ?>
-                            <span class="dashicons dashicons-arrow-down-alt2 fb-post-preview-toggle-icon" aria-hidden="true"></span>
-                        </h4>
-                        <div class="fb-post-preview-content" style="display:none;">
-                            <div class="fb-post-preview-image">
-                                <?php if (!empty($preview_image_url)) : ?>
-                                    <img src="<?php echo esc_url($preview_image_url); ?>" alt="<?php echo esc_attr($preview_image_alt); ?>" class="fb-post-preview-image-element">
-                                <?php else : ?>
-                                    <div class="fb-post-preview-image-placeholder"><?php _e('Udvalgt billede', 'fb-post-scheduler'); ?></div>
-                                <?php endif; ?>
-                            </div>
-                            <p class="fb-post-preview-text"><?php echo wp_kses_post(isset($fb_post['text']) ? $fb_post['text'] : ''); ?></p>
-                            <div class="fb-post-preview-link-container">
-                                <div class="editor-post-featured-image__container">
-                                    <?php if (!empty($featured_image_url)) : ?>
-                                        <img src="<?php echo esc_url($featured_image_url); ?>" alt="<?php echo esc_attr($featured_image_alt); ?>" class="editor-post-featured-image__preview-image">
-                                    <?php else : ?>
-                                        <div class="fb-post-preview-featured-image-placeholder"><?php _e('Udvalgt billede', 'fb-post-scheduler'); ?></div>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="fb-post-preview-link-content">
-                                    <div class="fb-post-preview-website-name"><?php echo esc_html(wp_parse_url(home_url(), PHP_URL_HOST)); ?></div>
-                                    <div class="fb-post-preview-title"><?php echo esc_html(get_the_title($post->ID)); ?></div>
-                                    <div class="fb-post-preview-url"><?php echo esc_url(get_permalink($post->ID)); ?></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <?php fb_post_scheduler_render_link_preview($post->ID, $fb_post); ?>
                     
                     <?php if ($is_posted) : ?>
                         <input type="hidden" name="fb_posts[<?php echo $index; ?>][status]" value="posted">
@@ -1358,7 +1321,7 @@ class FB_Post_Scheduler {
                 
                 <p>
                     <label for="fb_post_date_{{index}}"><?php _e('Dato for opslag:', 'fb-post-scheduler'); ?></label>
-                    <input type="date" id="fb_post_date_{{index}}" name="fb_posts[{{index}}][date]" value="<?php echo date('Y-m-d', strtotime('+1 day')); ?>" class="widefat">
+                    <input type="date" id="fb_post_date_{{index}}" name="fb_posts[{{index}}][date]" value="<?php echo date('Y-m-d', strtotime('+1 day') ?? time()); ?>" class="widefat">
                 </p>
                 
                 <p>
@@ -1392,26 +1355,7 @@ class FB_Post_Scheduler {
                     <span class="description"><?php _e('Vælg et billede til Facebook-linkets forhåndsvisning. Hvis du ikke vælger et, bruges indlæggets udvalgte billede. Opslaget postes som et klikbart link til artiklen.', 'fb-post-scheduler'); ?></span>
                 </p>
                 
-                <div class="fb-post-preview" data-featured-image-url="<?php echo esc_attr(has_post_thumbnail($post->ID) ? get_the_post_thumbnail_url($post->ID, 'medium') : ''); ?>" data-featured-image-alt="<?php echo esc_attr(has_post_thumbnail($post->ID) ? get_post_meta(get_post_thumbnail_id($post->ID), '_wp_attachment_image_alt', true) : ''); ?>">
-                    <h4 class="fb-post-preview-toggle" role="button" tabindex="0" aria-expanded="false">
-                        <?php _e('Forhåndsvisning af opslag', 'fb-post-scheduler'); ?>
-                        <span class="dashicons dashicons-arrow-down-alt2 fb-post-preview-toggle-icon" aria-hidden="true"></span>
-                    </h4>
-                    <div class="fb-post-preview-content" style="display:none;">
-                        <div class="fb-post-preview-image">
-                            <?php if (has_post_thumbnail($post->ID)) : ?>
-                                <img src="<?php echo esc_url(get_the_post_thumbnail_url($post->ID, 'medium')); ?>" alt="<?php echo esc_attr(get_post_meta(get_post_thumbnail_id($post->ID), '_wp_attachment_image_alt', true)); ?>" class="fb-post-preview-image-element">
-                            <?php else : ?>
-                                <div class="fb-post-preview-image-placeholder"><?php _e('Udvalgt billede', 'fb-post-scheduler'); ?></div>
-                            <?php endif; ?>
-                        </div>
-                        <p class="fb-post-preview-text"></p>
-                        <div class="fb-post-preview-link">
-                            <div class="fb-post-preview-title"><?php echo esc_html(get_the_title($post->ID)); ?></div>
-                            <div class="fb-post-preview-url"><?php echo esc_url(get_permalink($post->ID)); ?></div>
-                        </div>
-                    </div>
-                </div>
+                <?php fb_post_scheduler_render_link_preview($post->ID); ?>
             </div>
         </template>
         <?php
@@ -1567,6 +1511,17 @@ class FB_Post_Scheduler {
                     'savedPageRemoveConfirm' => __('Fjern denne gemte side?', 'fb-post-scheduler'),
                     'savedPagesEmpty' => __('Ingen gemte sider endnu.', 'fb-post-scheduler'),
                     'savedPageRemoveLabel' => __('Fjern', 'fb-post-scheduler'),
+                    'previewPlaceholder' => __('Intet preview-billede', 'fb-post-scheduler'),
+                    'previewSourceSelected' => __('Valgt preview-billede', 'fb-post-scheduler'),
+                    'previewSourceOg' => __('og:image fra siden', 'fb-post-scheduler'),
+                    'previewSourceFeatured' => __('Udvalgt billede (fallback)', 'fb-post-scheduler'),
+                    'previewSourceFacebook' => __('Facebooks cache', 'fb-post-scheduler'),
+                    'previewSourceEmpty' => __('Intet preview-billede', 'fb-post-scheduler'),
+                    'facebookPreviewLoading' => __('Henter Facebooks forhåndsvisning…', 'fb-post-scheduler'),
+                    'facebookPreviewError' => __('Kunne ikke hente Facebooks forhåndsvisning.', 'fb-post-scheduler'),
+                    'facebookNotScraped' => __('Facebook har endnu ikke scrapet denne URL. Prøv at opdatere Facebooks cache.', 'fb-post-scheduler'),
+                    'facebookCacheConfirm' => __('Dette opdaterer Facebooks cache for artikel-URL’en. Fortsæt?', 'fb-post-scheduler'),
+                    'facebookCacheUpdated' => __('Facebooks cache er opdateret.', 'fb-post-scheduler'),
                 )
             );
 

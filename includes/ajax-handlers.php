@@ -1381,3 +1381,65 @@ function fb_post_scheduler_remove_saved_page_ajax() {
     ));
 }
 add_action('wp_ajax_fb_post_scheduler_remove_saved_page', 'fb_post_scheduler_remove_saved_page_ajax');
+
+/**
+ * AJAX-handler: hent Facebooks cached link-preview eller opdater cachen.
+ */
+function fb_post_scheduler_fetch_facebook_preview_ajax() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler'),
+        ));
+    }
+
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler'),
+        ));
+    }
+
+    $post_id = isset($_POST['post_id']) ? absint($_POST['post_id']) : 0;
+    if (!$post_id || !current_user_can('edit_post', $post_id)) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler'),
+        ));
+    }
+
+    if (get_post_status($post_id) !== 'publish') {
+        wp_send_json_error(array(
+            'message' => __('Facebook kan kun læse offentliggjorte indlæg. Publicér indlægget først.', 'fb-post-scheduler'),
+        ));
+    }
+
+    $permalink = get_permalink($post_id);
+    if (empty($permalink)) {
+        wp_send_json_error(array(
+            'message' => __('Kunne ikke finde permalink til indlægget.', 'fb-post-scheduler'),
+        ));
+    }
+
+    $refresh = !empty($_POST['refresh']);
+    $api = new FB_Post_Scheduler_API();
+    $result = $refresh ? $api->scrape_url($permalink) : $api->get_url_og_object($permalink);
+
+    if (is_wp_error($result)) {
+        wp_send_json_error(array(
+            'message' => $result->get_error_message(),
+        ));
+    }
+
+    $mapped = fb_post_scheduler_map_graph_og_response($result);
+    if ($mapped['image_url'] === '' && $mapped['title'] === '') {
+        wp_send_json_error(array(
+            'message' => __('Facebook har endnu ikke scrapet denne URL. Prøv at opdatere Facebooks cache.', 'fb-post-scheduler'),
+        ));
+    }
+
+    $mapped['site_name'] = $mapped['site_name'] !== '' ? $mapped['site_name'] : fb_post_scheduler_get_default_site_name();
+    $mapped['source'] = 'facebook';
+    $mapped['source_label'] = fb_post_scheduler_get_preview_source_label('facebook');
+    $mapped['refreshed'] = $refresh;
+
+    wp_send_json_success($mapped);
+}
+add_action('wp_ajax_fb_post_scheduler_fetch_facebook_preview', 'fb_post_scheduler_fetch_facebook_preview_ajax');

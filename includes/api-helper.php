@@ -84,6 +84,50 @@ class FB_Post_Scheduler_API {
     }
 
     /**
+     * Læs Facebooks cached Open Graph-objekt for en URL uden at scrape.
+     *
+     * @param string $link URL der skal slås op
+     * @return array|WP_Error Graph-svar eller fejl
+     */
+    public function get_url_og_object($link) {
+        if (empty($this->access_token)) {
+            return new WP_Error('missing_credentials', __('Manglende Facebook access token', 'fb-post-scheduler'));
+        }
+
+        if (empty($link)) {
+            return new WP_Error('missing_link', __('Manglende URL til forhåndsvisning', 'fb-post-scheduler'));
+        }
+
+        $request_url = add_query_arg(
+            array(
+                'id' => $link,
+                'fields' => 'og_object{title,description,image}',
+            ),
+            'https://graph.facebook.com/'
+        );
+
+        $response = wp_remote_get($request_url, array(
+            'timeout' => 20,
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $this->access_token,
+            ),
+        ));
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if (isset($body['error'])) {
+            $message = isset($body['error']['message']) ? $body['error']['message'] : __('Ukendt Facebook-fejl', 'fb-post-scheduler');
+            return new WP_Error('facebook_og_lookup_error', $message);
+        }
+
+        return is_array($body) ? $body : new WP_Error('facebook_og_lookup_error', __('Ugyldigt svar fra Facebook', 'fb-post-scheduler'));
+    }
+
+    /**
      * Forbered link-preview billede og opdater Facebooks scrape-cache.
      *
      * @param string $link URL der postes
