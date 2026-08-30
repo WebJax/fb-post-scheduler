@@ -46,43 +46,186 @@ class FB_Post_Scheduler_API {
     }
     
     /**
-     * Post til Facebook
+     * Opdater Facebooks cache af Open Graph-data for en URL.
+     *
+     * @param string $link URL der skal scrapes
+     * @return array|WP_Error Scrape-svar eller fejl
+     */
+    public function scrape_url($link) {
+        if (empty($this->access_token)) {
+            return new WP_Error('missing_credentials', __('Manglende Facebook access token', 'fb-post-scheduler'));
+        }
+
+        if (empty($link)) {
+            return new WP_Error('missing_link', __('Manglende URL til scrape', 'fb-post-scheduler'));
+        }
+
+        $response = wp_remote_post('https://graph.facebook.com/', array(
+            'timeout' => 45,
+            'body' => array(
+                'id' => $link,
+                'scrape' => 'true',
+                'access_token' => $this->access_token,
+            ),
+        ));
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if (isset($body['error'])) {
+            $message = isset($body['error']['message']) ? $body['error']['message'] : __('Ukendt scrape-fejl', 'fb-post-scheduler');
+            return new WP_Error('facebook_scrape_error', $message);
+        }
+
+        return $body;
+    }
+
+    /**
+     * Læs Facebooks cached Open Graph-objekt for en URL uden at scrape.
+     *
+     * @param string $link URL der skal slås op
+     * @return array|WP_Error Graph-svar eller fejl
+     */
+    public function get_url_og_object($link) {
+        if (empty($this->access_token)) {
+            return new WP_Error('missing_credentials', __('Manglende Facebook access token', 'fb-post-scheduler'));
+        }
+
+        if (empty($link)) {
+            return new WP_Error('missing_link', __('Manglende URL til forhåndsvisning', 'fb-post-scheduler'));
+        }
+
+        $request_url = add_query_arg(
+            array(
+                'id' => $link,
+                'fields' => 'og_object{title,description,image}',
+            ),
+            'https://graph.facebook.com/'
+        );
+
+        $response = wp_remote_get($request_url, array(
+            'timeout' => 20,
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $this->access_token,
+            ),
+        ));
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if (isset($body['error'])) {
+            $message = isset($body['error']['message']) ? $body['error']['message'] : __('Ukendt Facebook-fejl', 'fb-post-scheduler');
+            return new WP_Error('facebook_og_lookup_error', $message);
+        }
+
+        return is_array($body) ? $body : new WP_Error('facebook_og_lookup_error', __('Ugyldigt svar fra Facebook', 'fb-post-scheduler'));
+    }
+
+    /**
+     * Forbered link-preview billede og opdater Facebooks scrape-cache.
+     *
+     * @param string $link URL der postes
+     * @param int $post_id WordPress post ID
+     * @param int $image_id Attachment ID til preview-billede
+     * @return void
+     */
+    private function prepare_link_preview($link, $post_id = 0, $image_id = 0) {
+        $post_id = absint($post_id);
+        $image_id = absint($image_id);
+
+        if ($post_id && $image_id) {
+            fb_post_scheduler_set_og_image_override($post_id, $image_id);
+        }
+
+        $scrape = $this->scrape_url($link);
+        if (is_wp_error($scrape)) {
+            fb_post_scheduler_log('Advarsel: Facebook scrape fejlede før posting: ' . $scrape->get_error_message(), $post_id ? $post_id : null);
+        } else {
+            $image_from_scrape = '';
+            if (isset($scrape['image'][0]['url'])) {
+                $image_from_scrape = $scrape['image'][0]['url'];
+            } elseif (isset($scrape['og_object']['image'][0]['url'])) {
+                $image_from_scrape = $scrape['og_object']['image'][0]['url'];
+            }
+            if ($image_from_scrape) {
+                fb_post_scheduler_log('Facebook scrape OK. Preview-billede: ' . $image_from_scrape, $post_id ? $post_id : null);
+            } else {
+                fb_post_scheduler_log('Facebook scrape OK (ingen billede i scrape-svar)', $post_id ? $post_id : null);
+            }
+        }
+    }
+
+    /**
+     * Ryd midlertidigt OG-override og genopfrisk cache til featured image.
+     *
+     * @param string $link URL der er postet
+     * @param int $post_id WordPress post ID
+     * @param int $image_id Attachment ID der blev brugt til preview
+     * @return void
+     */
+    private function cleanup_link_preview($link, $post_id = 0, $image_id = 0) {
+        $post_id = absint($post_id);
+        $image_id = absint($image_id);
+
+        if (!$post_id) {
+            return;
+        }
+
+        fb_post_scheduler_clear_og_image_override($post_id);
+
+        // Hvis et andet billede end featured blev brugt, scrape igen så
+        // organiske delinger fremover viser featured image
+        $featured_id = (int) get_post_thumbnail_id($post_id);
+        if ($image_id && $featured_id && $image_id !== $featured_id) {
+            $scrape = $this->scrape_url($link);
+            if (is_wp_error($scrape)) {
+                fb_post_scheduler_log('Advarsel: Kunne ikke genskrape featured image efter posting: ' . $scrape->get_error_message(), $post_id);
+            }
+        }
+    }
+
+    /**
+     * Post til Facebook som link-opslag (klikbart preview til artiklen).
+     *
+     * Preview-billedet styres via og:image på den delte URL (valgt billede
+     * eller featured image), ikke via photos-endpointet.
      *
      * @param string $message Beskedtekst til Facebook-opslag
      * @param string $link URL til at inkludere i opslaget
-     * @param int $image_id Attachment ID of image to include (optional)
+     * @param int $image_id Attachment ID til link-preview (optional)
+     * @param int $post_id WordPress post ID (bruges til OG override/scrape)
      * @return array|WP_Error Response fra Facebook eller fejl
      */
-    public function post_to_facebook($message, $link, $image_id = 0) {
+    public function post_to_facebook($message, $link, $image_id = 0, $post_id = 0) {
         // Tjek at alle nødvendige indstillinger er sat
         if (empty($this->page_id) || empty($this->access_token)) {
             return new WP_Error('missing_credentials', __('Manglende Facebook API-indstillinger', 'fb-post-scheduler'));
         }
-        
-        // API endpoint
+
+        $image_id = absint($image_id);
+        $post_id = absint($post_id);
+
+        $this->prepare_link_preview($link, $post_id, $image_id);
+
+        // Page mentions must use @[PAGE_ID] in the message body.
+        // @see https://developers.facebook.com/docs/graph-api/reference/page/feed/
+        $message = $this->format_page_mentions($message);
+
+        // API endpoint – altid link-post via feed
         $url = "https://graph.facebook.com/{$this->page_id}/feed";
-        
-        // Forbered data
+
         $data = array(
             'message' => $message,
             'link' => $link,
-            'access_token' => $this->access_token
+            'access_token' => $this->access_token,
         );
-        
-        // Hvis der er et billede, brug photos endpoint i stedet
-        if (!empty($image_id)) {
-            // Få billedfil-url
-            $image_url = wp_get_attachment_url($image_id);
-            
-            if ($image_url) {
-                $url = "https://graph.facebook.com/{$this->page_id}/photos";
-                $data['url'] = $image_url;
-                $data['caption'] = $message;
-                // Tilføj link til caption
-                $data['caption'] .= "\n\n" . $link;
-            }
-        }
-        
+
         // Send POST-anmodning til Facebook Graph API
         $response = wp_remote_post($url, array(
             'method' => 'POST',
@@ -92,17 +235,19 @@ class FB_Post_Scheduler_API {
             'blocking' => true,
             'body' => $data,
         ));
-        
+
+        $this->cleanup_link_preview($link, $post_id, $image_id);
+
         if (is_wp_error($response)) {
             return $response;
         }
-        
+
         $body = json_decode(wp_remote_retrieve_body($response), true);
-        
+
         if (isset($body['error'])) {
             return new WP_Error('facebook_api_error', $body['error']['message']);
         }
-        
+
         return $body;
     }
     
@@ -591,44 +736,330 @@ class FB_Post_Scheduler_API {
     }
     
     /**
-     * Post til Facebook Gruppe
+     * Search public Facebook Pages for @-mention autocomplete.
+     *
+     * Official Meta API references (App Review):
+     *
+     * Pages Search endpoint:
+     * @link https://developers.facebook.com/docs/pages-api/search-pages
+     * GET https://graph.facebook.com/{version}/pages/search?q={search_term}&fields=id,name&access_token={token}
+     *
+     * Search requires one of the following (request these in Meta App Review):
+     * - pages_read_engagement (Pages the user manages)
+     * - Page Public Metadata Access
+     *   https://developers.facebook.com/docs/apps/review/feature#page-public-metadata-access
+     * - Page Public Content Access
+     *   https://developers.facebook.com/docs/apps/review/feature#reference-PAGES_ACCESS
+     *
+     * Page mentioning in published posts uses message syntax @[PAGE_ID]:
+     * @link https://developers.facebook.com/docs/graph-api/reference/page/feed/
+     * Required permission: pages_manage_posts
+     * Related App Review feature: Page Mentions
+     * @link https://developers.facebook.com/docs/pages/mentions
+     * @link https://developers.facebook.com/docs/apps/review/login-permissions#manage-pages
+     *
+     * Token order for /pages/search (Page tokens usually fail this endpoint):
+     * 1. User token (`fb_post_scheduler_facebook_user_token`) — pages_read_engagement
+     *    only covers Pages the user manages.
+     * 2. App token (`{app_id}|{app_secret}`) — required for PPMA/PPCA public search.
+     * 3. Page token (`fb_post_scheduler_facebook_access_token`) — last resort.
+     *
+     * Login permissions (pages_manage_posts, pages_read_engagement, …) are not enough
+     * to search arbitrary public Pages. That needs the App Review *features*
+     * Page Public Metadata Access or Page Public Content Access.
+     *
+     * @param string $search_term Query typed after '@' (min. 3 characters).
+     * @return array|WP_Error Array of array( 'id' => string, 'name' => string ) or error.
+     */
+    public function search_pages($search_term) {
+        $search_term = is_string($search_term) ? trim($search_term) : '';
+        $term_length = function_exists('mb_strlen') ? mb_strlen($search_term, 'UTF-8') : strlen($search_term);
+
+        if ($term_length < 3) {
+            return new WP_Error('invalid_query', __('Søgningen skal være mindst 3 tegn', 'fb-post-scheduler'));
+        }
+
+        $pages = $this->search_managed_pages($search_term);
+        $tokens = $this->get_pages_search_tokens();
+        $last_error = null;
+
+        if (empty($tokens) && empty($pages)) {
+            return new WP_Error('missing_token', __('Mangler Facebook access token til sidesøgning', 'fb-post-scheduler'));
+        }
+
+        foreach ($tokens as $access_token) {
+            $result = $this->request_pages_search($search_term, $access_token);
+
+            if (is_wp_error($result)) {
+                $last_error = $result;
+                continue;
+            }
+
+            $pages = $this->merge_page_results($pages, $result);
+
+            if (!empty($result)) {
+                break;
+            }
+        }
+
+        if (!empty($pages)) {
+            return array_slice($pages, 0, 8);
+        }
+
+        if ($last_error) {
+            return $this->humanize_pages_search_error($last_error);
+        }
+
+        return array();
+    }
+
+    /**
+     * Tokens to try for GET /pages/search, most likely to succeed first.
+     *
+     * @return string[]
+     */
+    private function get_pages_search_tokens() {
+        $tokens = array();
+
+        $user_token = get_option('fb_post_scheduler_facebook_user_token', '');
+        if (!empty($user_token)) {
+            $tokens[] = $user_token;
+        }
+
+        if (!empty($this->app_id) && !empty($this->app_secret)) {
+            $tokens[] = $this->app_id . '|' . $this->app_secret;
+        }
+
+        if (!empty($this->access_token)) {
+            $tokens[] = $this->access_token;
+        }
+
+        return array_values(array_unique($tokens));
+    }
+
+    /**
+     * Call Meta Pages Search with a single access token.
+     *
+     * @param string $search_term
+     * @param string $access_token
+     * @return array|WP_Error
+     */
+    private function request_pages_search($search_term, $access_token) {
+        $url = add_query_arg(
+            array(
+                'q'            => $search_term,
+                'fields'       => 'id,name',
+                'access_token' => $access_token,
+            ),
+            'https://graph.facebook.com/v18.0/pages/search'
+        );
+
+        $response = wp_remote_get($url, array(
+            'timeout'     => 15,
+            'redirection' => 3,
+        ));
+
+        if (is_wp_error($response)) {
+            return new WP_Error(
+                'api_error',
+                sprintf(__('API forespørgsel fejlede: %s', 'fb-post-scheduler'), $response->get_error_message())
+            );
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if (!is_array($body)) {
+            return new WP_Error('api_error', __('Ugyldigt svar fra Facebook Pages Search', 'fb-post-scheduler'));
+        }
+
+        if (isset($body['error']['message'])) {
+            return new WP_Error('pages_search_error', $body['error']['message']);
+        }
+
+        if ($code < 200 || $code >= 300) {
+            return new WP_Error('api_error', __('Facebook Pages Search returnerede en fejl', 'fb-post-scheduler'));
+        }
+
+        $pages = array();
+        if (!empty($body['data']) && is_array($body['data'])) {
+            foreach ($body['data'] as $page) {
+                $normalized = $this->normalize_page_search_result($page);
+                if ($normalized) {
+                    $pages[] = $normalized;
+                }
+            }
+        }
+
+        return $pages;
+    }
+
+    /**
+     * Filter Pages the connected user already manages (works with current login permissions).
+     *
+     * @param string $search_term
+     * @return array
+     */
+    private function search_managed_pages($search_term) {
+        $user_token = get_option('fb_post_scheduler_facebook_user_token', '');
+        if (empty($user_token)) {
+            return array();
+        }
+
+        $managed = $this->get_user_pages($user_token);
+        if (is_wp_error($managed) || empty($managed)) {
+            return array();
+        }
+
+        $matches = array();
+        foreach ($managed as $page) {
+            $name = isset($page['name']) ? $page['name'] : '';
+            if (!$this->page_name_matches($name, $search_term)) {
+                continue;
+            }
+
+            $normalized = $this->normalize_page_search_result($page);
+            if ($normalized) {
+                $matches[] = $normalized;
+            }
+        }
+
+        return $matches;
+    }
+
+    /**
+     * @param array $page
+     * @return array|null
+     */
+    private function normalize_page_search_result($page) {
+        if (empty($page['id']) || empty($page['name'])) {
+            return null;
+        }
+
+        $id = preg_replace('/[^0-9]/', '', (string) $page['id']);
+        if ($id === '') {
+            return null;
+        }
+
+        return array(
+            'id'   => $id,
+            'name' => sanitize_text_field($page['name']),
+        );
+    }
+
+    /**
+     * @param array $existing
+     * @param array $incoming
+     * @return array
+     */
+    private function merge_page_results($existing, $incoming) {
+        $seen = array();
+        $merged = array();
+
+        foreach (array_merge($existing, $incoming) as $page) {
+            if (empty($page['id']) || isset($seen[$page['id']])) {
+                continue;
+            }
+            $seen[$page['id']] = true;
+            $merged[] = $page;
+        }
+
+        return $merged;
+    }
+
+    /**
+     * @param string $name
+     * @param string $term
+     * @return bool
+     */
+    private function page_name_matches($name, $term) {
+        if (function_exists('mb_stripos')) {
+            return mb_stripos($name, $term, 0, 'UTF-8') !== false;
+        }
+
+        return stripos($name, $term) !== false;
+    }
+
+    /**
+     * Translate Graph (#10) into an actionable Danish message.
+     *
+     * @param WP_Error $error
+     * @return WP_Error
+     */
+    private function humanize_pages_search_error($error) {
+        $message = $error->get_error_message();
+
+        if (
+            strpos($message, '(#10)') !== false
+            || stripos($message, 'Page Public') !== false
+            || stripos($message, 'pages_read_engagement') !== false
+        ) {
+            return new WP_Error(
+                'pages_search_feature',
+                __('Offentlig @-søgning kræver App Review-featuren “Page Public Metadata Access” (ikke en login-permission). Dine nuværende permissions (pages_read_engagement, pages_manage_posts m.fl.) dækker kun sider du administrerer. Tilføj featuren under Meta App Dashboard → App Review → Permissions and Features. Indtil den er godkendt: indsæt @[PAGE_ID] manuelt, eller tag kun egne sider.', 'fb-post-scheduler')
+            );
+        }
+
+        return $error;
+    }
+
+    /**
+     * Normalize Page @-mentions for the Graph API `message` parameter.
+     *
+     * Editor may store mentions as @[PAGE_ID:Page Name] for readability.
+     * Facebook requires the official syntax @[PAGE_ID] in the published payload.
+     *
+     * Example: "Check out this article about @[123456789]!"
+     *
+     * @link https://developers.facebook.com/docs/graph-api/reference/page/feed/
+     *
+     * @param string $message Raw post text from the editor.
+     * @return string Message with mentions in @[PAGE_ID] form.
+     */
+    public function format_page_mentions($message) {
+        if (!is_string($message) || $message === '') {
+            return $message;
+        }
+
+        $formatted = preg_replace('/@\[(\d+)(?::[^\]]*)?\]/', '@[$1]', $message);
+
+        return is_string($formatted) ? $formatted : $message;
+    }
+
+    /**
+     * Post til Facebook Gruppe som link-opslag (klikbart preview til artiklen).
      *
      * @param string $message Beskedtekst til Facebook-opslag
      * @param string $link URL til at inkludere i opslaget
      * @param string $group_id Facebook gruppe ID
-     * @param int $image_id Attachment ID of image to include (optional)
+     * @param int $image_id Attachment ID til link-preview (optional)
+     * @param int $post_id WordPress post ID (bruges til OG override/scrape)
      * @return array|WP_Error Response fra Facebook eller fejl
      */
-    public function post_to_facebook_group($message, $link, $group_id, $image_id = 0) {
+    public function post_to_facebook_group($message, $link, $group_id, $image_id = 0, $post_id = 0) {
         // Tjek at alle nødvendige indstillinger er sat
         if (empty($group_id) || empty($this->access_token)) {
             return new WP_Error('missing_credentials', __('Manglende Facebook API-indstillinger for gruppe', 'fb-post-scheduler'));
         }
-        
-        // API endpoint for gruppe
+
+        $image_id = absint($image_id);
+        $post_id = absint($post_id);
+
+        $this->prepare_link_preview($link, $post_id, $image_id);
+
+        // Page mentions must use @[PAGE_ID] in the message body.
+        // @see https://developers.facebook.com/docs/graph-api/reference/page/feed/
+        $message = $this->format_page_mentions($message);
+
+        // API endpoint for gruppe – altid link-post via feed
         $url = "https://graph.facebook.com/{$group_id}/feed";
-        
-        // Forbered data
+
         $data = array(
             'message' => $message,
             'link' => $link,
-            'access_token' => $this->access_token
+            'access_token' => $this->access_token,
         );
-        
-        // Hvis der er et billede, brug photos endpoint i stedet
-        if (!empty($image_id)) {
-            // Få billedfil-url
-            $image_url = wp_get_attachment_url($image_id);
-            
-            if ($image_url) {
-                $url = "https://graph.facebook.com/{$group_id}/photos";
-                $data['url'] = $image_url;
-                $data['caption'] = $message;
-                // Tilføj link til caption
-                $data['caption'] .= "\n\n" . $link;
-            }
-        }
-        
+
         // Send POST-anmodning til Facebook Graph API
         $response = wp_remote_post($url, array(
             'method' => 'POST',
@@ -638,17 +1069,19 @@ class FB_Post_Scheduler_API {
             'blocking' => true,
             'body' => $data,
         ));
-        
+
+        $this->cleanup_link_preview($link, $post_id, $image_id);
+
         if (is_wp_error($response)) {
             return $response;
         }
-        
+
         $body = json_decode(wp_remote_retrieve_body($response), true);
-        
+
         if (isset($body['error'])) {
             return new WP_Error('facebook_error', $body['error']['message']);
         }
-        
+
         return $body;
     }
 }

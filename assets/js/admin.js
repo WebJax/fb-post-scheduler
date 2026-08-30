@@ -11,16 +11,7 @@
     $(document).ready(function() {
         // Bind token management buttons directly
         bindTokenManagementButtons();
-        
-        // Also try binding after a short delay in case elements load later
-        setTimeout(function() {
-            bindTokenManagementButtons();
-        }, 500);
-        
-        // Try again with a longer delay for settings pages
-        setTimeout(function() {
-            bindTokenManagementButtons();
-        }, 2000);
+        bindSavedMentionPages();
         
         // Fallback event delegation method
         setupFallbackEventHandlers();
@@ -41,6 +32,49 @@
             initDateControls();
         }
         
+        initAiProviderFields();
+
+        $(document).on('submit', '.fb-delete-revision-schedules', function(e) {
+            var message = $(this).attr('data-confirm');
+            if (message && !window.confirm(message)) {
+                e.preventDefault();
+            }
+        });
+
+        $(document).on('change', '.fb-select-all', function() {
+            var target = $(this).attr('data-target');
+            $(this).closest('form').find('.' + target).prop('checked', this.checked);
+        });
+
+        $(document).on('change', '.fb-bulk-posts-form input[name="fb_row_ids[]"]', function() {
+            var $form = $(this).closest('form');
+            var $rows = $form.find('input[name="fb_row_ids[]"]');
+            var $selectAll = $form.find('.fb-select-all');
+            $selectAll.prop('checked', $rows.length > 0 && $rows.filter(':checked').length === $rows.length);
+        });
+
+        $(document).on('submit', '.fb-bulk-posts-form', function(e) {
+            var $form = $(this);
+            var action = $form.find('select[name="fb_bulk_action"]').val();
+            var checked = $form.find('input[name="fb_row_ids[]"]:checked').length;
+
+            if (action !== 'delete') {
+                e.preventDefault();
+                window.alert(fbPostScheduler.bulkDeleteNoAction);
+                return;
+            }
+
+            if (!checked) {
+                e.preventDefault();
+                window.alert(fbPostScheduler.bulkDeleteNone);
+                return;
+            }
+
+            if (!window.confirm(fbPostScheduler.bulkDeleteConfirm)) {
+                e.preventDefault();
+            }
+        });
+
         // Håndter tilføjelse af nye opslag
         $('#add-fb-post').on('click', function() {
             addNewPost();
@@ -88,8 +122,9 @@
                     class: 'fb-post-image-preview'
                 });
                 
-                var previewContainer = button.siblings('.fb-post-image-preview-container');
-                previewContainer.html(img);
+                var $postItem = button.closest('.fb-post-item');
+                $postItem.find('.fb-post-image-preview-container').html(img);
+                applyLocalPreview($postItem.find('.fb-post-preview'));
                 
                 // Tilføj knap til at fjerne billedet
                 if (button.siblings('.fb-remove-image').length === 0) {
@@ -116,8 +151,9 @@
             // Nulstil skjult felt
             $('#fb_post_image_id_' + index).val('');
             
-            // Fjern preview
-            button.siblings('.fb-post-image-preview-container').empty();
+            var $postItem = button.closest('.fb-post-item');
+            $postItem.find('.fb-post-image-preview-container').empty();
+            applyLocalPreview($postItem.find('.fb-post-preview'));
             
             // Fjern denne knap
             button.remove();
@@ -309,7 +345,7 @@
                             $(this).remove();
                             var tbody = $('#posted-posts-table tbody');
                             if (tbody.find('tr').length === 0) {
-                                tbody.html('<tr><td colspan="5">' + 'Ingen postede Facebook-opslag fundet.' + '</td></tr>');
+                                tbody.html('<tr><td colspan="6">' + 'Ingen postede Facebook-opslag fundet.' + '</td></tr>');
                             }
                         });
                         if (typeof response.data.message !== 'undefined') {
@@ -333,6 +369,7 @@
      * Bind token management buttons
      */
     function bindTokenManagementButtons() {
+        console.log('bindTokenManagementButtons');
         // Facebook API test knap
         $('#fb-test-connection').off('click').on('click', function(e) {
             e.preventDefault();
@@ -789,41 +826,317 @@
     }
     
     /**
+     * Escape text and render @[PAGE_ID] / @[PAGE_ID:Name] as a blue @-mention.
+     */
+    function formatPreviewMentions(text) {
+        var escaped = $('<div>').text(text || '').html();
+        escaped = escaped.replace(/\n/g, '<br>');
+        escaped = escaped.replace(/@\[(\d+)(?::([^\]]+))?\]/g, function(match, id, name) {
+            var label = name || id;
+            return '<span class="fb-page-mention" data-page-id="' + id + '">@' + label + '</span>';
+        });
+        return escaped;
+    }
+
+    /**
+     * @param {string} source
+     * @return {string}
+     */
+    function getPreviewSourceLabel(source) {
+        var labels = {
+            selected: fbPostScheduler.previewSourceSelected,
+            og: fbPostScheduler.previewSourceOg,
+            featured: fbPostScheduler.previewSourceFeatured,
+            facebook: fbPostScheduler.previewSourceFacebook,
+            empty: fbPostScheduler.previewSourceEmpty
+        };
+
+        return labels[source] || labels.empty;
+    }
+
+    /**
+     * @param {jQuery} $imageWrap
+     * @param {string} imageUrl
+     * @param {string} imageAlt
+     */
+    function setPreviewImage($imageWrap, imageUrl, imageAlt) {
+        if (!$imageWrap.length) {
+            return;
+        }
+
+        if (imageUrl) {
+            $imageWrap.html($('<img>').attr({
+                class: 'fb-post-preview-image-element',
+                src: imageUrl,
+                alt: imageAlt || ''
+            }));
+            return;
+        }
+
+        $imageWrap.html(
+            $('<div>').addClass('fb-post-preview-image-placeholder').text(fbPostScheduler.previewPlaceholder)
+        );
+    }
+
+    /**
+     * @param {jQuery} $previewItem
+     * @param {string} message
+     * @param {boolean} [isSuccess]
+     */
+    function setPreviewError($previewItem, message, isSuccess) {
+        var $error = $previewItem.find('.fb-post-preview-error');
+        $error.toggleClass('is-success', !!isSuccess);
+        if (message) {
+            $error.text(message).prop('hidden', false);
+        } else {
+            $error.text('').prop('hidden', true);
+        }
+    }
+
+    /**
+     * @param {jQuery} $previewItem
+     * @param {boolean} isBusy
+     */
+    function setPreviewBusy($previewItem, isBusy) {
+        $previewItem.find('.fb-check-facebook-preview, .fb-refresh-facebook-cache').prop('disabled', isBusy);
+        $previewItem.find('.fb-preview-spinner').toggleClass('is-active', isBusy);
+        $previewItem.attr('aria-busy', isBusy ? 'true' : 'false');
+    }
+
+    /**
+     * @param {jQuery} $previewItem
+     * @param {{imageUrl?: string, imageAlt?: string, title?: string, description?: string, siteName?: string, source: string}} card
+     */
+    function renderPreviewCard($previewItem, card) {
+        setPreviewImage(
+            $previewItem.find('.fb-post-preview-image'),
+            card.imageUrl || '',
+            card.imageAlt || ''
+        );
+
+        $previewItem.find('.fb-post-preview-title').text(card.title || '');
+        $previewItem.find('.fb-post-preview-description').text(card.description || '');
+        if (card.siteName) {
+            $previewItem.find('.fb-post-preview-website-name').text(card.siteName);
+        }
+
+        $previewItem.attr('data-source', card.source);
+        $previewItem.find('.fb-post-preview-source').text(getPreviewSourceLabel(card.source));
+        $previewItem.toggleClass('is-facebook', card.source === 'facebook');
+        $previewItem.find('.fb-reset-facebook-preview').prop('hidden', card.source !== 'facebook');
+    }
+
+    /**
+     * Forlad Facebooks cache-tilstand og vis A/B/C.
+     *
+     * @param {jQuery} $previewItem
+     */
+    function applyLocalPreview($previewItem) {
+        if (!$previewItem.length) {
+            return;
+        }
+
+        var $postItem = $previewItem.closest('.fb-post-item');
+        var $selectedImage = $postItem.find('.fb-post-image-preview-container img');
+        var selectedUrl = $selectedImage.attr('src') || '';
+        var selectedAlt = $selectedImage.attr('alt') || '';
+        var ogImageUrl = $previewItem.attr('data-og-image-url') || '';
+        var featuredUrl = $previewItem.attr('data-featured-image-url') || '';
+        var featuredAlt = $previewItem.attr('data-featured-image-alt') || '';
+        var source = 'empty';
+        var imageUrl = '';
+        var imageAlt = '';
+
+        if (selectedUrl) {
+            source = 'selected';
+            imageUrl = selectedUrl;
+            imageAlt = selectedAlt;
+        } else if (ogImageUrl) {
+            source = 'og';
+            imageUrl = ogImageUrl;
+        } else if (featuredUrl) {
+            source = 'featured';
+            imageUrl = featuredUrl;
+            imageAlt = featuredAlt;
+        }
+
+        renderPreviewCard($previewItem, {
+            imageUrl: imageUrl,
+            imageAlt: imageAlt,
+            title: $previewItem.attr('data-og-title') || '',
+            description: $previewItem.attr('data-og-description') || '',
+            siteName: $previewItem.attr('data-og-site-name') || '',
+            source: source
+        });
+        setPreviewError($previewItem, '');
+        updatePreviewActor($previewItem);
+        updatePreviewText($postItem);
+    }
+
+    /**
+     * @param {jQuery} $previewItem
+     * @param {Object} data
+     */
+    function applyFacebookPreview($previewItem, data) {
+        renderPreviewCard($previewItem, {
+            imageUrl: data.image_url || '',
+            imageAlt: '',
+            title: data.title || '',
+            description: data.description || '',
+            siteName: data.site_name || '',
+            source: 'facebook'
+        });
+        setPreviewError($previewItem, data.refreshed ? (fbPostScheduler.facebookCacheUpdated || '') : '', !!data.refreshed);
+    }
+
+    /**
+     * @param {jQuery} $postItem
+     */
+    function updatePreviewText($postItem) {
+        var $textField = $postItem.find('textarea[id^="fb_post_text_"]');
+        var $previewText = $postItem.find('.fb-post-preview-text');
+        var text = $textField.val() || '';
+
+        $previewText.html(text ? formatPreviewMentions(text) : '');
+    }
+
+    /**
+     * @param {jQuery} $previewItem
+     */
+    function updatePreviewActor($previewItem) {
+        var $postItem = $previewItem.closest('.fb-post-item');
+        var $target = $postItem.find('input[name*="[target_type]"]:checked');
+        if (!$target.length) {
+            $target = $postItem.find('input[name*="[target_type]"]').first();
+        }
+        var target = $target.val() || 'page';
+        var pageName = $previewItem.attr('data-page-name') || '';
+        var groupName = $previewItem.attr('data-group-name') || '';
+        var actorName = (target === 'group' && groupName) ? groupName : pageName;
+        var dateVal = $postItem.find('input[id^="fb_post_date_"]').val() || '';
+        var timeVal = $postItem.find('input[id^="fb_post_time_"]').val() || '';
+        var meta = (dateVal && timeVal) ? (dateVal + ' · ' + timeVal) : '';
+
+        $previewItem.find('.fb-post-preview-actor-name').text(actorName);
+        $previewItem.find('.fb-post-preview-actor-meta').text(meta);
+    }
+
+    /**
+     * @param {jQuery} $previewItem
+     * @param {boolean} [forceOpen]
+     */
+    function togglePreview($previewItem, forceOpen) {
+        var $content = $previewItem.find('.fb-post-preview-content');
+        var $toggle = $previewItem.find('.fb-post-preview-toggle');
+        var shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !$previewItem.hasClass('is-open');
+
+        $previewItem.toggleClass('is-open', shouldOpen);
+        $toggle.attr('aria-expanded', shouldOpen ? 'true' : 'false');
+
+        if (shouldOpen) {
+            $content.stop(true, true).slideDown(200);
+        } else {
+            $content.stop(true, true).slideUp(200);
+        }
+    }
+
+    /**
+     * @param {jQuery} $previewItem
+     * @param {boolean} refresh
+     */
+    async function requestFacebookPreview($previewItem, refresh) {
+        var postId = $previewItem.attr('data-post-id') || '';
+        if (!postId) {
+            setPreviewError($previewItem, fbPostScheduler.facebookPreviewError);
+            return;
+        }
+
+        setPreviewBusy($previewItem, true);
+        setPreviewError($previewItem, '');
+
+        try {
+            var body = new URLSearchParams({
+                action: 'fb_post_scheduler_fetch_facebook_preview',
+                nonce: fbPostScheduler.nonce,
+                post_id: postId,
+                refresh: refresh ? '1' : '0'
+            });
+            var res = await fetch(fbPostScheduler.ajaxUrl, {
+                method: 'POST',
+                body: body
+            });
+            var json = await res.json();
+
+            if (json && json.success && json.data) {
+                applyFacebookPreview($previewItem, json.data);
+            } else {
+                var message = (json && json.data && json.data.message)
+                    ? json.data.message
+                    : fbPostScheduler.facebookPreviewError;
+                setPreviewError($previewItem, message);
+            }
+        } catch (error) {
+            setPreviewError($previewItem, fbPostScheduler.ajaxError || fbPostScheduler.facebookPreviewError);
+        } finally {
+            setPreviewBusy($previewItem, false);
+        }
+    }
+
+    var previewEventsBound = false;
+
+    /**
      * Initialiserer live-preview af Facebook-opslag for alle opslag
      */
     function initFacebookPreviews() {
-        var $textFields = $('[id^="fb_post_text_"]');
-        
-        $textFields.each(function() {
-            var $textField = $(this);
-            var index = $textField.attr('id').replace('fb_post_text_', '');
-            var $previewText = $textField.closest('.fb-post-item').find('.fb-post-preview-text');
-            
-            if ($previewText.length) {
-                // Opdater preview ved indlæsning
-                updatePreview($textField, $previewText);
-                
-                // Opdater preview ved ændringer
-                $textField.on('input change', function() {
-                    updatePreview($textField, $previewText);
-                });
-            }
-        });
-        
-        // Funktion til at opdatere preview
-        function updatePreview($textField, $previewText) {
-            var text = $textField.val();
-            
-            if (text) {
-                // Erstat linjeskift med <br>
-                text = text.replace(/\n/g, '<br>');
-                $previewText.html(text);
-                $previewText.closest('.fb-post-preview').show();
-            } else {
-                $previewText.html('');
-                $previewText.closest('.fb-post-preview').show();
-            }
+        if (!previewEventsBound) {
+            previewEventsBound = true;
+
+            $(document).on('input change', 'textarea[id^="fb_post_text_"]', function() {
+                updatePreviewText($(this).closest('.fb-post-item'));
+            });
+
+            $(document).on('click', '.fb-post-preview-toggle', function(e) {
+                e.preventDefault();
+                togglePreview($(this).closest('.fb-post-preview'));
+            });
+
+            $(document).on('keydown', '.fb-post-preview-toggle', function(e) {
+                if (e.which === 13 || e.which === 32) {
+                    e.preventDefault();
+                    togglePreview($(this).closest('.fb-post-preview'));
+                }
+            });
+
+            $(document).on('change', '.fb-post-item input[name*="[target_type]"], .fb-post-item input[id^="fb_post_date_"], .fb-post-item input[id^="fb_post_time_"]', function() {
+                updatePreviewActor($(this).closest('.fb-post-item').find('.fb-post-preview'));
+            });
+
+            $(document).on('click', '.fb-check-facebook-preview', function(e) {
+                e.preventDefault();
+                var $previewItem = $(this).closest('.fb-post-preview');
+                togglePreview($previewItem, true);
+                requestFacebookPreview($previewItem, false);
+            });
+
+            $(document).on('click', '.fb-refresh-facebook-cache', function(e) {
+                e.preventDefault();
+                if (!window.confirm(fbPostScheduler.facebookCacheConfirm)) {
+                    return;
+                }
+                var $previewItem = $(this).closest('.fb-post-preview');
+                togglePreview($previewItem, true);
+                requestFacebookPreview($previewItem, true);
+            });
+
+            $(document).on('click', '.fb-reset-facebook-preview', function(e) {
+                e.preventDefault();
+                applyLocalPreview($(this).closest('.fb-post-preview'));
+            });
         }
+
+        $('.fb-post-preview').each(function() {
+            applyLocalPreview($(this));
+        });
     }
     
     /**
@@ -884,9 +1197,9 @@
         
         // Tilføj nyt opslag til containeren
         $('#fb-posts-container').append(template);
-        
-        // Initialiser preview og datokontroller for det nye opslag
-        initFacebookPreviews();
+
+        var $newItem = $('#fb-posts-container .fb-post-item').last();
+        applyLocalPreview($newItem.find('.fb-post-preview'));
         initDateControls();
     }
     
@@ -948,8 +1261,10 @@
     
     // Facebook Page Selection functionality
     function bindPageSelectionButtons() {
+        console.log('bindPageSelectionButtons');
         // Gem bruger access token
-        $(document).off('click.fb-page-selection').on('click.fb-page-selection', '#fb-save-user-token', function(e) {
+        $('#fb-save-user-token').click('', function(e) {
+            console.log('save user token');
             e.preventDefault();
             
             var button = $(this);
@@ -995,7 +1310,7 @@
         });
         
         // Indlæs Facebook Pages
-        $(document).off('click.fb-page-selection').on('click.fb-page-selection', '#fb-load-pages', function(e) {
+        $('#fb-load-pages').on('click', function(e) {
             e.preventDefault();
             
             var button = $(this);
@@ -1053,7 +1368,7 @@
         });
         
         // Vælg Facebook Page
-        $(document).off('click.fb-page-selection').on('click.fb-page-selection', '#fb-select-page', function(e) {
+        $('#fb-select-page').on('click', function(e) {
             e.preventDefault();
             
             var button = $(this);
@@ -1167,7 +1482,7 @@
     // Facebook Group Selection functionality
     function bindGroupSelectionButtons() {
         // Indlæs Facebook Groups
-        $(document).off('click.fb-group-selection').on('click.fb-group-selection', '#fb-load-groups', function(e) {
+        $('#fb-load-groups').on('click', function(e) {
             e.preventDefault();
             
             var button = $(this);
@@ -1339,6 +1654,157 @@
             });
         });
     }
+
+    /**
+     * Indstillinger: tilføj/fjern gemte sider til @[mention]-autocomplete.
+     */
+    function bindSavedMentionPages() {
+        var $root = $('#fb-saved-mention-pages');
+        if (!$root.length || typeof fbPostScheduler === 'undefined') {
+            return;
+        }
+
+        function renderSavedPagesList(pages) {
+            var $list = $('#fb-saved-pages-list');
+            $list.empty();
+
+            if (!pages || !pages.length) {
+                $list.append(
+                    $('<li>', {
+                        class: 'fb-saved-pages-empty',
+                        text: fbPostScheduler.savedPagesEmpty || 'Ingen gemte sider endnu.'
+                    })
+                );
+                return;
+            }
+
+            $.each(pages, function(index, page) {
+                if (!page || !page.id || !page.name) {
+                    return;
+                }
+
+                var $item = $('<li>', { 'data-page-id': page.id });
+                $item.append($('<span>', { class: 'fb-saved-page-name', text: page.name }));
+                $item.append($('<span>', { class: 'fb-saved-page-id', text: page.id }));
+                $item.append(
+                    $('<button>', {
+                        type: 'button',
+                        class: 'button-link-delete fb-remove-saved-page',
+                        'data-page-id': page.id,
+                        text: fbPostScheduler.savedPageRemoveLabel || 'Fjern'
+                    })
+                );
+                $list.append($item);
+            });
+        }
+
+        function showSavedPagesMessage(type, message) {
+            var className = type === 'success' ? 'notice-success' : 'notice-error';
+            $('#fb-saved-pages-result').html(
+                '<div class="notice ' + className + ' inline"><p>' + $('<div>').text(message).html() + '</p></div>'
+            );
+        }
+
+        $('#fb-add-saved-page').on('click', function(e) {
+            e.preventDefault();
+
+            var $button = $(this);
+            var $spinner = $('#fb-saved-pages-spinner');
+            var name = $.trim($('#fb-saved-page-name').val() || '');
+            var id = $.trim($('#fb-saved-page-id').val() || '');
+
+            if (!name || !id) {
+                showSavedPagesMessage('error', 'Udfyld både side-navn og Page ID.');
+                return;
+            }
+
+            $button.prop('disabled', true);
+            $spinner.addClass('is-active');
+            $('#fb-saved-pages-result').empty();
+
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_add_saved_page',
+                    nonce: fbPostScheduler.nonce,
+                    name: name,
+                    id: id
+                },
+                success: function(response) {
+                    if (response.success) {
+                        showSavedPagesMessage('success', response.data.message || 'Siden er gemt.');
+                        renderSavedPagesList(response.data.pages || []);
+                        $('#fb-saved-page-name').val('');
+                        $('#fb-saved-page-id').val('');
+                    } else {
+                        var message = response.data && response.data.message
+                            ? response.data.message
+                            : (fbPostScheduler.savedPageAddError || 'Kunne ikke tilføje siden.');
+                        showSavedPagesMessage('error', message);
+                    }
+                },
+                error: function() {
+                    showSavedPagesMessage('error', fbPostScheduler.ajaxError || 'Der opstod en fejl');
+                },
+                complete: function() {
+                    $button.prop('disabled', false);
+                    $spinner.removeClass('is-active');
+                }
+            });
+        });
+
+        $(document).on('click', '.fb-remove-saved-page', function(e) {
+            e.preventDefault();
+
+            var pageId = String($(this).data('page-id') || '');
+            if (!pageId) {
+                return;
+            }
+
+            if (!window.confirm(fbPostScheduler.savedPageRemoveConfirm || 'Fjern denne gemte side?')) {
+                return;
+            }
+
+            var $spinner = $('#fb-saved-pages-spinner');
+            $spinner.addClass('is-active');
+            $('#fb-saved-pages-result').empty();
+
+            $.ajax({
+                url: fbPostScheduler.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'fb_post_scheduler_remove_saved_page',
+                    nonce: fbPostScheduler.nonce,
+                    id: pageId
+                },
+                success: function(response) {
+                    if (response.success) {
+                        showSavedPagesMessage('success', response.data.message || 'Siden er fjernet.');
+                        renderSavedPagesList(response.data.pages || []);
+                    } else {
+                        var message = response.data && response.data.message
+                            ? response.data.message
+                            : fbPostScheduler.ajaxError;
+                        showSavedPagesMessage('error', message);
+                    }
+                },
+                error: function() {
+                    showSavedPagesMessage('error', fbPostScheduler.ajaxError || 'Der opstod en fejl');
+                },
+                complete: function() {
+                    $spinner.removeClass('is-active');
+                }
+            });
+        });
+
+        $('#fb-saved-page-name, #fb-saved-page-id').on('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                $('#fb-add-saved-page').trigger('click');
+            }
+        });
+    }
     
     // Bind page selection buttons on document ready
     $(document).ready(function() {
@@ -1412,5 +1878,23 @@
             }
         });
     });
+
+    /**
+     * Vis Gemini API-nøgle kun når Gemini er valgt som provider.
+     */
+    function initAiProviderFields() {
+        var $select = $('#fb_post_scheduler_ai_provider');
+        if (!$select.length) {
+            return;
+        }
+
+        var toggleGeminiKey = function() {
+            var $row = $('input[name="fb_post_scheduler_gemini_api_key"]').closest('tr');
+            $row.toggle($select.val() === 'gemini');
+        };
+
+        $select.on('change', toggleGeminiKey);
+        toggleGeminiKey();
+    }
 
 })(jQuery);

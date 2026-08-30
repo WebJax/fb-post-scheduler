@@ -27,3 +27,6 @@ node_modules/
 
 # Composer dependencies (hvis der bruges composer)
 vendor/
+
+# Stubs (Only for development)
+*-stubs.php

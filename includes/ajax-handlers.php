@@ -1149,3 +1149,297 @@ function fb_post_scheduler_clear_post_record_ajax() {
     exit;
 }
 add_action( 'wp_ajax_fb_post_scheduler_clear_post_record', 'fb_post_scheduler_clear_post_record_ajax' );
+
+/**
+ * AJAX-handler: live-søgning efter offentlige Facebook Pages til @-mentions.
+ *
+ * Uses Meta Pages Search. Tries user token, then app token, then page token.
+ *
+ * @see FB_Post_Scheduler_API::search_pages() for App Review permission docs.
+ */
+function fb_post_scheduler_search_pages_ajax() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler'),
+        ));
+    }
+
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler'),
+        ));
+    }
+
+    $search_term = isset($_POST['q']) ? sanitize_text_field(wp_unslash($_POST['q'])) : '';
+    $term_length = function_exists('mb_strlen') ? mb_strlen($search_term, 'UTF-8') : strlen($search_term);
+
+    if ($term_length < 3) {
+        wp_send_json_error(array(
+            'message' => __('Søgningen skal være mindst 3 tegn', 'fb-post-scheduler'),
+        ));
+    }
+
+    $api = fb_post_scheduler_get_api();
+    $result = $api->search_pages($search_term);
+
+    if (is_wp_error($result)) {
+        wp_send_json_error(array(
+            'message' => $result->get_error_message(),
+        ));
+    }
+
+    wp_send_json_success($result);
+}
+add_action('wp_ajax_fb_post_scheduler_search_pages', 'fb_post_scheduler_search_pages_ajax');
+/**
+ * Sanitize saved mention pages option (array of id + name).
+ *
+ * @param mixed $pages Raw option value.
+ * @return array<int, array{id: string, name: string}>
+ */
+function fb_post_scheduler_sanitize_saved_mention_pages($pages) {
+    if (!is_array($pages)) {
+        return array();
+    }
+
+    $normalized = array();
+    $seen_ids = array();
+
+    foreach ($pages as $page) {
+        if (!is_array($page)) {
+            continue;
+        }
+
+        $id = isset($page['id']) ? preg_replace('/\D+/', '', (string) $page['id']) : '';
+        $name = isset($page['name']) ? sanitize_text_field($page['name']) : '';
+
+        if ($id === '' || $name === '') {
+            continue;
+        }
+
+        if (isset($seen_ids[$id])) {
+            continue;
+        }
+
+        $seen_ids[$id] = true;
+        $normalized[] = array(
+            'id' => $id,
+            'name' => $name,
+        );
+    }
+
+    usort($normalized, function ($a, $b) {
+        return strcasecmp($a['name'], $b['name']);
+    });
+
+    return array_values($normalized);
+}
+
+/**
+ * Get normalized list of saved mention pages.
+ *
+ * @return array<int, array{id: string, name: string}>
+ */
+function fb_post_scheduler_get_saved_mention_pages() {
+    return fb_post_scheduler_sanitize_saved_mention_pages(
+        get_option('fb_post_scheduler_saved_mention_pages', array())
+    );
+}
+
+/**
+ * Persist saved mention pages.
+ *
+ * @param array $pages Pages to store.
+ * @return array<int, array{id: string, name: string}>
+ */
+function fb_post_scheduler_update_saved_mention_pages($pages) {
+    $normalized = fb_post_scheduler_sanitize_saved_mention_pages($pages);
+    update_option('fb_post_scheduler_saved_mention_pages', $normalized);
+    return $normalized;
+}
+
+/**
+ * AJAX: søg i gemte sider til @[mention]-autocomplete.
+ */
+function fb_post_scheduler_search_saved_pages_ajax() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler'),
+        ));
+    }
+
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler'),
+        ));
+    }
+
+    $search_term = isset($_POST['q']) ? sanitize_text_field(wp_unslash($_POST['q'])) : '';
+    $pages = fb_post_scheduler_get_saved_mention_pages();
+
+    if ($search_term !== '') {
+        $needle = function_exists('mb_strtolower')
+            ? mb_strtolower($search_term, 'UTF-8')
+            : strtolower($search_term);
+
+        $pages = array_values(array_filter($pages, function ($page) use ($needle) {
+            $haystack = function_exists('mb_strtolower')
+                ? mb_strtolower($page['name'], 'UTF-8')
+                : strtolower($page['name']);
+
+            return strpos($haystack, $needle) !== false;
+        }));
+    }
+
+    wp_send_json_success($pages);
+}
+add_action('wp_ajax_fb_post_scheduler_search_saved_pages', 'fb_post_scheduler_search_saved_pages_ajax');
+
+/**
+ * AJAX: tilføj en gemt side (navn + Page ID).
+ */
+function fb_post_scheduler_add_saved_page_ajax() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler'),
+        ));
+    }
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler'),
+        ));
+    }
+
+    $name = isset($_POST['name']) ? sanitize_text_field(wp_unslash($_POST['name'])) : '';
+    $id = isset($_POST['id']) ? preg_replace('/\D+/', '', (string) wp_unslash($_POST['id'])) : '';
+
+    if ($name === '' || $id === '') {
+        wp_send_json_error(array(
+            'message' => __('Udfyld både side-navn og Page ID.', 'fb-post-scheduler'),
+        ));
+    }
+
+    $pages = fb_post_scheduler_get_saved_mention_pages();
+
+    foreach ($pages as $page) {
+        if ($page['id'] === $id) {
+            wp_send_json_error(array(
+                'message' => __('En side med dette Page ID er allerede gemt.', 'fb-post-scheduler'),
+            ));
+        }
+    }
+
+    $pages[] = array(
+        'id' => $id,
+        'name' => $name,
+    );
+
+    $pages = fb_post_scheduler_update_saved_mention_pages($pages);
+
+    wp_send_json_success(array(
+        'message' => __('Siden er gemt.', 'fb-post-scheduler'),
+        'pages' => $pages,
+    ));
+}
+add_action('wp_ajax_fb_post_scheduler_add_saved_page', 'fb_post_scheduler_add_saved_page_ajax');
+
+/**
+ * AJAX: fjern en gemt side.
+ */
+function fb_post_scheduler_remove_saved_page_ajax() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler'),
+        ));
+    }
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler'),
+        ));
+    }
+
+    $id = isset($_POST['id']) ? preg_replace('/\D+/', '', (string) wp_unslash($_POST['id'])) : '';
+
+    if ($id === '') {
+        wp_send_json_error(array(
+            'message' => __('Ugyldigt Page ID.', 'fb-post-scheduler'),
+        ));
+    }
+
+    $pages = fb_post_scheduler_get_saved_mention_pages();
+    $pages = array_values(array_filter($pages, function ($page) use ($id) {
+        return $page['id'] !== $id;
+    }));
+
+    $pages = fb_post_scheduler_update_saved_mention_pages($pages);
+
+    wp_send_json_success(array(
+        'message' => __('Siden er fjernet.', 'fb-post-scheduler'),
+        'pages' => $pages,
+    ));
+}
+add_action('wp_ajax_fb_post_scheduler_remove_saved_page', 'fb_post_scheduler_remove_saved_page_ajax');
+
+/**
+ * AJAX-handler: hent Facebooks cached link-preview eller opdater cachen.
+ */
+function fb_post_scheduler_fetch_facebook_preview_ajax() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'fb_post_scheduler_nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler'),
+        ));
+    }
+
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler'),
+        ));
+    }
+
+    $post_id = isset($_POST['post_id']) ? absint($_POST['post_id']) : 0;
+    if (!$post_id || !current_user_can('edit_post', $post_id)) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler'),
+        ));
+    }
+
+    if (get_post_status($post_id) !== 'publish') {
+        wp_send_json_error(array(
+            'message' => __('Facebook kan kun læse offentliggjorte indlæg. Publicér indlægget først.', 'fb-post-scheduler'),
+        ));
+    }
+
+    $permalink = get_permalink($post_id);
+    if (empty($permalink)) {
+        wp_send_json_error(array(
+            'message' => __('Kunne ikke finde permalink til indlægget.', 'fb-post-scheduler'),
+        ));
+    }
+
+    $refresh = !empty($_POST['refresh']);
+    $api = new FB_Post_Scheduler_API();
+    $result = $refresh ? $api->scrape_url($permalink) : $api->get_url_og_object($permalink);
+
+    if (is_wp_error($result)) {
+        wp_send_json_error(array(
+            'message' => $result->get_error_message(),
+        ));
+    }
+
+    $mapped = fb_post_scheduler_map_graph_og_response($result);
+    if ($mapped['image_url'] === '' && $mapped['title'] === '') {
+        wp_send_json_error(array(
+            'message' => __('Facebook har endnu ikke scrapet denne URL. Prøv at opdatere Facebooks cache.', 'fb-post-scheduler'),
+        ));
+    }
+
+    $mapped['site_name'] = $mapped['site_name'] !== '' ? $mapped['site_name'] : fb_post_scheduler_get_default_site_name();
+    $mapped['source'] = 'facebook';
+    $mapped['source_label'] = fb_post_scheduler_get_preview_source_label('facebook');
+    $mapped['refreshed'] = $refresh;
+
+    wp_send_json_success($mapped);
+}
+add_action('wp_ajax_fb_post_scheduler_fetch_facebook_preview', 'fb_post_scheduler_fetch_facebook_preview_ajax');
