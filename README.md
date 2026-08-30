@@ -1,13 +1,13 @@
 # Facebook Post Scheduler
 
 ## Beskrivelse
-Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at planlægge og administrere Facebook-opslag direkte fra WordPress. Du kan tilføje Facebook-opslagstekst til indhold fra forskellige post types og planlægge, hvornår opslagene skal postes til Facebook. Pluginet understøtter nu også AI-genereret opslag med Gemma4 kørt lokalt med Ollama.
+Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at planlægge og administrere Facebook-opslag direkte fra WordPress. Du kan tilføje Facebook-opslagstekst til indhold fra forskellige post types og planlægge, hvornår opslagene skal postes til Facebook. Pluginet kan generere opslagstekst med lokal Ollama (Gemma 4) eller Google Gemini API.
 
 ## Funktioner
 - Vælg hvilke post types der skal kunne planlægge Facebook-opslag
 - Tilføj Facebook-opslagstekst direkte i indholdsredigeringen
 - Planlæg, hvornår opslaget skal sendes til Facebook
-- AI-genereret opslagstekst med Google Gemma4:latest (lokal AI med Ollama)
+- AI-genereret opslagstekst med Ollama (lokal Gemma 4) eller Google Gemini API
 - **Automatisk Facebook Page selection og token management** 🆕
 - **Facebook Group support - del direkte til grupper du administrerer** 🆕
 - **Detaljeret Facebook App setup guide med rettigheder** 🆕
@@ -77,7 +77,7 @@ Du kan nu også dele opslag direkte til Facebook-grupper du administrerer:
 ### 4. Andre indstillinger
 1. **Vælg Post Types**: Vælg hvilke post types der skal kunne oprette Facebook-opslag
 2. **Test Facebook API Forbindelse**: Klik på "Test Facebook API Forbindelse" knappen for at verificere at dine indstillinger virker korrekt
-3. **AI Tekst Generator Indstillinger**: Aktivér AI-tekstgenerering og indtast din Google Gemini API-nøgle
+3. **AI Tekst Generator Indstillinger**: Aktivér AI-tekstgenerering, vælg Ollama eller Gemini, og indtast Gemini API-nøgle hvis du bruger Gemini
 
 ### Token Fornyelse
 For eksisterende opsætninger kan du forny dit page access token ved at:
@@ -90,7 +90,7 @@ For eksisterende opsætninger kan du forny dit page access token ved at:
 2. Find 'Facebook Opslag' boksen i indholdseditoren
 3. Aktivér Facebook-opslag ved at klikke på checkboksen
 4. **Vælg destination**: Hvis du har konfigureret både en Facebook-side og en gruppe, vælg hvor opslaget skal deles 🆕
-5. Indtast teksten til Facebook-opslaget manuelt eller brug "Generer tekst med Gemini AI" knappen
+5. Indtast teksten til Facebook-opslaget manuelt eller brug AI-knappen (Ollama eller Gemini afhængigt af indstillingen)
 6. Vælg dato og tidspunkt for opslaget
 7. Vælg eventuelt et billede til opslaget (bruges som link-preview via `og:image`; ellers bruges sidens aktuelle Open Graph-billede)
 8. Åbn **Forhåndsvisning af opslag** for at se det link-kort, Facebook forventes at vise. Kilde-labelen fortæller om billedet er valgt, kommer fra sidens `og:image` eller er udvalgt billede som fallback
@@ -99,16 +99,26 @@ For eksisterende opsætninger kan du forny dit page access token ved at:
 11. Tilføj flere opslag efter behov ved at klikke på "Tilføj endnu et opslag"
 
 ## AI-genererede Facebook-opslag
-Pluginet understøtter generering af Facebook-opslagstekst med Google Gemini 2.0 Flash AI. For at bruge denne funktion:
+Pluginet kan generere Facebook-opslagstekst med **Ollama** (localhost) eller **Google Gemini**. Vælg provider under indstillingerne. Knapteksten i metaboxen følger valget.
 
+### Ollama (localhost)
 1. Gå til 'FB Opslag' > 'Indstillinger' > 'AI Tekst Generator Indstillinger'
-2. Aktivér AI tekstgenerering
-3. Hent Ollama og Gemma4:latest
-   - brew install ollama
-   - brew services start ollama
-   - ollama run gemma4:latest
-5. Tilpas AI prompten efter behov
-6. Ved oprettelse eller redigering af indlæg kan du nu klikke på "Generer tekst med Gemini AI" knappen for at lade AI'en generere et relevant Facebook-opslag baseret på dit indhold
+2. Aktivér AI-tekstgenerering
+3. Vælg **Ollama (localhost)**
+4. Installer Ollama og hent Gemma 4:
+   - `brew install ollama`
+   - `brew services start ollama`
+   - `ollama run gemma4:latest`
+5. Tilpas AI-prompten efter behov
+6. Klik **Generer tekst med Ollama** i metaboxen
+
+### Google Gemini API
+1. Aktivér AI-tekstgenerering og vælg **Google Gemini API**
+2. Indtast din API-nøgle fra [Google AI Studio](https://ai.google.dev/)
+3. Tilpas AI-prompten efter behov
+4. Klik **Generer tekst med Gemini** i metaboxen
+
+Gemini er typisk det rigtige valg i produktion, hvor Ollama ikke kører på serveren.
 
 ## Facebook API Test
 
@@ -138,6 +148,9 @@ Facebook access tokens udløber regelmæssigt. Pluginet understøtter nu automat
 Gå til 'FB Opslag' > 'Indstillinger' > 'Facebook API Indstillinger' og brug de tilgængelige test-funktioner efter du har udfyldt alle felter.
 
 ## Nye funktioner
+
+### AI-provider: Ollama eller Gemini (1.2.0)
+Under **FB Opslag → Indstillinger** kan du vælge om tekstgenerering skal bruge lokal Ollama eller Google Gemini API. Metabox-knappen skifter tekst efter valget. Gemini-nøglen vises kun når Gemini er valgt.
 
 ### Hybrid Facebook-link-preview (1.1.7)
 Opslag postes som klikbare link-opslag. Previewen i metaboxen viser det kort, Facebook forventes at vise — ikke bare indlæggets udvalgte billede.
@@ -189,7 +202,7 @@ Pluginet opretter automatisk en logfil med oplysninger om alle opslag, der poste
 - WordPress 5.0 eller nyere
 - PHP 7.0 eller nyere
 - Adgang til Facebook API (App ID, App Secret, Page ID, Access Token)
-- For AI-funktioner: Google Gemini API-nøgle
+- For AI-funktioner: Ollama på localhost, eller en Google Gemini API-nøgle
 
 ## Udviklet til
 Pluginet er udviklet af Jacob Thygesen til brug på danske WordPress-hjemmesider.

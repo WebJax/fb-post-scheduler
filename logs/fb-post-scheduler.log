@@ -169,3 +169,6 @@
 [2026-07-01 02:31:13] [Post ID: 39220] AI genereret tekst for post ID: 39220
 [2026-08-14 00:32:03] Plugin aktiveret
 [2026-08-30 01:52:09] Slettede 142 planlagte opslag knyttet til revisioner
+[2026-08-30 02:10:44] [Post ID: 36286] AI genereret tekst for post ID: 36286
+[2026-08-30 03:36:05] [Post ID: 36286] Gemini API Error: This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.6-flash for the latest features and improvements. We recommend you to use the Interactions API. (Code: 404)
+[2026-08-30 03:41:54] [Post ID: 36286] AI genereret tekst med Gemini for post ID: 36286

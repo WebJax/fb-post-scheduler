@@ -47,13 +47,14 @@
     margin-top: 5px;
 }
 
-.dashicons-google {
+.dashicons-google,
+.fb-generate-ai-text .dashicons-desktop {
     position: relative;
     top: -5px;
     left: -2px;
 }
 
-/* Google Gemini AI Button Styling */
+/* AI generate button */
 .fb-generate-ai-text {
     background-color: #4285f4 !important;
     color: white !important;

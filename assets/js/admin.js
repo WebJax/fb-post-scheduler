@@ -32,6 +32,8 @@
             initDateControls();
         }
         
+        initAiProviderFields();
+
         $(document).on('submit', '.fb-delete-revision-schedules', function(e) {
             var message = $(this).attr('data-confirm');
             if (message && !window.confirm(message)) {
@@ -1876,5 +1878,23 @@
             }
         });
     });
+
+    /**
+     * Vis Gemini API-nøgle kun når Gemini er valgt som provider.
+     */
+    function initAiProviderFields() {
+        var $select = $('#fb_post_scheduler_ai_provider');
+        if (!$select.length) {
+            return;
+        }
+
+        var toggleGeminiKey = function() {
+            var $row = $('input[name="fb_post_scheduler_gemini_api_key"]').closest('tr');
+            $row.toggle($select.val() === 'gemini');
+        };
+
+        $select.on('change', toggleGeminiKey);
+        toggleGeminiKey();
+    }
 
 })(jQuery);

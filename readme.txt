@@ -18,7 +18,7 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 
 * **Facebook Login Integration** - Log ind direkte med din Facebook-konto
 * **Fleksibel Post Type Support** - Vælg hvilke post types der skal kunne planlægge Facebook-opslag
-* **AI-genereret Indhold** - Automatisk tekstgenerering med Google Gemini AI
+* **AI-genereret Indhold** - Automatisk tekstgenerering med Ollama (localhost) eller Google Gemini API
 * **Avanceret Planlægning** - Planlæg flere opslag til samme indhold
 * **Billede Support** - Vedhæft specifikke billeder til Facebook-linkets forhåndsvisning
 * **Hybrid link-preview** - Se `og:image`, titel og beskrivelse og tjek Facebooks cache
@@ -41,11 +41,12 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 
 = AI Integration =
 
-Pluginet understøtter Google Gemini AI til automatisk generering af Facebook-opslagstekst:
+Pluginet kan generere Facebook-opslagstekst med lokal Ollama eller Google Gemini API:
 
 * Aktivér AI-tekstgenerering i indstillingerne
+* Vælg provider: Ollama (localhost) eller Google Gemini API
 * Tilpas AI-prompten efter dine behov
-* Klik på "Generer tekst med Gemini AI" når du opretter opslag
+* Klik på AI-knappen når du opretter opslag — teksten følger den valgte provider
 * AI'en analyserer dit indhold og foreslår relevant Facebook-tekst
 
 = Kalender og Administration =
@@ -100,6 +101,12 @@ Ja, du kan oprette flere Facebook-opslag til samme WordPress-indlæg med forskel
 
 == Changelog ==
 
+= 1.2.0 =
+* Vælg AI-provider: Ollama (localhost) eller Google Gemini API
+* Gemini-kaldet bruger Interactions API (`gemini-3.6-flash`) med den gemte API-nøgle
+* Metabox-knappen skifter tekst efter valgt provider
+* Gemini API-nøgle vises kun når Gemini er valgt
+
 = 1.1.7 =
 * Hybrid forhåndsvisning af Facebook-linkkortet i metaboxen
 * Preview bruger valgt billede, ellers sidens og:image, ellers udvalgt billede
@@ -129,7 +136,7 @@ Ja, du kan oprette flere Facebook-opslag til samme WordPress-indlæg med forskel
 == Upgrade Notice ==
 
 = 1.2.0 =
-Planlagte opslag gemmes ikke længere på revisioner, og du kan slette flere rækker ad gangen på FB Opslag-listerne.
+AI-tekstgenerering kan nu køre via lokal Ollama eller Google Gemini. Vælg provider under indstillingerne.
 
 = 1.1.7 =
 Forhåndsvisningen i metaboxen viser nu det Facebook-linkkort, der ventes slået op (og:image, titel og beskrivelse), plus knapper til at tjekke eller opdatere Facebooks cache.

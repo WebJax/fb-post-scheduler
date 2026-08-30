@@ -583,6 +583,16 @@ class FB_Post_Scheduler {
             'fb_post_scheduler_settings',
             'fb_post_scheduler_ai_enabled'
         );
+
+        register_setting(
+            'fb_post_scheduler_settings',
+            'fb_post_scheduler_ai_provider',
+            array(
+                'type'              => 'string',
+                'sanitize_callback' => 'fb_post_scheduler_sanitize_ai_provider',
+                'default'           => 'ollama',
+            )
+        );
         
         register_setting(
             'fb_post_scheduler_settings',
@@ -686,6 +696,14 @@ class FB_Post_Scheduler {
             'fb-post-scheduler-settings',
             'fb_post_scheduler_ai_section'
         );
+
+        add_settings_field(
+            'fb_post_scheduler_ai_provider',
+            __('AI-provider', 'fb-post-scheduler'),
+            array($this, 'ai_provider_callback'),
+            'fb-post-scheduler-settings',
+            'fb_post_scheduler_ai_section'
+        );
         
         add_settings_field(
             'fb_post_scheduler_gemini_api_key',
@@ -769,7 +787,7 @@ class FB_Post_Scheduler {
      * AI sektion callback
      */
     public function ai_section_callback(): void {
-        echo '<p>' . __('Konfigurer indstillinger for automatisk generering af Facebook-opslagstekst med Google Gemini AI.', 'fb-post-scheduler') . '</p>';
+        echo '<p>' . __('Konfigurer automatisk generering af Facebook-opslagstekst. Brug Ollama lokalt eller Google Gemini i skyen.', 'fb-post-scheduler') . '</p>';
     }
     
     /**
@@ -1015,12 +1033,24 @@ class FB_Post_Scheduler {
     }
     
     /**
+     * AI provider callback
+     */
+    public function ai_provider_callback(): void {
+        $provider = fb_post_scheduler_get_ai_provider();
+        echo '<select id="fb_post_scheduler_ai_provider" name="fb_post_scheduler_ai_provider">';
+        echo '<option value="ollama" ' . selected('ollama', $provider, false) . '>' . esc_html__('Ollama (localhost)', 'fb-post-scheduler') . '</option>';
+        echo '<option value="gemini" ' . selected('gemini', $provider, false) . '>' . esc_html__('Google Gemini API', 'fb-post-scheduler') . '</option>';
+        echo '</select>';
+        echo '<p class="description">' . __('Ollama kører lokalt (fx Gemma 4). Gemini kræver en API-nøgle og bruges typisk i produktion.', 'fb-post-scheduler') . '</p>';
+    }
+
+    /**
      * Gemini API key callback
      */
     public function gemini_api_key_callback(): void {
         $api_key = get_option('fb_post_scheduler_gemini_api_key', '');
         echo '<input type="password" name="fb_post_scheduler_gemini_api_key" value="' . esc_attr($api_key) . '" class="regular-text">';
-        echo '<p class="description">' . __('Din Google Gemini API nøgle. Du kan få en fra <a href="https://ai.google.dev/" target="_blank">Google AI Studio</a>.', 'fb-post-scheduler') . '</p>';
+        echo '<p class="description">' . __('Din Google Gemini API nøgle. Du kan få en fra <a href="https://ai.google.dev/" target="_blank">Google AI Studio</a>. Bruges kun når Gemini er valgt som provider.', 'fb-post-scheduler') . '</p>';
     }
     
     /**
@@ -1271,11 +1301,7 @@ class FB_Post_Scheduler {
                     <p class="fb-post-text-field">
                         <label for="fb_post_text_<?php echo $index; ?>"><?php _e('Tekst til Facebook-opslag:', 'fb-post-scheduler'); ?></label>
                         <?php if (get_option('fb_post_scheduler_ai_enabled', '') && !$is_posted) : ?>
-                        <button type="button" class="button fb-generate-ai-text" data-index="<?php echo $index; ?>" data-post-id="<?php echo $post->ID; ?>">
-                            <span class="dashicons dashicons-google" style="vertical-align: text-top;"></span> 
-                            <?php _e('Generer tekst med Gemini AI', 'fb-post-scheduler'); ?>
-                        </button>
-                        <span class="spinner fb-ai-spinner" style="float: none; margin-top: 0;"></span>
+                        <?php fb_post_scheduler_render_ai_generate_button($index, $post->ID); ?>
                         <?php endif; ?>
                         <textarea id="fb_post_text_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][text]" class="widefat" rows="5" autocomplete="off" <?php disabled($is_posted, true); ?>><?php echo esc_textarea(isset($fb_post['text']) ? $fb_post['text'] : ''); ?></textarea>
                         <span class="description"><?php _e('Skriv @[ og begynd at skrive et gemt side-navn (f.eks. @[Skoring) for at indsætte @[PAGE_ID]. Du kan også skrive @ + mindst 3 bogstaver for at søge offentlige Facebook-sider. Link til indlægget tilføjes automatisk.', 'fb-post-scheduler'); ?></span>
@@ -1397,11 +1423,7 @@ class FB_Post_Scheduler {
                 <p class="fb-post-text-field">
                     <label for="fb_post_text_{{index}}"><?php _e('Tekst til Facebook-opslag:', 'fb-post-scheduler'); ?></label>
                     <?php if (get_option('fb_post_scheduler_ai_enabled', '')) : ?>
-                    <button type="button" class="button fb-generate-ai-text" data-index="{{index}}" data-post-id="<?php echo $post->ID; ?>">
-                        <span class="dashicons dashicons-google" style="vertical-align: text-top;"></span> 
-                        <?php _e('Generer tekst med Gemini AI', 'fb-post-scheduler'); ?>
-                    </button>
-                    <span class="spinner fb-ai-spinner" style="float: none; margin-top: 0;"></span>
+                    <?php fb_post_scheduler_render_ai_generate_button('{{index}}', $post->ID); ?>
                     <?php endif; ?>
                     <textarea id="fb_post_text_{{index}}" name="fb_posts[{{index}}][text]" class="widefat" rows="5" autocomplete="off"></textarea>
                     <span class="description"><?php _e('Skriv @[ og begynd at skrive et gemt side-navn (f.eks. @[Skoring) for at indsætte @[PAGE_ID]. Du kan også skrive @ + mindst 3 bogstaver for at søge offentlige Facebook-sider. Link til indlægget tilføjes automatisk.', 'fb-post-scheduler'); ?></span>
