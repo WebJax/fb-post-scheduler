@@ -14,6 +14,7 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 - **"Forny token" knap for nemt token management** 🆕
 - Automatisk tilføjelse af link til den originale indholdside
 - Vedhæft et specifikt billede til Facebook-opslaget
+- Hybrid forhåndsvisning af Facebook-linkkortet (`og:image`, titel og beskrivelse) med knappen “Tjek hos Facebook”
 - Planlæg flere Facebook-opslag til samme indhold
 - Kalenderoversigt over alle planlagte opslag (månedlig og ugentlig visning)
 - Kopier, flyt og slet opslag direkte i kalenderoversigten
@@ -90,9 +91,11 @@ For eksisterende opsætninger kan du forny dit page access token ved at:
 4. **Vælg destination**: Hvis du har konfigureret både en Facebook-side og en gruppe, vælg hvor opslaget skal deles 🆕
 5. Indtast teksten til Facebook-opslaget manuelt eller brug "Generer tekst med Gemini AI" knappen
 6. Vælg dato og tidspunkt for opslaget
-7. Vælg eventuelt et billede til opslaget
-8. Gem indlægget
-9. Tilføj flere opslag efter behov ved at klikke på "Tilføj endnu et opslag"
+7. Vælg eventuelt et billede til opslaget (bruges som link-preview via `og:image`; ellers bruges sidens aktuelle Open Graph-billede)
+8. Åbn **Forhåndsvisning af opslag** for at se det link-kort, Facebook forventes at vise. Kilde-labelen fortæller om billedet er valgt, kommer fra sidens `og:image` eller er udvalgt billede som fallback
+9. Brug **Tjek hos Facebook** for at læse Facebooks cache uden at ændre den. **Opdater Facebooks cache** tvinger et nyt scrape (kræver bekræftelse)
+10. Gem indlægget
+11. Tilføj flere opslag efter behov ved at klikke på "Tilføj endnu et opslag"
 
 ## AI-genererede Facebook-opslag
 Pluginet understøtter generering af Facebook-opslagstekst med Google Gemini 2.0 Flash AI. For at bruge denne funktion:
@@ -134,6 +137,16 @@ Facebook access tokens udløber regelmæssigt. Pluginet understøtter nu automat
 Gå til 'FB Opslag' > 'Indstillinger' > 'Facebook API Indstillinger' og brug de tilgængelige test-funktioner efter du har udfyldt alle felter.
 
 ## Nye funktioner
+
+### Hybrid Facebook-link-preview (1.1.7)
+Opslag postes som klikbare link-opslag. Previewen i metaboxen viser det kort, Facebook forventes at vise — ikke bare indlæggets udvalgte billede.
+
+Prioritet for preview-billedet:
+1. Det billede redaktøren har valgt til opslaget
+2. Sidens aktuelle `og:image` (parsed fra permalink eller SEO-plugin)
+3. Udvalgt billede som fallback
+
+Titel og beskrivelse kommer fra `og:title` og `og:description`. **Tjek hos Facebook** læser Facebooks cache via Graph API uden `scrape=true`. **Opdater Facebooks cache** tvinger et nyt scrape.
 
 ### Slet planlagte opslag fra admin listen
 Du kan nu slette planlagte opslag direkte fra listen over "Kommende Facebook-opslag" ved at klikke på den røde "Slet" knap. Dette giver hurtig adgang til at fjerne opslag uden at skulle redigere det originale indhold.

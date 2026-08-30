@@ -3,7 +3,7 @@ Contributors: jacobthygesen
 Tags: facebook, social media, scheduler, posts, automation
 Requires at least: 5.0
 Tested up to: 6.4
-Stable tag: 1.0.0
+Stable tag: 1.1.7
 Requires PHP: 7.0
 License: GPL2
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -20,7 +20,8 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 * **Fleksibel Post Type Support** - Vælg hvilke post types der skal kunne planlægge Facebook-opslag
 * **AI-genereret Indhold** - Automatisk tekstgenerering med Google Gemini AI
 * **Avanceret Planlægning** - Planlæg flere opslag til samme indhold
-* **Billede Support** - Vedhæft specifikke billeder til Facebook-opslag
+* **Billede Support** - Vedhæft specifikke billeder til Facebook-linkets forhåndsvisning
+* **Hybrid link-preview** - Se `og:image`, titel og beskrivelse og tjek Facebooks cache
 * **Kalender Oversigt** - Se alle planlagte opslag i månedlig og ugentlig visning
 * **Dashboard Widget** - Hurtig oversigt over kommende opslag
 * **Export Funktionalitet** - Eksporter planlagte opslag til CSV
@@ -33,7 +34,7 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 2. Vælg hvilke post types der skal kunne oprette Facebook-opslag
 3. Når du opretter eller redigerer indhold, tilføj Facebook-opslagstekst
 4. Planlæg dato og tidspunkt for opslaget
-5. Vælg eventuelt et billede til opslaget
+5. Vælg eventuelt et billede til link-previewen, og tjek forhåndsvisningen (eller Facebooks cache)
 6. Gem indlægget - opslaget postes automatisk på det planlagte tidspunkt
 
 = AI Integration =
@@ -92,6 +93,14 @@ Ja, du kan oprette flere Facebook-opslag til samme WordPress-indlæg med forskel
 
 == Changelog ==
 
+= 1.1.7 =
+* Hybrid forhåndsvisning af Facebook-linkkortet i metaboxen
+* Preview bruger valgt billede, ellers sidens og:image, ellers udvalgt billede
+* Titel og beskrivelse kommer fra Open Graph-tags, ikke kun WordPress-titlen
+* Ny knap “Tjek hos Facebook” læser Facebooks cache uden at scrape
+* “Opdater Facebooks cache” tvinger et nyt scrape efter bekræftelse
+* Ens preview-DOM for gemte og nytilføjede opslag, så billedskift virker live
+
 = 1.1.6 =
 * Gemte Facebook-sider (navn + Page ID) under Indstillinger
 * @[søgning] i opslagsteksten indsætter @[PAGE_ID] fra gemte sider
@@ -107,6 +116,9 @@ Ja, du kan oprette flere Facebook-opslag til samme WordPress-indlæg med forskel
 * Detaljeret logging
 
 == Upgrade Notice ==
+
+= 1.1.7 =
+Forhåndsvisningen i metaboxen viser nu det Facebook-linkkort, der ventes slået op (og:image, titel og beskrivelse), plus knapper til at tjekke eller opdatere Facebooks cache.
 
 = 1.0.0 =
 Første udgivelse af Facebook Post Scheduler. Ingen upgrades nødvendige.
