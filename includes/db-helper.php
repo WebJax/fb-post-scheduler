@@ -404,3 +404,154 @@ function fb_post_scheduler_migrate_from_post_type() {
     
     return $results;
 }
+
+/**
+ * Planlagte Facebook-opslag for ét indlæg, også når post meta mangler.
+ *
+ * @param int $post_id WordPress-indlægget.
+ * @return object[]
+ */
+function fb_post_scheduler_get_scheduled_rows_for_post($post_id) {
+    global $wpdb;
+    $table_name = fb_post_scheduler_get_table_name();
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM {$table_name} WHERE post_id = %d ORDER BY post_index ASC, scheduled_time ASC",
+        absint($post_id)
+    ));
+
+    return is_array($rows) ? $rows : array();
+}
+
+/**
+ * Om et meta-slot er den tomme standardrække og ikke et rigtigt opslag.
+ *
+ * @param mixed $slot
+ * @return bool
+ */
+function fb_post_scheduler_editor_slot_is_placeholder($slot) {
+    if (!is_array($slot)) {
+        return true;
+    }
+
+    $text = isset($slot['text']) ? trim((string) $slot['text']) : '';
+    $status = isset($slot['status']) ? (string) $slot['status'] : '';
+
+    if ($status === 'posted' || $text !== '') {
+        return false;
+    }
+
+    return empty($slot['enabled']);
+}
+
+/**
+ * @param array<int, mixed> $fb_posts
+ * @return bool
+ */
+function fb_post_scheduler_editor_posts_are_placeholders($fb_posts) {
+    foreach ($fb_posts as $slot) {
+        if (!fb_post_scheduler_editor_slot_is_placeholder($slot)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Byg et meta-slot ud fra en række i fb_scheduled_posts.
+ *
+ * @param object $row
+ * @return array<string, mixed>
+ */
+function fb_post_scheduler_editor_post_from_row($row) {
+    $status = isset($row->status) && $row->status !== '' ? (string) $row->status : 'scheduled';
+    if ($status === 'posting') {
+        $status = 'scheduled';
+    }
+
+    $date = isset($row->scheduled_time) ? (string) $row->scheduled_time : '';
+    if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $date)) {
+        $date .= ':00';
+    }
+
+    $slot = array(
+        'text' => isset($row->message) ? (string) $row->message : '',
+        'date' => $date,
+        'enabled' => $status !== 'posted',
+        'status' => $status,
+        'target_type' => 'page',
+    );
+
+    if (!empty($row->image_id)) {
+        $slot['image_id'] = (int) $row->image_id;
+    }
+
+    if ($status === 'posted' && !empty($row->fb_post_id)) {
+        $slot['fb_post_id'] = (string) $row->fb_post_id;
+    }
+
+    return $slot;
+}
+
+/**
+ * Opslag til meta-boksen. Database-rækker vises når _fb_posts er tom.
+ *
+ * @param int $post_id
+ * @return array<int, array<string, mixed>>
+ */
+function fb_post_scheduler_get_editor_posts($post_id) {
+    $post_id = absint($post_id);
+    $fb_posts = get_post_meta($post_id, '_fb_posts', true);
+    if (!is_array($fb_posts)) {
+        $fb_posts = array();
+    }
+
+    $rows = fb_post_scheduler_get_scheduled_rows_for_post($post_id);
+    $only_placeholders = ($fb_posts === array()) || fb_post_scheduler_editor_posts_are_placeholders($fb_posts);
+
+    if ($rows !== array() && $only_placeholders) {
+        $fb_posts = array();
+        foreach ($rows as $row) {
+            $fb_posts[(int) $row->post_index] = fb_post_scheduler_editor_post_from_row($row);
+        }
+        ksort($fb_posts);
+    } elseif ($rows !== array()) {
+        foreach ($rows as $row) {
+            $index = (int) $row->post_index;
+            if (!isset($fb_posts[$index]) || fb_post_scheduler_editor_slot_is_placeholder($fb_posts[$index])) {
+                $fb_posts[$index] = fb_post_scheduler_editor_post_from_row($row);
+            }
+        }
+        ksort($fb_posts);
+    }
+
+    if ($fb_posts === array()) {
+        $fb_posts = array(
+            array(
+                'text' => '',
+                'date' => date('Y-m-d H:i:s', strtotime('+1 day') ?: time()),
+                'enabled' => false,
+                'status' => 'scheduled',
+            ),
+        );
+    }
+
+    return $fb_posts;
+}
+
+/**
+ * Slet planlagte rækker, men behold opslag der allerede er postet.
+ *
+ * @param int $post_id
+ * @return int|false
+ */
+function fb_post_scheduler_delete_unposted_scheduled_posts($post_id) {
+    global $wpdb;
+    $table_name = fb_post_scheduler_get_table_name();
+
+    return $wpdb->query($wpdb->prepare(
+        "DELETE FROM {$table_name} WHERE post_id = %d AND status != %s",
+        absint($post_id),
+        'posted'
+    ));
+}

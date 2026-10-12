@@ -31,8 +31,15 @@ function fb_post_scheduler_get_events() {
     $month = isset($_POST['month']) ? intval($_POST['month']) : date('n');
     $view_type = isset($_POST['view_type']) ? sanitize_text_field($_POST['view_type']) : 'month';
     
+    $start_raw = isset($_POST['start_date']) ? sanitize_text_field(wp_unslash($_POST['start_date'])) : '';
+    $end_raw = isset($_POST['end_date']) ? sanitize_text_field(wp_unslash($_POST['end_date'])) : '';
+    $has_range = preg_match('/^\d{4}-\d{2}-\d{2}$/', $start_raw) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $end_raw);
+
     // Få første og sidste dag baseret på visningstype
-    if ($view_type === 'week') {
+    if ($has_range) {
+        $start_date = $start_raw . ' 00:00:00';
+        $end_date = $end_raw . ' 23:59:59';
+    } elseif ($view_type === 'week') {
         $week = isset($_POST['week']) ? intval($_POST['week']) : date('W');
         
         // Få dato for første dag i ugen
@@ -65,16 +72,20 @@ function fb_post_scheduler_get_events() {
             
             // Status (alle opslag i databasen er planlagte)
             $status = $post->status;
+            $image = fb_post_scheduler_get_event_image($linked_post_id, isset($post->image_id) ? (int) $post->image_id : 0, $post->post_title);
             
             $events[] = array(
                 'post_id' => $post->id, // ID i databasen
                 'linked_post_id' => $linked_post_id,
-                'title' => $post->post_title, // Gemt i databasen
+                'title' => wp_specialchars_decode((string) $post->post_title, ENT_QUOTES),
                 'date' => $date,
                 'time' => $time,
-                'text' => wp_trim_words($post->message, 15),
+                'text' => wp_specialchars_decode(wp_trim_words($post->message, 15), ENT_QUOTES),
+                'message' => wp_specialchars_decode((string) $post->message, ENT_QUOTES),
                 'status' => $status,
-                'url' => get_edit_post_link($linked_post_id, 'raw')
+                'url' => get_edit_post_link($linked_post_id, 'raw'),
+                'image_url' => $image['url'],
+                'image_alt' => wp_specialchars_decode($image['alt'], ENT_QUOTES)
             );
         }
     }
@@ -83,6 +94,45 @@ function fb_post_scheduler_get_events() {
     exit;
 }
 add_action('wp_ajax_fb_post_scheduler_get_events', 'fb_post_scheduler_get_events');
+
+/**
+ * Billede til et kalenderkort: udvalgt billede, ellers opslagets eget billede.
+ *
+ * @param int    $linked_post_id WordPress-indlægget opslaget peger på.
+ * @param int    $image_id       Vedhæftning gemt på det planlagte opslag.
+ * @param string $title          Titel bruges som alt-tekst når billedet ikke har en.
+ * @return array{url:string,alt:string}
+ */
+function fb_post_scheduler_get_event_image($linked_post_id, $image_id, $title) {
+    $attachment_id = 0;
+
+    if (!empty($linked_post_id)) {
+        $attachment_id = (int) get_post_thumbnail_id($linked_post_id);
+    }
+
+    if ($attachment_id <= 0 && $image_id > 0) {
+        $attachment_id = $image_id;
+    }
+
+    if ($attachment_id <= 0) {
+        return array(
+            'url' => '',
+            'alt' => ''
+        );
+    }
+
+    $src = wp_get_attachment_image_url($attachment_id, 'medium');
+    $alt = get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
+
+    if (!is_string($alt) || $alt === '') {
+        $alt = is_string($title) ? $title : '';
+    }
+
+    return array(
+        'url' => $src ? esc_url_raw($src) : '',
+        'alt' => $alt
+    );
+}
 
 /**
  * AJAX-handler til at generere AI-tekst til Facebook-opslag
@@ -192,8 +242,37 @@ function fb_post_scheduler_copy_post_ajax() {
     // Ny index er det næste nummer
     $new_index = $highest_index + 1;
     
-    // Kopier opslaget med en ny dato (1 dag frem)
-    $new_date = date('Y-m-d H:i:s', strtotime($original_post->scheduled_time . ' +1 day'));
+    // Kopier opslaget. Uden dato: én dag frem. Med dato: samme klokkeslæt på den dag (Shift-træk i kalenderen).
+    $target_date = isset($_POST['new_date']) ? sanitize_text_field(wp_unslash($_POST['new_date'])) : '';
+
+    if ($target_date !== '') {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $target_date)) {
+            wp_send_json_error(array(
+                'message' => __('Ugyldig dato format', 'fb-post-scheduler')
+            ));
+            exit;
+        }
+
+        $original_time = '12:00:00';
+        if (!empty($original_post->scheduled_time)) {
+            $original_datetime = date_create($original_post->scheduled_time);
+            if ($original_datetime instanceof DateTime) {
+                $original_time = $original_datetime->format('H:i:s');
+            }
+        }
+
+        $new_date = $target_date . ' ' . $original_time;
+        $new_timestamp = strtotime($new_date);
+
+        if ($new_timestamp !== false && $new_timestamp <= current_time('timestamp')) {
+            wp_send_json_error(array(
+                'message' => __('Du kan ikke kopiere et opslag til en dato i fortiden', 'fb-post-scheduler')
+            ));
+            exit;
+        }
+    } else {
+        $new_date = date('Y-m-d H:i:s', strtotime($original_post->scheduled_time . ' +1 day'));
+    }
     
     $fb_post_data = array(
         'text' => $original_post->message,
@@ -311,24 +390,27 @@ function fb_post_scheduler_move_post_ajax() {
         exit;
     }
     
-    // Hvis ingen tid er angivet, brug nuværende tid fra opslaget
-    if (empty($new_time)) {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'fb_scheduled_posts';
-        
-        $current_post = $wpdb->get_row($wpdb->prepare(
-            "SELECT scheduled_time FROM $table_name WHERE id = %d",
-            $id
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'fb_scheduled_posts';
+
+    $current_post = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM $table_name WHERE id = %d",
+        $id
+    ));
+
+    if (!$current_post) {
+        wp_send_json_error(array(
+            'message' => __('Opslaget blev ikke fundet', 'fb-post-scheduler')
         ));
-        
-        if ($current_post && $current_post->scheduled_time) {
-            // Udskift kun dato-delen, behold tiden
-            $current_datetime = new DateTime($current_post->scheduled_time);
-            $new_time = $current_datetime->format('H:i:s');
-        } else {
-            // Fallback til nuværende tid
-            $new_time = current_time('H:i:s');
-        }
+        exit;
+    }
+
+    // Hvis ingen tid er angivet, behold klokkeslættet og skift kun datoen.
+    if (empty($new_time)) {
+        $current_datetime = date_create($current_post->scheduled_time);
+        $new_time = $current_datetime instanceof DateTime
+            ? $current_datetime->format('H:i:s')
+            : current_time('H:i:s');
     } else {
         // Valider tid format (HH:MM eller HH:MM:SS)
         if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $new_time)) {
@@ -344,12 +426,25 @@ function fb_post_scheduler_move_post_ajax() {
         }
     }
     
-    // Opret ny datetime
+    // Opret ny datetime i webstedets tidszone. scheduled_time gemmes som lokal tid.
     $new_datetime = $new_date . ' ' . $new_time;
-    
-    // Valider at datoen ikke er i fortiden
-    $new_timestamp = strtotime($new_datetime);
-    if ($new_timestamp <= current_time('timestamp')) {
+    $timezone = wp_timezone();
+    $new_dt = date_create_immutable($new_datetime, $timezone);
+    $current_dt = ($current_post && !empty($current_post->scheduled_time))
+        ? date_create_immutable($current_post->scheduled_time, $timezone)
+        : false;
+    $now = new DateTimeImmutable('now', $timezone);
+
+    if (!$new_dt instanceof DateTimeImmutable) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig dato format', 'fb-post-scheduler')
+        ));
+        exit;
+    }
+
+    // Et opslag der stadig ligger i fremtiden må ikke trækkes til fortiden.
+    // Opslag der allerede er forfaldne kan flyttes frit, også til en ny fremtidig dag.
+    if ($new_dt <= $now && $current_dt instanceof DateTimeImmutable && $current_dt > $now) {
         wp_send_json_error(array(
             'message' => __('Du kan ikke flytte et opslag til en dato i fortiden', 'fb-post-scheduler')
         ));
@@ -357,12 +452,9 @@ function fb_post_scheduler_move_post_ajax() {
     }
     
     // Opdater opslaget i databasen
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'fb_scheduled_posts';
-    
     $result = $wpdb->update(
         $table_name,
-        array('scheduled_time' => $new_datetime),
+        array('scheduled_time' => $new_dt->format('Y-m-d H:i:s')),
         array('id' => $id),
         array('%s'),
         array('%d')
@@ -376,6 +468,8 @@ function fb_post_scheduler_move_post_ajax() {
         ));
         
         if ($updated_post) {
+            fb_post_scheduler_sync_moved_post_meta($updated_post, $new_dt->format('Y-m-d H:i:s'));
+
             wp_send_json_success(array(
                 'message' => __('Opslaget blev flyttet succesfuldt', 'fb-post-scheduler'),
                 'post' => array(
@@ -401,6 +495,139 @@ function fb_post_scheduler_move_post_ajax() {
     exit;
 }
 add_action('wp_ajax_fb_post_scheduler_move_post', 'fb_post_scheduler_move_post_ajax');
+
+/**
+ * AJAX-handler til at gemme tidspunkt og tekst for et opslag fra kalenderen.
+ */
+function fb_post_scheduler_update_schedule_ajax() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'fb-post-scheduler-calendar-nonce')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler')
+        ));
+    }
+
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler')
+        ));
+    }
+
+    $id = isset($_POST['id']) ? absint($_POST['id']) : 0;
+    $new_date = isset($_POST['new_date']) ? sanitize_text_field(wp_unslash($_POST['new_date'])) : '';
+    $new_time = isset($_POST['new_time']) ? sanitize_text_field(wp_unslash($_POST['new_time'])) : '';
+    $message = isset($_POST['message']) ? sanitize_textarea_field(wp_unslash($_POST['message'])) : '';
+
+    if (!$id || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $new_date) || !preg_match('/^\d{2}:\d{2}$/', $new_time)) {
+        wp_send_json_error(array(
+            'message' => __('Angiv en gyldig dato og et tidspunkt', 'fb-post-scheduler')
+        ));
+    }
+
+    if ($message === '') {
+        wp_send_json_error(array(
+            'message' => __('Skriv en tekst til opslaget', 'fb-post-scheduler')
+        ));
+    }
+
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'fb_scheduled_posts';
+    $current_post = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM $table_name WHERE id = %d",
+        $id
+    ));
+
+    if (!$current_post) {
+        wp_send_json_error(array(
+            'message' => __('Opslaget blev ikke fundet', 'fb-post-scheduler')
+        ));
+    }
+
+    if (in_array($current_post->status, array('posted', 'posting'), true)) {
+        wp_send_json_error(array(
+            'message' => __('Opslaget er allerede sendt og kan ikke ændres', 'fb-post-scheduler')
+        ));
+    }
+
+    $timezone = wp_timezone();
+    $new_dt = date_create_immutable($new_date . ' ' . $new_time . ':00', $timezone);
+    $current_dt = !empty($current_post->scheduled_time)
+        ? date_create_immutable($current_post->scheduled_time, $timezone)
+        : false;
+    $now = new DateTimeImmutable('now', $timezone);
+
+    if (!$new_dt instanceof DateTimeImmutable) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig dato format', 'fb-post-scheduler')
+        ));
+    }
+
+    if ($new_dt <= $now && $current_dt instanceof DateTimeImmutable && $current_dt > $now) {
+        wp_send_json_error(array(
+            'message' => __('Du kan ikke lægge et kommende opslag i fortiden', 'fb-post-scheduler')
+        ));
+    }
+
+    $scheduled_time = $new_dt->format('Y-m-d H:i:s');
+    $updated = $wpdb->update(
+        $table_name,
+        array(
+            'scheduled_time' => $scheduled_time,
+            'message' => $message,
+        ),
+        array('id' => $id),
+        array('%s', '%s'),
+        array('%d')
+    );
+
+    if ($updated === false) {
+        wp_send_json_error(array(
+            'message' => __('Opslaget kunne ikke gemmes. Prøv igen.', 'fb-post-scheduler')
+        ));
+    }
+
+    $current_post->scheduled_time = $scheduled_time;
+    $current_post->message = $message;
+    fb_post_scheduler_sync_moved_post_meta($current_post, $scheduled_time, $message);
+
+    wp_send_json_success(array(
+        'message' => __('Opslaget blev gemt', 'fb-post-scheduler'),
+        'scheduled_time' => $scheduled_time,
+        'time' => $new_dt->format('H:i'),
+        'date' => $new_dt->format('Y-m-d'),
+    ));
+}
+add_action('wp_ajax_fb_post_scheduler_update_schedule', 'fb_post_scheduler_update_schedule_ajax');
+
+/**
+ * Skriver den nye tid tilbage i indlæggets Facebook-meta, så cron bruger samme tid som kalenderen.
+ *
+ * @param object      $scheduled_post Række fra fb_scheduled_posts.
+ * @param string      $new_datetime   Lokal tid i Y-m-d H:i:s.
+ * @param string|null $message        Ny opslagstekst, eller null hvis teksten ikke skal ændres.
+ */
+function fb_post_scheduler_sync_moved_post_meta($scheduled_post, $new_datetime, $message = null) {
+    $post_id = isset($scheduled_post->post_id) ? (int) $scheduled_post->post_id : 0;
+    $post_index = isset($scheduled_post->post_index) ? (int) $scheduled_post->post_index : -1;
+
+    if ($post_id <= 0 || $post_index < 0) {
+        return;
+    }
+
+    $fb_posts = get_post_meta($post_id, '_fb_posts', true);
+    if (is_array($fb_posts) && isset($fb_posts[$post_index]) && is_array($fb_posts[$post_index])) {
+        $fb_posts[$post_index]['date'] = $new_datetime;
+        if (is_string($message)) {
+            $fb_posts[$post_index]['text'] = $message;
+        }
+        update_post_meta($post_id, '_fb_posts', $fb_posts);
+    }
+
+    $scheduled_times = get_post_meta($post_id, '_fb_scheduled_times', true);
+    if (is_array($scheduled_times) && array_key_exists($post_index, $scheduled_times)) {
+        $scheduled_times[$post_index] = $new_datetime;
+        update_post_meta($post_id, '_fb_scheduled_times', $scheduled_times);
+    }
+}
 
 /**
  * AJAX-handler til at slette et planlagt opslag fra admin listen

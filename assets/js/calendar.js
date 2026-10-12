@@ -5,9 +5,14 @@
     'use strict';
     
     // Globale variabler
-    var currentYear, currentMonth, currentWeek, currentView;
+    var currentYear, currentMonth, currentWeek, currentWeekStart, currentView;
     var initAttempts = 0;
     var maxAttempts = 50; // Try for 5 seconds (50 * 100ms)
+    var shiftHeld = false;
+    var draggedPostId = null;
+    var pendingPostId = null;
+    var hoveredDay = null;
+    var dropHandled = false;
     
     // Når dokumentet er klar
     $(document).ready(function() {
@@ -73,6 +78,7 @@
         var today = new Date();
         currentYear = today.getFullYear();
         currentMonth = today.getMonth();
+        currentWeekStart = startOfWeek(today);
         currentWeek = getWeekNumber(today);
         currentView = 'month'; // Standard visning
         
@@ -98,6 +104,7 @@
             var today = new Date();
             currentYear = today.getFullYear();
             currentMonth = today.getMonth();
+            currentWeekStart = startOfWeek(today);
             currentWeek = getWeekNumber(today);
             refreshCalendar();
         });
@@ -119,6 +126,84 @@
                 $(this).addClass('nav-tab-active').siblings().removeClass('nav-tab-active');
                 refreshCalendar();
             }
+        });
+
+        $(document).on('keydown.fbcalendarShift', function(e) {
+            if (e.key !== 'Shift') {
+                return;
+            }
+            shiftHeld = true;
+            if (currentView === 'week') {
+                $('.calendar-event.dragging').addClass('is-copy-drag');
+            }
+        });
+
+        $(document).on('keyup.fbcalendarShift', function(e) {
+            if (e.key !== 'Shift') {
+                return;
+            }
+            shiftHeld = false;
+            $('.calendar-event').removeClass('is-copy-drag');
+        });
+
+        $(document).on('click.fbcalendarMenu', function(e) {
+            if ($(e.target).closest('.calendar-event__menu, .calendar-event__menu-toggle').length) {
+                return;
+            }
+            closeEventMenus();
+        });
+
+        $(document).on('keydown.fbcalendarMenu', function(e) {
+            if (e.key !== 'Escape') {
+                return;
+            }
+            if (isScheduleDialogOpen()) {
+                e.preventDefault();
+                closeScheduleDialog();
+                return;
+            }
+            var $open = $('.calendar-event__menu.is-open');
+            if (!$open.length) {
+                return;
+            }
+            var $event = $open.data('originEvent');
+            closeEventMenus();
+            if ($event && $event.length) {
+                $event.find('.calendar-event__menu-toggle').trigger('focus');
+            }
+        });
+
+        $(window).on('scroll.fbcalendarMenu resize.fbcalendarMenu', closeEventMenus);
+
+        // Drop skal virke selv når markøren er over et barn af dagen.
+        $(document).on('dragover.fbcalendarRoot', function(e) {
+            if (!draggedPostId && !pendingPostId) {
+                return;
+            }
+            var $day = dayUnderPointer(e);
+            if ($day.length) {
+                e.preventDefault();
+                hoveredDay = $day[0];
+                markDropDay($day);
+                return;
+            }
+            hoveredDay = null;
+            markDropDay($());
+            if ($(e.target).closest('#fb-post-calendar').length) {
+                e.preventDefault();
+            }
+        });
+
+        $(document).on('drop.fbcalendarRoot', function(e) {
+            if (dropHandled || !(draggedPostId || pendingPostId)) {
+                return;
+            }
+            var $day = $(e.target).closest('.calendar-day');
+            if (!$day.length) {
+                return;
+            }
+            e.preventDefault();
+            handleCalendarDrop($day, e);
         });
     }
     
@@ -188,7 +273,7 @@
         var days;
         
         if (currentView === 'week') {
-            days = getDaysInWeek(currentYear, currentWeek);
+            days = getDaysInWeek();
         } else {
             days = getDaysInMonth(currentYear, currentMonth);
         }
@@ -203,7 +288,9 @@
                 year: currentYear,
                 month: currentMonth + 1, // API forventer 1-12, JS har 0-11
                 week: currentWeek,
-                view_type: currentView
+                view_type: currentView,
+                start_date: formatDate(days[0].date),
+                end_date: formatDate(days[days.length - 1].date)
             },
             success: function(response) {
                 if (response.success) {
@@ -232,7 +319,7 @@
         
         if (currentView === 'week') {
             // Få første og sidste dag i ugen
-            var firstDay = getFirstDayOfWeek(currentYear, currentWeek);
+            var firstDay = new Date(currentWeekStart.getTime());
             var lastDay = new Date(firstDay);
             lastDay.setDate(lastDay.getDate() + 6);
             
@@ -318,8 +405,8 @@
     /**
      * Få alle dage i en uge
      */
-    function getDaysInWeek(year, week) {
-        var firstDay = getFirstDayOfWeek(year, week);
+    function getDaysInWeek() {
+        var firstDay = new Date(currentWeekStart.getTime());
         var days = [];
         
         // Tilføj alle 7 dage i ugen
@@ -337,22 +424,14 @@
     }
     
     /**
-     * Få første dag i en uge
+     * Søndag i den uge datoen ligger i. Matcher kolonnerne, som starter med søndag.
      */
-    function getFirstDayOfWeek(year, week) {
-        var date = new Date(year, 0, 1);
-        var daysOffset = date.getDay(); // 0 = Søndag, 1 = Mandag, etc.
-        
-        // Find mandagen i første uge
-        var firstMonday = new Date(year, 0, (daysOffset <= 1) ? (2 - daysOffset) : (9 - daysOffset));
-        
-        if (week > 1) {
-            return new Date(firstMonday.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000);
-        }
-        
-        return firstMonday;
+    function startOfWeek(date) {
+        var d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        d.setDate(d.getDate() - d.getDay());
+        return d;
     }
-    
+
     /**
      * Få ugenummeret for en given dato
      */
@@ -373,11 +452,14 @@
         var today = new Date();
         today.setHours(0, 0, 0, 0);
         
+        closeEventMenus();
+
         // Skjul overflødige rækker i ugevisning
+        $('.calendar-grid').toggleClass('calendar-grid--week', currentView === 'week');
         if (currentView === 'week') {
-            $('.calendar-week').slice(1).hide();
+            $('.calendar-week').addClass('is-hidden').first().removeClass('is-hidden');
         } else {
-            $('.calendar-week').show();
+            $('.calendar-week').removeClass('is-hidden');
         }
         
         // Fjern tidligere indhold
@@ -420,55 +502,12 @@
                 // Tilføj hændelser for denne dag
                 var dayEvents = getEventsForDay(events, dayDate);
                 
-                dayEvents.forEach(function(event, eventIndex) {
-                    var $event = $('<div class="calendar-event draggable" data-post-id="' + event.post_id + '" data-id="' + event.post_id + '" draggable="true">' + 
-                        '<span class="drag-handle dashicons dashicons-move"></span>' +
-                        '<div class="event-title">' + event.title + '</div>' +
-                        '<div class="event-actions">' +
-                            '<button class="event-action event-edit" title="Rediger opslag"><span class="dashicons dashicons-edit"></span></button>' +
-                            '<button class="event-action event-copy" title="Kopier opslag"><span class="dashicons dashicons-admin-page"></span></button>' +
-                            '<button class="event-action event-delete" title="Slet opslag"><span class="dashicons dashicons-trash"></span></button>' +
-                        '</div>' +
-                    '</div>');
-                    
-                    // Tilføj tooltip med flere detaljer
-                    $event.attr('title', event.time + ' - ' + event.text);
-                    
-                    // Tilføj statusklasse
-                    if (event.status === 'posted') {
-                        $event.addClass('event-posted');
-                    }
-                    
-                    // Add event to events container
-                    $eventsContainer.append($event);
-                    
-                    // Håndter klik på titel for at redigere
-                    $event.find('.event-title').on('click', function(e) {
-                        e.stopPropagation();
-                        window.location.href = 'post.php?post=' + event.linked_post_id + '&action=edit';
-                    });
-                    
-                    // Håndter rediger knap
-                    $event.find('.event-edit').on('click', function(e) {
-                        e.stopPropagation();
-                        window.location.href = 'post.php?post=' + event.linked_post_id + '&action=edit';
-                    });
-                    
-                    // Håndter kopier knap
-                    $event.find('.event-copy').on('click', function(e) {
-                        e.stopPropagation();
-                        copyPost(event.post_id);
-                    });
-                    
-                    // Håndter slet knap
-                    $event.find('.event-delete').on('click', function(e) {
-                        e.stopPropagation();
-                        deletePost(event.post_id, event.title);
-                    });
+                dayEvents.forEach(function(event) {
+                    $eventsContainer.append(buildCalendarEvent(event));
                 });
                 
                 // Gør dagen til et drop-target
-                $day.attr('data-date', formatDate(dayDate));
+                $day.attr('data-date', formatDate(dayDate)).removeData('date');
                 setupDropTarget($day);
                 
             } catch (error) {
@@ -491,6 +530,15 @@
         
         // Setup drag start
         $(document).off('dragstart.fbcalendar').on('dragstart.fbcalendar', '.calendar-event[draggable="true"]', function(e) {
+            if ($(e.target).closest('button, .calendar-event__menu').length) {
+                e.preventDefault();
+                return;
+            }
+
+            closeEventMenus();
+            dropHandled = false;
+            draggedPostId = String($(this).attr('data-post-id') || '');
+            pendingPostId = draggedPostId;
             draggedElement = this;
             originalParent = $(this).parent();
             
@@ -505,12 +553,19 @@
             });
             $('body').append(dragPreview);
             
-            // Set drag image
-            e.originalEvent.dataTransfer.setDragImage(dragPreview[0], 0, 0);
-            
-            // Gem post data
-            var postId = $(this).data('post-id');
-            e.originalEvent.dataTransfer.setData('text/plain', postId);
+            // Gem id før drag-billedet. Nogle browsere dropper dataTransfer hvis setDragImage fejler.
+            e.originalEvent.dataTransfer.setData('text/plain', draggedPostId);
+            e.originalEvent.dataTransfer.effectAllowed = 'copyMove';
+            try {
+                e.originalEvent.dataTransfer.setDragImage(dragPreview[0], 0, 0);
+            } catch (dragImageError) {
+                dragPreview.remove();
+                dragPreview = null;
+            }
+
+            if (isShiftCopy(e)) {
+                $(this).addClass('is-copy-drag');
+            }
             
             // Tilføj visual feedback
             $(this).addClass('dragging');
@@ -520,21 +575,130 @@
             $('.calendar-day').addClass('drop-target');
         });
         
-        // Cleanup efter drag
+        // Cleanup efter drag. Hvis drop-eventet ikke fyrede, flyttes opslaget ud fra markørens position.
         $(document).off('dragend.fbcalendar').on('dragend.fbcalendar', '.calendar-event[draggable="true"]', function(e) {
-            // Fjern visual feedback
-            $('.calendar-event').removeClass('dragging drag-disabled');
+            var dayEl = hoveredDay;
+            var id = pendingPostId || draggedPostId;
+            var shift = shiftHeld || !!(e.originalEvent && e.originalEvent.shiftKey);
+            var releasedOnDay = pointerIsInside(dayEl, e);
+
+            $('.calendar-event').removeClass('dragging drag-disabled is-copy-drag');
             $('.calendar-day').removeClass('drop-target drag-over');
-            
-            // Fjern drag preview
+
             if (dragPreview) {
                 dragPreview.remove();
                 dragPreview = null;
             }
-            
+
             draggedElement = null;
             originalParent = null;
+
+            window.setTimeout(function() {
+                if (!dropHandled && releasedOnDay && id && dayEl && document.contains(dayEl)) {
+                    handleCalendarDrop($(dayEl), {
+                        originalEvent: {
+                            shiftKey: !!shift,
+                            dataTransfer: {
+                                getData: function() {
+                                    return String(id);
+                                }
+                            }
+                        }
+                    });
+                }
+                draggedPostId = null;
+                pendingPostId = null;
+                hoveredDay = null;
+                dropHandled = false;
+            }, 0);
         });
+    }
+
+    /**
+     * Markér den dag opslaget lander på, så datoen er synlig under træk.
+     */
+    function markDropDay($day) {
+        var $current = $('.calendar-day.drag-over');
+        if ($day && $day.length) {
+            $current.not($day).removeClass('drag-over');
+            $day.addClass('drag-over');
+            return;
+        }
+        $current.removeClass('drag-over');
+    }
+
+    /**
+     * Dagen under markøren. elementFromPoint bruges når dragover rammer selve kortet.
+     */
+    function dayUnderPointer(e) {
+        var nativeEvent = e && e.originalEvent ? e.originalEvent : e;
+        var $day = $(e.target).closest('.calendar-day');
+
+        if ((!$day.length || $day.find('.calendar-event.dragging').length) && nativeEvent && typeof nativeEvent.clientX === 'number') {
+            var under = document.elementFromPoint(nativeEvent.clientX, nativeEvent.clientY);
+            if (under && under.closest) {
+                var found = under.closest('.calendar-day');
+                if (found) {
+                    $day = $(found);
+                }
+            }
+        }
+
+        return $day;
+    }
+
+    /**
+     * Om musen blev sluppet inden for dagen.
+     */
+    function pointerIsInside(el, e) {
+        var nativeEvent = e && e.originalEvent ? e.originalEvent : e;
+        if (!el || !nativeEvent || typeof nativeEvent.clientX !== 'number') {
+            return false;
+        }
+        var rect = el.getBoundingClientRect();
+        return nativeEvent.clientX >= rect.left && nativeEvent.clientX < rect.right && nativeEvent.clientY >= rect.top && nativeEvent.clientY < rect.bottom;
+    }
+
+    /**
+     * Flyt eller kopiér det trukne opslag til dagen under markøren.
+     */
+    function handleCalendarDrop($day, e) {
+        if (dropHandled) {
+            return;
+        }
+        dropHandled = true;
+        $('.drag-preview').remove();
+
+        var postId = '';
+        if (e.originalEvent && e.originalEvent.dataTransfer) {
+            postId = e.originalEvent.dataTransfer.getData('text/plain');
+        }
+        if (!postId) {
+            postId = draggedPostId || pendingPostId;
+        }
+
+        var newDate = $day.attr('data-date');
+        var $draggedEvent = $('.calendar-event[data-post-id="' + postId + '"]').first();
+        var copying = isShiftCopy(e);
+
+        if (!postId || !newDate) {
+            $day.removeClass('drag-over');
+            showNotification('Opslaget kunne ikke flyttes. Prøv at trække i kortet igen.', 'error');
+            return;
+        }
+
+        var originalDate = $draggedEvent.closest('.calendar-day').attr('data-date');
+        if (originalDate === newDate && !copying) {
+            $day.removeClass('drag-over');
+            return;
+        }
+
+        if (copying) {
+            copyPostToDate(postId, newDate, $day);
+            return;
+        }
+
+        movePostToDate(postId, newDate, $draggedEvent, $day);
     }
     
     /**
@@ -546,13 +710,14 @@
         // Tillad drop
         $day.on('dragover.fbcalendar', function(e) {
             e.preventDefault();
-            e.originalEvent.dataTransfer.dropEffect = 'move';
+            e.originalEvent.dataTransfer.dropEffect = isShiftCopy(e) ? 'copy' : 'move';
         });
         
         // Visual feedback når man kommer ind over dagen
         $day.on('dragenter.fbcalendar', function(e) {
             e.preventDefault();
-            $(this).addClass('drag-over');
+            hoveredDay = this;
+            markDropDay($(this));
         });
         
         // Fjern visual feedback når man forlader dagen
@@ -570,20 +735,417 @@
         // Håndter drop
         $day.on('drop.fbcalendar', function(e) {
             e.preventDefault();
-            
-            var postId = e.originalEvent.dataTransfer.getData('text/plain');
-            var newDate = $(this).data('date');
-            var $draggedEvent = $('.calendar-event[data-post-id="' + postId + '"]');
-            
-            // Tjek om vi dropper på samme dag
-            var originalDate = $draggedEvent.closest('.calendar-day').data('date');
-            if (originalDate === newDate) {
-                $(this).removeClass('drag-over');
+            e.stopPropagation();
+            handleCalendarDrop($(this), e);
+        });
+    }
+
+    /**
+     * Shift under træk i ugevisning kopierer kortet i stedet for at flytte det.
+     */
+    function isShiftCopy(e) {
+        if (currentView !== 'week') {
+            return false;
+        }
+        var nativeEvent = e && e.originalEvent ? e.originalEvent : e;
+        return shiftHeld || !!(nativeEvent && nativeEvent.shiftKey);
+    }
+
+    /**
+     * Bygger et kalenderkort med udvalgt billede og handlingsmenu.
+     */
+    function buildCalendarEvent(event) {
+        var postId = parseInt(event.post_id, 10);
+        var linkedId = parseInt(event.linked_post_id, 10);
+        var title = event.title || '';
+        var time = event.time || '';
+        var imageUrl = event.image_url || '';
+        var imageAlt = event.image_alt || '';
+
+        if (imageAlt === title) {
+            imageAlt = '';
+        }
+
+        var $event = $('<div>', {
+            'class': 'calendar-event draggable',
+            title: (time ? time + ' – ' : '') + (event.text || title)
+        });
+        // wp-admin har jQuery UI, så { draggable: true } kalder .draggable() i stedet for HTML-attributten.
+        $event[0].setAttribute('draggable', 'true');
+        $event.attr('data-post-id', String(postId));
+        $event.attr('data-id', String(postId));
+        $event.attr('role', 'group');
+        $event.attr('aria-label', title + (time ? ', ' + time : ''));
+        $event.data('fbSchedule', {
+            date: event.date || '',
+            time: event.time || '',
+            message: event.message != null ? String(event.message) : (event.text || ''),
+            status: event.status || 'scheduled'
+        });
+
+        if (currentView === 'week') {
+            $event.addClass('calendar-event--week');
+        }
+
+        if (event.status === 'posted') {
+            $event.addClass('event-posted');
+        }
+
+        var $media = $('<div>', { 'class': 'calendar-event__media' });
+
+        if (imageUrl) {
+            var $image = $('<img>', {
+                'class': 'calendar-event__image',
+                src: imageUrl,
+                alt: imageAlt
+            });
+            $image[0].setAttribute('draggable', 'false');
+            $media.append($image);
+        } else {
+            $media.append(
+                $('<div>', {
+                    'class': 'calendar-event__image calendar-event__image--empty',
+                    'aria-hidden': 'true'
+                }).append($('<span>', {
+                    'class': 'dashicons dashicons-format-image',
+                    'aria-hidden': 'true'
+                }))
+            );
+        }
+
+        var $toggle = $('<button>', {
+            type: 'button',
+            'class': 'calendar-event__menu-toggle',
+            'aria-haspopup': 'menu',
+            'aria-expanded': 'false',
+            'aria-label': 'Handlinger for ' + title
+        }).append($('<span>', {
+            'class': 'dashicons dashicons-ellipsis',
+            'aria-hidden': 'true'
+        }));
+
+        var $menu = $('<div>', {
+            'class': 'calendar-event__menu',
+            role: 'menu',
+            hidden: true
+        });
+        $menu.append(buildMenuAction('event-edit', 'dashicons-edit', 'Rediger'));
+        $menu.append(buildMenuAction('event-schedule', 'dashicons-clock', 'Tid og tekst'));
+        $menu.append(buildMenuAction('event-copy', 'dashicons-admin-page', 'Kopier'));
+        $menu.append(buildMenuAction('event-delete', 'dashicons-trash', 'Slet'));
+        $media.append($toggle, $menu);
+
+        var $body = $('<div>', { 'class': 'calendar-event__body' });
+        $body.append($('<div>', { 'class': 'event-title', text: title }));
+
+        if (currentView === 'week') {
+            $body.append(
+                $('<div>', { 'class': 'calendar-event__time' })
+                    .append($('<span>', { 'class': 'dashicons dashicons-clock', 'aria-hidden': 'true' }))
+                    .append($('<span>', { text: time }))
+            );
+        }
+
+        $event.append($media, $body);
+
+        $toggle.on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var isOpen = $menu.hasClass('is-open');
+            closeEventMenus();
+            if (!isOpen) {
+                openEventMenu($event, $toggle, $menu);
+            }
+        });
+
+        var pressPoint = null;
+        $event.on('pointerdown', function(e) {
+            if (e.button !== 0) {
                 return;
             }
-            
-            // Flyt post via AJAX
-            movePostToDate(postId, newDate, $draggedEvent, $(this));
+            pressPoint = { x: e.clientX, y: e.clientY };
+        });
+
+        $event.find('.event-title').on('click', function(e) {
+            var moved = pressPoint && (Math.abs(e.clientX - pressPoint.x) > 4 || Math.abs(e.clientY - pressPoint.y) > 4);
+            if (moved || dropHandled) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            window.location.href = 'post.php?post=' + linkedId + '&action=edit';
+        });
+
+        $menu.find('.event-edit').on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeEventMenus();
+            window.location.href = 'post.php?post=' + linkedId + '&action=edit';
+        });
+
+        $menu.find('.event-schedule').on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeEventMenus();
+            openScheduleDialog($event, title);
+        });
+
+        $menu.find('.event-copy').on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeEventMenus();
+            copyPost(postId);
+        });
+
+        $menu.find('.event-delete').on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeEventMenus();
+            deletePost(postId, title);
+        });
+
+        return $event;
+    }
+
+    /**
+     * Menupunkt med ikon til venstre for titlen.
+     */
+    function buildMenuAction(actionClass, iconClass, label) {
+        return $('<button>', {
+            type: 'button',
+            'class': 'event-action ' + actionClass,
+            role: 'menuitem'
+        })
+            .append($('<span>', { 'class': 'dashicons ' + iconClass, 'aria-hidden': 'true' }))
+            .append($('<span>', { 'class': 'event-action__label', text: label }));
+    }
+
+    var scheduleDialog = null;
+    var scheduleDialogTrigger = null;
+
+    /**
+     * Om dialogen til tid og tekst er åben.
+     */
+    function isScheduleDialogOpen() {
+        return scheduleDialog && !scheduleDialog.prop('hidden');
+    }
+
+    /**
+     * Bygger dialogen én gang.
+     */
+    function ensureScheduleDialog() {
+        if (scheduleDialog) {
+            return scheduleDialog;
+        }
+
+        scheduleDialog = $('<div>', {
+            'class': 'fb-calendar-dialog',
+            role: 'dialog',
+            'aria-modal': 'true',
+            'aria-labelledby': 'fb-calendar-dialog-title',
+            hidden: true
+        });
+
+        var $backdrop = $('<div>', { 'class': 'fb-calendar-dialog__backdrop' });
+        var $panel = $('<div>', { 'class': 'fb-calendar-dialog__panel' });
+        $panel.append($('<h2>', { id: 'fb-calendar-dialog-title', text: 'Tid og tekst' }));
+        $panel.append($('<p>', { 'class': 'fb-calendar-dialog__subject' }));
+        $panel.append($('<p>', { 'class': 'fb-calendar-dialog__note', hidden: true }));
+
+        var $when = $('<div>', { 'class': 'fb-calendar-dialog__when' });
+        var $dateLabel = $('<label>', { text: 'Dato' });
+        $dateLabel.append($('<input>', { type: 'date', 'class': 'fb-calendar-dialog__date' }));
+        var $timeLabel = $('<label>', { text: 'Tidspunkt' });
+        $timeLabel.append($('<input>', { type: 'time', 'class': 'fb-calendar-dialog__time' }));
+        $when.append($dateLabel, $timeLabel);
+
+        var $textLabel = $('<label>', { 'class': 'fb-calendar-dialog__text-label', text: 'Opslagstekst' });
+        $textLabel.append($('<textarea>', { 'class': 'fb-calendar-dialog__text', rows: 8 }));
+
+        var $error = $('<p>', { 'class': 'fb-calendar-dialog__error', role: 'alert', hidden: true });
+        var $actions = $('<div>', { 'class': 'fb-calendar-dialog__actions' });
+        $actions.append($('<button>', { type: 'button', 'class': 'button button-primary fb-calendar-dialog__save', text: 'Gem' }));
+        $actions.append($('<button>', { type: 'button', 'class': 'button fb-calendar-dialog__cancel', text: 'Annuller' }));
+
+        $panel.append($when, $textLabel, $error, $actions);
+        scheduleDialog.append($backdrop, $panel);
+        $('body').append(scheduleDialog);
+
+        $backdrop.on('click', closeScheduleDialog);
+        scheduleDialog.find('.fb-calendar-dialog__cancel').on('click', closeScheduleDialog);
+        scheduleDialog.find('.fb-calendar-dialog__save').on('click', saveScheduleDialog);
+
+        return scheduleDialog;
+    }
+
+    /**
+     * Åbn popup med tidspunkt og opslagstekst.
+     */
+    function openScheduleDialog($event, title) {
+        var data = $event.data('fbSchedule') || {};
+        var $dialog = ensureScheduleDialog();
+        var locked = data.status === 'posted' || data.status === 'posting';
+
+        scheduleDialogTrigger = $event.find('.calendar-event__menu-toggle');
+        $dialog.data('postId', String($event.attr('data-post-id') || ''));
+        $dialog.find('.fb-calendar-dialog__subject').text(title || '');
+        $dialog.find('.fb-calendar-dialog__date').val(data.date || '').prop('disabled', locked);
+        $dialog.find('.fb-calendar-dialog__time').val(data.time || '').prop('disabled', locked);
+        $dialog.find('.fb-calendar-dialog__text').val(data.message || '').prop('disabled', locked);
+        $dialog.find('.fb-calendar-dialog__error').prop('hidden', true).text('');
+        $dialog.find('.fb-calendar-dialog__save').prop('hidden', locked).prop('disabled', false).text('Gem');
+        $dialog.find('.fb-calendar-dialog__note')
+            .prop('hidden', !locked)
+            .text('Opslaget er allerede sendt til Facebook og kan ikke ændres her.');
+        $dialog.prop('hidden', false);
+
+        var focusTarget = locked ? '.fb-calendar-dialog__cancel' : '.fb-calendar-dialog__time';
+        $dialog.find(focusTarget).trigger('focus');
+    }
+
+    /**
+     * Luk popup og læg fokus tilbage på kortets menu.
+     */
+    function closeScheduleDialog() {
+        if (!scheduleDialog) {
+            return;
+        }
+        scheduleDialog.prop('hidden', true);
+        scheduleDialog.removeData('postId');
+        if (scheduleDialogTrigger && scheduleDialogTrigger.length) {
+            scheduleDialogTrigger.trigger('focus');
+        }
+        scheduleDialogTrigger = null;
+    }
+
+    /**
+     * Gem tidspunkt og tekst for det åbne opslag.
+     */
+    function saveScheduleDialog() {
+        var $dialog = scheduleDialog;
+        if (!$dialog || $dialog.prop('hidden')) {
+            return;
+        }
+
+        var postId = $dialog.data('postId');
+        var newDate = $dialog.find('.fb-calendar-dialog__date').val();
+        var newTime = $dialog.find('.fb-calendar-dialog__time').val();
+        var message = $.trim($dialog.find('.fb-calendar-dialog__text').val());
+        var $error = $dialog.find('.fb-calendar-dialog__error');
+        var $save = $dialog.find('.fb-calendar-dialog__save');
+
+        if (!newDate || !newTime) {
+            $error.text('Angiv både dato og tidspunkt.').prop('hidden', false);
+            return;
+        }
+        if (!message) {
+            $error.text('Skriv en tekst til opslaget.').prop('hidden', false);
+            return;
+        }
+
+        $error.prop('hidden', true).text('');
+        $save.prop('disabled', true).text('Gemmer…');
+
+        $.ajax({
+            url: fbPostSchedulerData.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'fb_post_scheduler_update_schedule',
+                nonce: fbPostSchedulerData.nonce,
+                id: postId,
+                new_date: newDate,
+                new_time: newTime,
+                message: message
+            },
+            success: function(response) {
+                $save.prop('disabled', false).text('Gem');
+                if (!response.success) {
+                    var errorMsg = response.data && response.data.message ? response.data.message : 'Opslaget kunne ikke gemmes.';
+                    $error.text(errorMsg).prop('hidden', false);
+                    return;
+                }
+                closeScheduleDialog();
+                refreshCalendar();
+                showNotification(response.data && response.data.message ? response.data.message : 'Opslaget blev gemt', 'success');
+            },
+            error: function() {
+                $save.prop('disabled', false).text('Gem');
+                $error.text('Der opstod en fejl ved kommunikation med serveren. Prøv igen.').prop('hidden', false);
+            }
+        });
+    }
+
+    /**
+     * Åbner handlingsmenuen ud fra kortet, så tabelcellen ikke klipper den.
+     */
+    function openEventMenu($event, $toggle, $menu) {
+        $menu.data('originEvent', $event);
+        $('body').append($menu);
+        $menu.prop('hidden', false).addClass('is-open');
+        $toggle.attr('aria-expanded', 'true');
+        $menu.css({
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            right: 'auto',
+            width: 'max-content',
+            zIndex: 100000
+        });
+
+        var rect = $toggle[0].getBoundingClientRect();
+        var menuWidth = $menu.outerWidth();
+        var menuHeight = $menu.outerHeight();
+        var left = rect.right - menuWidth;
+        var top = rect.bottom + 4;
+
+        if (left < 8) {
+            left = 8;
+        }
+        if (left + menuWidth > window.innerWidth - 8) {
+            left = window.innerWidth - menuWidth - 8;
+        }
+        if (top + menuHeight > window.innerHeight - 8) {
+            top = Math.max(8, rect.top - menuHeight - 4);
+        }
+
+        $menu.css({
+            position: 'fixed',
+            top: top + 'px',
+            left: left + 'px',
+            right: 'auto',
+            zIndex: 100000
+        });
+
+        $menu.find('.event-action').first().trigger('focus');
+    }
+
+    /**
+     * Lukker åbne handlingsmenuer og lægger dem tilbage på kortet.
+     */
+    function closeEventMenus() {
+        $('.calendar-event__menu').each(function() {
+            var $menu = $(this);
+            var isPortaled = $menu.parent().is('body');
+            if (!$menu.hasClass('is-open') && !isPortaled) {
+                return;
+            }
+
+            var $event = $menu.data('originEvent');
+            $menu.prop('hidden', true).removeClass('is-open').css({
+                position: '',
+                top: '',
+                left: '',
+                right: '',
+                width: '',
+                zIndex: ''
+            });
+
+            if ($event && $event.length && document.body.contains($event[0])) {
+                $event.find('.calendar-event__menu-toggle').attr('aria-expanded', 'false');
+                $event.find('.calendar-event__media').append($menu);
+            } else if (isPortaled) {
+                $menu.remove();
+            }
         });
     }
     
@@ -659,22 +1221,28 @@
         $('.fb-notification').remove();
         
         var className = type === 'success' ? 'notice-success' : 'notice-error';
-        var $notification = $('<div class="notice ' + className + ' is-dismissible fb-notification">' +
-            '<p>' + message + '</p>' +
-            '<button type="button" class="notice-dismiss">' +
-                '<span class="screen-reader-text">Luk denne meddelelse.</span>' +
-            '</button>' +
-        '</div>');
+        var $notification = $('<div>', {
+            'class': 'notice ' + className + ' is-dismissible fb-notification'
+        });
+        $notification.append($('<p>', { text: message }));
+        $notification.append(
+            $('<button>', {
+                type: 'button',
+                'class': 'notice-dismiss',
+                'aria-label': 'Luk denne meddelelse'
+            })
+        );
         
         // Tilføj til toppen af kalenderen
         $('#fb-post-calendar').prepend($notification);
         
-        // Auto-hide efter 5 sekunder
-        setTimeout(function() {
-            $notification.fadeOut(function() {
-                $(this).remove();
-            });
-        }, 5000);
+        if (type === 'success') {
+            setTimeout(function() {
+                $notification.fadeOut(function() {
+                    $(this).remove();
+                });
+            }, 5000);
+        }
         
         // Håndter manuel lukning
         $notification.find('.notice-dismiss').on('click', function() {
@@ -726,17 +1294,11 @@
      */
     function changePeriod(direction) {
         if (currentView === 'week') {
-            currentWeek += direction;
-            
-            // Håndter årsskifte
-            var weeksInYear = getWeeksInYear(currentYear);
-            if (currentWeek < 1) {
-                currentYear--;
-                currentWeek = getWeeksInYear(currentYear);
-            } else if (currentWeek > weeksInYear) {
-                currentYear++;
-                currentWeek = 1;
-            }
+            currentWeekStart = new Date(currentWeekStart.getTime());
+            currentWeekStart.setDate(currentWeekStart.getDate() + (direction * 7));
+            currentYear = currentWeekStart.getFullYear();
+            currentMonth = currentWeekStart.getMonth();
+            currentWeek = getWeekNumber(currentWeekStart);
         } else {
             currentMonth += direction;
             
@@ -753,16 +1315,50 @@
     }
     
     /**
-     * Får antal uger i et år
+     * Kopierer et opslag til en valgt dag og beholder klokkeslættet.
      */
-    function getWeeksInYear(year) {
-        var lastDay = new Date(year, 11, 31);
-        var weekNumber = getWeekNumber(lastDay);
-        
-        // Hvis den sidste dag i året er i uge 1, så har året 52 uger
-        return weekNumber === 1 ? 52 : weekNumber;
+    function copyPostToDate(postId, newDate, $targetDay) {
+        $targetDay.removeClass('drag-over').addClass('drop-target');
+
+        $.ajax({
+            url: fbPostSchedulerData.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'fb_post_scheduler_copy_post',
+                nonce: fbPostSchedulerData.nonce,
+                id: postId,
+                new_date: newDate
+            },
+            success: function(response) {
+                if (response.success) {
+                    $targetDay.removeClass('drop-target').addClass('drop-success');
+                    setTimeout(function() {
+                        $targetDay.removeClass('drop-success');
+                    }, 1500);
+                    refreshCalendar();
+                    var message = response.data && response.data.message ?
+                        response.data.message : 'Opslaget blev kopieret succesfuldt!';
+                    showNotification(message, 'success');
+                } else {
+                    $targetDay.removeClass('drop-target').addClass('drop-error');
+                    setTimeout(function() {
+                        $targetDay.removeClass('drop-error');
+                    }, 1500);
+                    var errorMsg = response.data && response.data.message ?
+                        response.data.message : 'Der opstod en fejl ved kopiering af opslaget';
+                    showNotification('Fejl: ' + errorMsg, 'error');
+                }
+            },
+            error: function() {
+                $targetDay.removeClass('drop-target').addClass('drop-error');
+                setTimeout(function() {
+                    $targetDay.removeClass('drop-error');
+                }, 1500);
+                showNotification('Der opstod en fejl ved kommunikation med serveren. Prøv igen senere.', 'error');
+            }
+        });
     }
-    
+
     /**
      * Kopierer et post
      */

@@ -479,6 +479,25 @@ class FB_Post_Scheduler_API {
     }
     
     /**
+     * Graph API sætter expires_at til 0 når tokenet ikke udløber.
+     *
+     * @param mixed $expires_at
+     * @return int|null
+     */
+    private function normalize_expires_at($expires_at) {
+        if (!is_numeric($expires_at)) {
+            return null;
+        }
+
+        $expires_at = (int) $expires_at;
+        if ($expires_at <= 0) {
+            return null;
+        }
+
+        return $expires_at;
+    }
+
+    /**
      * Tjek om access token snart udløber
      * 
      * @return bool|WP_Error True hvis token snart udløber, false hvis ikke, WP_Error ved fejl
@@ -520,9 +539,9 @@ class FB_Post_Scheduler_API {
                 return new WP_Error('invalid_token', __('Access token er ugyldigt', 'fb-post-scheduler'));
             }
             
-            // Tjek udløbsdato
-            if (isset($token_data['expires_at'])) {
-                $expires_at = intval($token_data['expires_at']);
+            // Tjek udløbsdato. Graph API bruger 0 når et page token ikke udløber.
+            $expires_at = $this->normalize_expires_at(isset($token_data['expires_at']) ? $token_data['expires_at'] : null);
+            if ($expires_at !== null) {
                 $days_until_expiry = ($expires_at - time()) / (24 * 60 * 60);
                 
                 return array(
@@ -534,18 +553,17 @@ class FB_Post_Scheduler_API {
                     'user_id' => isset($token_data['user_id']) ? $token_data['user_id'] : null,
                     'scopes' => isset($token_data['scopes']) ? $token_data['scopes'] : array()
                 );
-            } else {
-                // Token udløber aldrig (long-term token)
-                return array(
-                    'expires_at' => null,
-                    'expires_date' => 'Aldrig',
-                    'days_until_expiry' => null,
-                    'expires_soon' => false,
-                    'app_id' => isset($token_data['app_id']) ? $token_data['app_id'] : null,
-                    'user_id' => isset($token_data['user_id']) ? $token_data['user_id'] : null,
-                    'scopes' => isset($token_data['scopes']) ? $token_data['scopes'] : array()
-                );
             }
+
+            return array(
+                'expires_at' => null,
+                'expires_date' => 'Aldrig',
+                'days_until_expiry' => null,
+                'expires_soon' => false,
+                'app_id' => isset($token_data['app_id']) ? $token_data['app_id'] : null,
+                'user_id' => isset($token_data['user_id']) ? $token_data['user_id'] : null,
+                'scopes' => isset($token_data['scopes']) ? $token_data['scopes'] : array()
+            );
         }
         
         return new WP_Error('no_data', __('Ingen token data modtaget', 'fb-post-scheduler'));
@@ -657,14 +675,9 @@ class FB_Post_Scheduler_API {
                 return new WP_Error('invalid_token', __('Page access token er ugyldigt', 'fb-post-scheduler'));
             }
             
-            // Page access tokens udløber normalt aldrig, men tjek hvis der er et udløb
-            if (isset($token_data['expires_at'])) {
-                $expires_at = intval($token_data['expires_at']);
-                $expires_date = date('Y-m-d H:i:s', $expires_at);
-            } else {
-                $expires_at = null;
-                $expires_date = 'Aldrig';
-            }
+            // Page access tokens udløber normalt aldrig. 0 fra Graph API betyder "udløber ikke".
+            $expires_at = $this->normalize_expires_at(isset($token_data['expires_at']) ? $token_data['expires_at'] : null);
+            $expires_date = $expires_at !== null ? date('Y-m-d H:i:s', $expires_at) : 'Aldrig';
             
             return array(
                 'access_token' => $page_access_token,
