@@ -1637,21 +1637,46 @@
 }
 
 /* Facebook App Setup Guide */
+.fb-settings-form {
+    margin-top: 1rem;
+}
+
 .fb-app-setup-guide {
     background: #fff;
-    border: 1px solid #ddd;
+    border: 1px solid #c3c4c7;
     border-radius: 4px;
-    padding: 20px;
-    margin: 15px 0 25px 0;
+    margin: 0 0 1.25rem;
+    max-width: 46rem;
+}
+
+.fb-app-setup-guide > summary {
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.75rem 1rem;
+}
+
+.fb-app-setup-guide > summary:hover {
+    color: #2271b1;
+}
+
+.fb-app-setup-guide > summary:focus {
+    outline: 2px solid #2271b1;
+    outline-offset: -2px;
+}
+
+.fb-app-setup-guide[open] > summary {
+    border-bottom: 1px solid #dcdcde;
 }
 
 .fb-setup-steps {
-    margin-top: 15px;
+    margin-top: 0;
+    padding: 1rem 1.25rem 0.25rem;
 }
 
 .fb-setup-step {
-    margin-bottom: 25px;
-    padding-bottom: 15px;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
     border-bottom: 1px solid #eee;
 }
 
@@ -1659,7 +1684,7 @@
     border-bottom: none;
 }
 
-.fb-setup-step h5 {
+.fb-setup-step h3 {
     color: #0073aa;
     font-size: 14px;
     font-weight: 600;

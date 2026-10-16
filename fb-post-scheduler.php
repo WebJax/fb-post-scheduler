@@ -506,17 +506,74 @@ class FB_Post_Scheduler {
     }
     
     /**
+     * Faner på indstillingssiden.
+     *
+     * Hver fane har sin egen indstillingsgruppe, så gemning af én fane
+     * ikke overskriver felter fra de andre.
+     *
+     * @return array<string, array{label: string, group: string, page: string}>
+     */
+    private function get_settings_tabs(): array {
+        return array(
+            'post-types' => array(
+                'label' => __('Post Types Indstillinger', 'fb-post-scheduler'),
+                'group' => 'fb_post_scheduler_post_types_settings',
+                'page'  => 'fb-post-scheduler-settings-post-types',
+            ),
+            'facebook' => array(
+                'label' => __('Facebook API Indstillinger', 'fb-post-scheduler'),
+                'group' => 'fb_post_scheduler_facebook_settings',
+                'page'  => 'fb-post-scheduler-settings-facebook',
+            ),
+            'ai' => array(
+                'label' => __('AI Tekst Generator Indstillinger', 'fb-post-scheduler'),
+                'group' => 'fb_post_scheduler_ai_settings',
+                'page'  => 'fb-post-scheduler-settings-ai',
+            ),
+            'notifications' => array(
+                'label' => __('Notifikationer', 'fb-post-scheduler'),
+                'group' => 'fb_post_scheduler_notification_settings',
+                'page'  => 'fb-post-scheduler-settings-notifications',
+            ),
+        );
+    }
+
+    /**
+     * Aktiv fane. Ukendte værdier falder tilbage til post types.
+     */
+    private function get_current_settings_tab(): string {
+        $tabs = $this->get_settings_tabs();
+        $requested = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : 'post-types';
+
+        return isset($tabs[$requested]) ? $requested : 'post-types';
+    }
+
+    /**
      * Indstillingsside indhold
      */
     public function settings_page_content(): void {
+        $tabs = $this->get_settings_tabs();
+        $current = $this->get_current_settings_tab();
+        $base_url = admin_url('admin.php?page=fb-post-scheduler-settings');
         ?>
         <div class="wrap">
             <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-            
-            <form method="post" action="options.php">
+            <?php settings_errors(); ?>
+
+            <nav class="nav-tab-wrapper" aria-label="<?php esc_attr_e('Indstillingsfaner', 'fb-post-scheduler'); ?>">
+                <?php foreach ($tabs as $slug => $tab) : ?>
+                    <a
+                        href="<?php echo esc_url(add_query_arg('tab', $slug, $base_url)); ?>"
+                        class="nav-tab<?php echo $current === $slug ? ' nav-tab-active' : ''; ?>"
+                        <?php echo $current === $slug ? 'aria-current="page"' : ''; ?>
+                    ><?php echo esc_html($tab['label']); ?></a>
+                <?php endforeach; ?>
+            </nav>
+
+            <form method="post" action="options.php" class="fb-settings-form">
                 <?php
-                settings_fields('fb_post_scheduler_settings');
-                do_settings_sections('fb-post-scheduler-settings');
+                settings_fields($tabs[$current]['group']);
+                do_settings_sections($tabs[$current]['page']);
                 submit_button();
                 ?>
             </form>
@@ -544,49 +601,43 @@ class FB_Post_Scheduler {
      * Registrer indstillinger
      */
     public function register_settings(): void {
+        $tabs = $this->get_settings_tabs();
+
         register_setting(
-            'fb_post_scheduler_settings',
+            $tabs['post-types']['group'],
             'fb_post_scheduler_post_types'
         );
-        
+
         register_setting(
-            'fb_post_scheduler_settings',
+            $tabs['facebook']['group'],
             'fb_post_scheduler_facebook_app_id'
         );
-        
+
         register_setting(
-            'fb_post_scheduler_settings',
+            $tabs['facebook']['group'],
             'fb_post_scheduler_facebook_app_secret'
         );
-        
+
         register_setting(
-            'fb_post_scheduler_settings',
+            $tabs['facebook']['group'],
             'fb_post_scheduler_facebook_page_id'
         );
-        
+
         register_setting(
-            'fb_post_scheduler_settings',
+            $tabs['facebook']['group'],
             'fb_post_scheduler_facebook_access_token'
         );
-        
+
+        // Bruger-token og sidenavn gemmes via AJAX og må ikke indgå i formularens
+        // indstillingsgruppe, ellers nulstilles de når Facebook-fanen gemmes.
+
         register_setting(
-            'fb_post_scheduler_settings',
-            'fb_post_scheduler_facebook_user_token'
-        );
-        
-        register_setting(
-            'fb_post_scheduler_settings',
-            'fb_post_scheduler_facebook_page_name'
-        );
-        
-        // AI Settings
-        register_setting(
-            'fb_post_scheduler_settings',
+            $tabs['ai']['group'],
             'fb_post_scheduler_ai_enabled'
         );
 
         register_setting(
-            'fb_post_scheduler_settings',
+            $tabs['ai']['group'],
             'fb_post_scheduler_ai_provider',
             array(
                 'type'              => 'string',
@@ -594,83 +645,83 @@ class FB_Post_Scheduler {
                 'default'           => 'ollama',
             )
         );
-        
+
         register_setting(
-            'fb_post_scheduler_settings',
+            $tabs['ai']['group'],
             'fb_post_scheduler_gemini_api_key'
         );
-        
+
         register_setting(
-            'fb_post_scheduler_settings',
+            $tabs['ai']['group'],
             'fb_post_scheduler_ai_prompt'
         );
-        
+
         add_settings_section(
             'fb_post_scheduler_post_types_section',
             __('Post Types Indstillinger', 'fb-post-scheduler'),
             array($this, 'post_types_section_callback'),
-            'fb-post-scheduler-settings'
+            $tabs['post-types']['page']
         );
-        
+
         add_settings_section(
             'fb_post_scheduler_facebook_section',
             __('Facebook API Indstillinger', 'fb-post-scheduler'),
             array($this, 'facebook_section_callback'),
-            'fb-post-scheduler-settings'
+            $tabs['facebook']['page']
         );
-        
+
         add_settings_section(
             'fb_post_scheduler_ai_section',
             __('AI Tekst Generator Indstillinger', 'fb-post-scheduler'),
             array($this, 'ai_section_callback'),
-            'fb-post-scheduler-settings'
+            $tabs['ai']['page']
         );
-        
+
         add_settings_field(
             'fb_post_scheduler_post_types',
             __('Vælg Post Types', 'fb-post-scheduler'),
             array($this, 'post_types_field_callback'),
-            'fb-post-scheduler-settings',
+            $tabs['post-types']['page'],
             'fb_post_scheduler_post_types_section'
         );
-        
+
         add_settings_field(
             'fb_post_scheduler_facebook_app_id',
             __('Facebook App ID', 'fb-post-scheduler'),
             array($this, 'facebook_app_id_callback'),
-            'fb-post-scheduler-settings',
+            $tabs['facebook']['page'],
             'fb_post_scheduler_facebook_section'
         );
-        
+
         add_settings_field(
             'fb_post_scheduler_facebook_app_secret',
             __('Facebook App Secret', 'fb-post-scheduler'),
             array($this, 'facebook_app_secret_callback'),
-            'fb-post-scheduler-settings',
+            $tabs['facebook']['page'],
             'fb_post_scheduler_facebook_section'
         );
-        
+
         add_settings_field(
             'fb_post_scheduler_facebook_page_id',
             __('Facebook Side ID', 'fb-post-scheduler'),
             array($this, 'facebook_page_id_callback'),
-            'fb-post-scheduler-settings',
+            $tabs['facebook']['page'],
             'fb_post_scheduler_facebook_section'
         );
-        
+
         add_settings_field(
             'fb_post_scheduler_facebook_page_selector',
             __('Vælg Facebook Side', 'fb-post-scheduler'),
             array($this, 'facebook_page_selector_callback'),
-            'fb-post-scheduler-settings',
+            $tabs['facebook']['page'],
             'fb_post_scheduler_facebook_section'
         );
-        
+
         add_settings_field(
             'fb_post_scheduler_facebook_group_selector',
             __('Vælg Facebook Gruppe', 'fb-post-scheduler'),
             array($this, 'facebook_group_selector_callback'),
-            'fb-post-scheduler-settings',
+            $tabs['facebook']['page'],
             'fb_post_scheduler_facebook_section'
         );
 
@@ -678,23 +729,23 @@ class FB_Post_Scheduler {
             'fb_post_scheduler_saved_mention_pages',
             __('Gemte sider til @-tags', 'fb-post-scheduler'),
             array($this, 'saved_mention_pages_callback'),
-            'fb-post-scheduler-settings',
+            $tabs['facebook']['page'],
             'fb_post_scheduler_facebook_section'
         );
-        
+
         add_settings_field(
             'fb_post_scheduler_facebook_access_token',
             __('Facebook Access Token', 'fb-post-scheduler'),
             array($this, 'facebook_access_token_callback'),
-            'fb-post-scheduler-settings',
+            $tabs['facebook']['page'],
             'fb_post_scheduler_facebook_section'
         );
-        
+
         add_settings_field(
             'fb_post_scheduler_ai_enabled',
             __('Aktivér AI tekstgenerering', 'fb-post-scheduler'),
             array($this, 'ai_enabled_callback'),
-            'fb-post-scheduler-settings',
+            $tabs['ai']['page'],
             'fb_post_scheduler_ai_section'
         );
 
@@ -702,28 +753,28 @@ class FB_Post_Scheduler {
             'fb_post_scheduler_ai_provider',
             __('AI-provider', 'fb-post-scheduler'),
             array($this, 'ai_provider_callback'),
-            'fb-post-scheduler-settings',
+            $tabs['ai']['page'],
             'fb_post_scheduler_ai_section'
         );
-        
+
         add_settings_field(
             'fb_post_scheduler_gemini_api_key',
             __('Google Gemini API Nøgle', 'fb-post-scheduler'),
             array($this, 'gemini_api_key_callback'),
-            'fb-post-scheduler-settings',
+            $tabs['ai']['page'],
             'fb_post_scheduler_ai_section'
         );
-        
+
         add_settings_field(
             'fb_post_scheduler_ai_prompt',
             __('AI Prompt Skabelon', 'fb-post-scheduler'),
             array($this, 'ai_prompt_callback'),
-            'fb-post-scheduler-settings',
+            $tabs['ai']['page'],
             'fb_post_scheduler_ai_section'
         );
 
         register_setting(
-            'fb_post_scheduler_settings',
+            $tabs['notifications']['group'],
             'fb_post_scheduler_notification_email_enabled',
             array(
                 'type' => 'string',
@@ -733,7 +784,7 @@ class FB_Post_Scheduler {
         );
 
         register_setting(
-            'fb_post_scheduler_settings',
+            $tabs['notifications']['group'],
             'fb_post_scheduler_notification_email_address',
             array(
                 'type' => 'string',
@@ -746,14 +797,14 @@ class FB_Post_Scheduler {
             'fb_post_scheduler_notification_section',
             __('Notifikationer', 'fb-post-scheduler'),
             array($this, 'notification_section_callback'),
-            'fb-post-scheduler-settings'
+            $tabs['notifications']['page']
         );
 
         add_settings_field(
             'fb_post_scheduler_notification_email_enabled',
             __('Opsummering på mail', 'fb-post-scheduler'),
             array($this, 'notification_email_enabled_callback'),
-            'fb-post-scheduler-settings',
+            $tabs['notifications']['page'],
             'fb_post_scheduler_notification_section'
         );
 
@@ -761,7 +812,7 @@ class FB_Post_Scheduler {
             'fb_post_scheduler_notification_email_address',
             __('Mailadresse', 'fb-post-scheduler'),
             array($this, 'notification_email_address_callback'),
-            'fb-post-scheduler-settings',
+            $tabs['notifications']['page'],
             'fb_post_scheduler_notification_section'
         );
     }
@@ -777,54 +828,66 @@ class FB_Post_Scheduler {
      * Facebook sektion callback
      */
     public function facebook_section_callback(): void {
-        echo '<div class="fb-app-setup-guide">';
-        echo '<h4>' . __('Facebook App Setup Guide', 'fb-post-scheduler') . '</h4>';
+        $allowed_link = array(
+            'a' => array(
+                'href'   => array(),
+                'target' => array(),
+                'rel'    => array(),
+            ),
+        );
+
+        echo '<details class="fb-app-setup-guide">';
+        echo '<summary>' . esc_html__('Opsætningsguide til Facebook', 'fb-post-scheduler') . '</summary>';
         echo '<div class="fb-setup-steps">';
-        
+
         echo '<div class="fb-setup-step">';
-        echo '<h5>1. ' . __('Opret Facebook App', 'fb-post-scheduler') . '</h5>';
-        echo '<p>' . sprintf(
-            __('Gå til <a href="%s" target="_blank">Facebook for Developers</a> og opret en ny app af typen "Business".', 'fb-post-scheduler'),
-            'https://developers.facebook.com/apps/'
+        echo '<h3>1. ' . esc_html__('Opret Facebook App', 'fb-post-scheduler') . '</h3>';
+        echo '<p>' . wp_kses(
+            sprintf(
+                /* translators: %s: URL to Facebook for Developers */
+                __('Gå til <a href="%s" target="_blank" rel="noopener noreferrer">Facebook for Developers</a> og opret en ny app af typen "Business".', 'fb-post-scheduler'),
+                esc_url('https://developers.facebook.com/apps/')
+            ),
+            $allowed_link
         ) . '</p>';
         echo '</div>';
-        
+
         echo '<div class="fb-setup-step">';
-        echo '<h5>2. ' . __('Tilføj nødvendige produkter', 'fb-post-scheduler') . '</h5>';
-        echo '<p>' . __('Tilføj følgende produkter til din app:', 'fb-post-scheduler') . '</p>';
+        echo '<h3>2. ' . esc_html__('Tilføj nødvendige produkter', 'fb-post-scheduler') . '</h3>';
+        echo '<p>' . esc_html__('Tilføj følgende produkter til din app:', 'fb-post-scheduler') . '</p>';
         echo '<ul>';
-        echo '<li><strong>Facebook Login</strong> - til brugerautorisering</li>';
-        echo '<li><strong>Instagram Basic Display</strong> - til Instagram integration</li>';
-        echo '<li><strong>Business Manager API</strong> - til virksomhedssider</li>';
+        echo '<li><strong>Facebook Login</strong> — ' . esc_html__('til brugerautorisering', 'fb-post-scheduler') . '</li>';
+        echo '<li><strong>Instagram Basic Display</strong> — ' . esc_html__('til Instagram integration', 'fb-post-scheduler') . '</li>';
+        echo '<li><strong>Business Manager API</strong> — ' . esc_html__('til virksomhedssider', 'fb-post-scheduler') . '</li>';
         echo '</ul>';
         echo '</div>';
-        
+
         echo '<div class="fb-setup-step">';
-        echo '<h5>3. ' . __('Anmod om app-rettigheder', 'fb-post-scheduler') . '</h5>';
-        echo '<p>' . __('Din app skal have følgende rettigheder for at virke korrekt:', 'fb-post-scheduler') . '</p>';
+        echo '<h3>3. ' . esc_html__('Anmod om app-rettigheder', 'fb-post-scheduler') . '</h3>';
+        echo '<p>' . esc_html__('Din app skal have følgende rettigheder for at virke korrekt:', 'fb-post-scheduler') . '</p>';
         echo '<ul class="fb-permissions-list">';
-        echo '<li><code>pages_show_list</code> - Se liste over sider</li>';
-        echo '<li><code>business_management</code> - Administrer virksomhedskonti</li>';
-        echo '<li><code>instagram_basic</code> - Grundlæggende Instagram adgang</li>';
-        echo '<li><code>instagram_content_publish</code> - Udgiv Instagram indhold</li>';
-        echo '<li><code>pages_read_engagement</code> - Læs side-engagement</li>';
-        echo '<li><code>pages_manage_metadata</code> - Administrer side-metadata</li>';
-        echo '<li><code>pages_read_user_content</code> - Læs brugerindhold på siden</li>';
-        echo '<li><code>pages_manage_posts</code> - Administrer opslag på siden</li>';
-        echo '<li><code>pages_manage_engagement</code> - Administrer side-engagement</li>';
+        echo '<li><code>pages_show_list</code> — ' . esc_html__('Se liste over sider', 'fb-post-scheduler') . '</li>';
+        echo '<li><code>business_management</code> — ' . esc_html__('Administrer virksomhedskonti', 'fb-post-scheduler') . '</li>';
+        echo '<li><code>instagram_basic</code> — ' . esc_html__('Grundlæggende Instagram adgang', 'fb-post-scheduler') . '</li>';
+        echo '<li><code>instagram_content_publish</code> — ' . esc_html__('Udgiv Instagram indhold', 'fb-post-scheduler') . '</li>';
+        echo '<li><code>pages_read_engagement</code> — ' . esc_html__('Læs side-engagement', 'fb-post-scheduler') . '</li>';
+        echo '<li><code>pages_manage_metadata</code> — ' . esc_html__('Administrer side-metadata', 'fb-post-scheduler') . '</li>';
+        echo '<li><code>pages_read_user_content</code> — ' . esc_html__('Læs brugerindhold på siden', 'fb-post-scheduler') . '</li>';
+        echo '<li><code>pages_manage_posts</code> — ' . esc_html__('Administrer opslag på siden', 'fb-post-scheduler') . '</li>';
+        echo '<li><code>pages_manage_engagement</code> — ' . esc_html__('Administrer side-engagement', 'fb-post-scheduler') . '</li>';
         echo '</ul>';
-        echo '<p><em>' . __('Bemærk: Nogle af disse rettigheder kræver app-gennemgang fra Facebook.', 'fb-post-scheduler') . '</em></p>';
+        echo '<p><em>' . esc_html__('Bemærk: Nogle af disse rettigheder kræver app-gennemgang fra Facebook.', 'fb-post-scheduler') . '</em></p>';
         echo '</div>';
-        
+
         echo '<div class="fb-setup-step">';
-        echo '<h5>4. ' . __('Hent App ID og App Secret', 'fb-post-scheduler') . '</h5>';
-        echo '<p>' . __('Find App ID og App Secret i din apps "Basic Settings" sektion og indtast dem nedenfor.', 'fb-post-scheduler') . '</p>';
+        echo '<h3>4. ' . esc_html__('Hent App ID og App Secret', 'fb-post-scheduler') . '</h3>';
+        echo '<p>' . esc_html__('Find App ID og App Secret i din apps "Basic Settings" sektion og indtast dem nedenfor.', 'fb-post-scheduler') . '</p>';
         echo '</div>';
-        
+
         echo '</div>';
-        echo '</div>';
-        
-        echo '<p><strong>' . __('Indtast dine Facebook API-oplysninger for at aktivere automatisk opslag til Facebook.', 'fb-post-scheduler') . '</strong></p>';
+        echo '</details>';
+
+        echo '<p><strong>' . esc_html__('Indtast dine Facebook API-oplysninger for at aktivere automatisk opslag til Facebook.', 'fb-post-scheduler') . '</strong></p>';
     }
     
     /**
