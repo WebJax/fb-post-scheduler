@@ -3,7 +3,7 @@
  * Plugin Name: Facebook Post Scheduler
  * Plugin URI: https://jaxweb.dk/fb-post-scheduler
  * Description: Planlæg og administrer Facebook-opslag direkte fra WordPress med automatisk link til indholdet, AI-tekst generering, og avanceret administration
- * Version: 1.2.5
+ * Version: 1.2.7
  * Author: Jacob Thygesen
  * Author URI: https://jaxweb.dk
  * License: GPL2
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 // Definér konstanter
 define('FB_POST_SCHEDULER_PATH', plugin_dir_path(__FILE__));
 define('FB_POST_SCHEDULER_URL', plugin_dir_url(__FILE__));
-define('FB_POST_SCHEDULER_VERSION', '1.2.5');
+define('FB_POST_SCHEDULER_VERSION', '1.2.7');
 
 // Inkluder nødvendige filer
 require_once FB_POST_SCHEDULER_PATH . 'includes/ajax-handlers.php';
@@ -721,6 +721,49 @@ class FB_Post_Scheduler {
             'fb-post-scheduler-settings',
             'fb_post_scheduler_ai_section'
         );
+
+        register_setting(
+            'fb_post_scheduler_settings',
+            'fb_post_scheduler_notification_email_enabled',
+            array(
+                'type' => 'string',
+                'sanitize_callback' => array($this, 'sanitize_notification_toggle'),
+                'default' => '1',
+            )
+        );
+
+        register_setting(
+            'fb_post_scheduler_settings',
+            'fb_post_scheduler_notification_email_address',
+            array(
+                'type' => 'string',
+                'sanitize_callback' => array($this, 'sanitize_notification_email'),
+                'default' => '',
+            )
+        );
+
+        add_settings_section(
+            'fb_post_scheduler_notification_section',
+            __('Notifikationer', 'fb-post-scheduler'),
+            array($this, 'notification_section_callback'),
+            'fb-post-scheduler-settings'
+        );
+
+        add_settings_field(
+            'fb_post_scheduler_notification_email_enabled',
+            __('Opsummering på mail', 'fb-post-scheduler'),
+            array($this, 'notification_email_enabled_callback'),
+            'fb-post-scheduler-settings',
+            'fb_post_scheduler_notification_section'
+        );
+
+        add_settings_field(
+            'fb_post_scheduler_notification_email_address',
+            __('Mailadresse', 'fb-post-scheduler'),
+            array($this, 'notification_email_address_callback'),
+            'fb-post-scheduler-settings',
+            'fb_post_scheduler_notification_section'
+        );
     }
     
     /**
@@ -789,6 +832,52 @@ class FB_Post_Scheduler {
      */
     public function ai_section_callback(): void {
         echo '<p>' . __('Konfigurer automatisk generering af Facebook-opslagstekst. Brug Ollama lokalt eller Google Gemini i skyen.', 'fb-post-scheduler') . '</p>';
+    }
+
+    /**
+     * Notifikationssektion.
+     */
+    public function notification_section_callback(): void {
+        echo '<p>' . esc_html__('Send én mail, når Facebook-opslag postes eller fejler. Flere resultater i samme kørsel samles i samme mail.', 'fb-post-scheduler') . '</p>';
+    }
+
+    /**
+     * Slå opsummeringsmail til eller fra.
+     */
+    public function notification_email_enabled_callback(): void {
+        $enabled = get_option('fb_post_scheduler_notification_email_enabled', '1');
+        echo '<input type="hidden" name="fb_post_scheduler_notification_email_enabled" value="0">';
+        echo '<label><input type="checkbox" name="fb_post_scheduler_notification_email_enabled" value="1" ' . checked('1', $enabled, false) . '> ';
+        echo esc_html__('Send opsummering, når et opslag postes eller fejler', 'fb-post-scheduler');
+        echo '</label>';
+    }
+
+    /**
+     * Modtager af opsummeringsmailen.
+     */
+    public function notification_email_address_callback(): void {
+        $address = get_option('fb_post_scheduler_notification_email_address', '');
+        echo '<input type="email" name="fb_post_scheduler_notification_email_address" value="' . esc_attr($address) . '" class="regular-text" placeholder="' . esc_attr(get_option('admin_email')) . '">';
+        echo '<p class="description">' . esc_html__('Tomt felt bruger webstedets administrator-mail.', 'fb-post-scheduler') . '</p>';
+    }
+
+    /**
+     * Gem afkrydsning som 1 eller 0.
+     *
+     * @param mixed $value Indsendt værdi.
+     */
+    public function sanitize_notification_toggle($value): string {
+        return ((string) $value === '1') ? '1' : '0';
+    }
+
+    /**
+     * Gem kun en gyldig mailadresse.
+     *
+     * @param mixed $value Indsendt værdi.
+     */
+    public function sanitize_notification_email($value): string {
+        $email = sanitize_email((string) $value);
+        return is_email($email) ? $email : '';
     }
     
     /**
@@ -1867,6 +1956,8 @@ class FB_Post_Scheduler {
                                     // Database record mangler - log advarsel
                                     fb_post_scheduler_log('ADVARSEL: Database record mangler for post_id=' . $post_id . ', index=' . $index . '. Kan ikke opdatere status.', $post_id);
                                 }
+
+                                fb_post_scheduler_notify_result($post_id, 'error', $result->get_error_message(), $index);
                             } else {
                                 // Opdater database status til posted
                                 $db_check = $wpdb->get_row($wpdb->prepare(
@@ -1900,6 +1991,13 @@ class FB_Post_Scheduler {
                                 );
                                 
                                 fb_post_scheduler_log('Opslag blev postet til Facebook. Post ID: ' . (isset($result['id']) ? $result['id'] : 'N/A'), $post_id);
+
+                                fb_post_scheduler_notify_result(
+                                    $post_id,
+                                    'success',
+                                    __('Opslaget blev postet til Facebook.', 'fb-post-scheduler'),
+                                    $index
+                                );
                                 
                                 // Opret notifikation
                                 do_action('fb_post_scheduler_post_success', $post_id, $fb_post, $index);
@@ -2570,15 +2668,100 @@ function fb_post_scheduler_resolve_image_id($post_id, $image_id = 0) {
 }
 
 /**
+ * Prøv et fejlet opslag igen med det samme.
+ *
+ * @param int $post_id WordPress post ID.
+ * @param int $post_index Indeks i _fb_posts.
+ * @return true|WP_Error
+ */
+function fb_post_scheduler_retry_failed_post($post_id, $post_index) {
+    $post_id = absint($post_id);
+    $post_index = absint($post_index);
+    $fb_posts = get_post_meta($post_id, '_fb_posts', true);
+
+    if (!is_array($fb_posts) || !isset($fb_posts[$post_index]) || !is_array($fb_posts[$post_index])) {
+        return new WP_Error(
+            'fb_retry_missing',
+            __('Opslaget kan ikke prøves igen, fordi det ikke findes på indholdet længere.', 'fb-post-scheduler')
+        );
+    }
+
+    $fb_post = $fb_posts[$post_index];
+    if (isset($fb_post['status']) && $fb_post['status'] === 'posted') {
+        return new WP_Error(
+            'fb_retry_posted',
+            __('Opslaget er allerede postet til Facebook.', 'fb-post-scheduler')
+        );
+    }
+
+    global $wpdb;
+    $table_name = fb_post_scheduler_get_table_name();
+    $row = $wpdb->get_row($wpdb->prepare(
+        "SELECT id, status, message FROM {$table_name} WHERE post_id = %d AND post_index = %d",
+        $post_id,
+        $post_index
+    ));
+
+    if ($row && $row->status === 'posted') {
+        return new WP_Error(
+            'fb_retry_posted',
+            __('Opslaget er allerede postet til Facebook.', 'fb-post-scheduler')
+        );
+    }
+
+    $text = isset($fb_post['text']) ? $fb_post['text'] : '';
+    if ($text === '' && $row && !empty($row->message)) {
+        $text = $row->message;
+    }
+    if ($text === '') {
+        return new WP_Error(
+            'fb_retry_missing',
+            __('Opslaget kan ikke prøves igen, fordi teksten ikke findes på indholdet længere.', 'fb-post-scheduler')
+        );
+    }
+
+    $image_id = isset($fb_post['image_id']) ? absint($fb_post['image_id']) : 0;
+    $target_type = isset($fb_post['target_type']) ? $fb_post['target_type'] : 'page';
+    $ok = fb_post_scheduler_post_to_facebook($post_id, $text, $image_id, $target_type, $post_index);
+
+    if ($ok) {
+        $fb_id = (string) get_post_meta($post_id, '_fb_post_id', true);
+        if ($row) {
+            fb_post_scheduler_update_status((int) $row->id, 'posted', $fb_id);
+        }
+        $fb_posts[$post_index] = array(
+            'status' => 'posted',
+            'posted_date' => current_time('mysql'),
+            'fb_post_id' => $fb_id,
+            'target_type' => $target_type,
+        );
+        update_post_meta($post_id, '_fb_posts', $fb_posts);
+        return true;
+    }
+
+    if ($row) {
+        fb_post_scheduler_update_status((int) $row->id, 'error');
+    }
+    $fb_posts[$post_index]['status'] = 'error';
+    update_post_meta($post_id, '_fb_posts', $fb_posts);
+
+    return new WP_Error(
+        'fb_retry_failed',
+        __('Opslaget blev ikke postet. Se den nye notifikation for fejlbeskeden.', 'fb-post-scheduler')
+    );
+}
+
+/**
  * Post et opslag til Facebook
  * 
  * @param int $post_id WordPress post ID
  * @param string $fb_text Tekst til Facebook-opslag
  * @param int $image_id (Optional) Image attachment ID
  * @param string $target_type (Optional) 'page' eller 'group' - hvor skal opslaget deles
+ * @param int|null $post_index Indeks, så en fejl kan prøves igen
  * @return bool True hvis opslaget blev postet, ellers false
  */
-function fb_post_scheduler_post_to_facebook($post_id, $fb_text, $image_id = 0, $target_type = 'page') {
+function fb_post_scheduler_post_to_facebook($post_id, $fb_text, $image_id = 0, $target_type = 'page', $post_index = null) {
     if (empty($fb_text)) {
         error_log("Facebook Post Scheduler fejl: Tom tekst til opslag");
         return false;
@@ -2613,15 +2796,7 @@ function fb_post_scheduler_post_to_facebook($post_id, $fb_text, $image_id = 0, $
     if (is_wp_error($result)) {
         // Log fejl
         fb_post_scheduler_log('Fejl ved post til Facebook: ' . $result->get_error_message(), $post_id);
-        
-        // Tilføj notifikation om fejl
-        if (function_exists('fb_post_scheduler_add_notification')) {
-            fb_post_scheduler_add_notification(
-                sprintf(__('Fejl ved post til Facebook: %s', 'fb-post-scheduler'), get_the_title($post_id)),
-                $result->get_error_message(),
-                admin_url('post.php?post=' . $post_id . '&action=edit')
-            );
-        }
+        fb_post_scheduler_notify_result($post_id, 'error', $result->get_error_message(), $post_index);
         
         error_log("Facebook Post Scheduler fejl: " . $result->get_error_message());
         return false;
@@ -2632,29 +2807,23 @@ function fb_post_scheduler_post_to_facebook($post_id, $fb_text, $image_id = 0, $
             
             // Log success
             fb_post_scheduler_log('Opslag postet til Facebook med ID: ' . $result['id'], $post_id);
-            
-            // Tilføj notifikation om success
-            if (function_exists('fb_post_scheduler_add_notification')) {
-                fb_post_scheduler_add_notification(
-                    sprintf(__('Opslag postet til Facebook: %s', 'fb-post-scheduler'), get_the_title($post_id)),
-                    __('Opslaget blev postet til Facebook med succes.', 'fb-post-scheduler'),
-                    admin_url('post.php?post=' . $post_id . '&action=edit')
-                );
-            }
+            fb_post_scheduler_notify_result(
+                $post_id,
+                'success',
+                __('Opslaget blev postet til Facebook.', 'fb-post-scheduler'),
+                $post_index
+            );
             
             return true;
         } else {
             // Log ukendt fejl
             fb_post_scheduler_log('Ukendt fejl ved post til Facebook', $post_id);
-            
-            // Tilføj notifikation om ukendt fejl
-            if (function_exists('fb_post_scheduler_add_notification')) {
-                fb_post_scheduler_add_notification(
-                    sprintf(__('Fejl ved post til Facebook: %s', 'fb-post-scheduler'), get_the_title($post_id)),
-                    __('Der opstod en ukendt fejl ved forsøg på at poste til Facebook.', 'fb-post-scheduler'),
-                    admin_url('post.php?post=' . $post_id . '&action=edit')
-                );
-            }
+            fb_post_scheduler_notify_result(
+                $post_id,
+                'error',
+                __('Der opstod en ukendt fejl ved forsøg på at poste til Facebook.', 'fb-post-scheduler'),
+                $post_index
+            );
             
             error_log("Facebook Post Scheduler fejl: Ukendt fejl ved post til Facebook");
             return false;

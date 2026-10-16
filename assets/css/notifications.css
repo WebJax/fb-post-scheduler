@@ -1,0 +1,77 @@
+.fb-notification-count {
+	display: inline-block;
+	min-width: 18px;
+	height: 18px;
+	margin: 0 2px 0 0;
+	padding: 0 4px;
+	border-radius: 9px;
+	background-color: #d63638;
+	color: #fff;
+	font-size: 11px;
+	line-height: 18px;
+	text-align: center;
+}
+
+.fb-notification-icon::before {
+	content: "\f488";
+	color: #a0a5aa;
+	font-family: dashicons;
+	font-size: 20px;
+	vertical-align: middle;
+}
+
+#wpadminbar .fb-post-scheduler-notifications-menu .ab-sub-wrapper {
+	min-width: 280px;
+}
+
+#wpadminbar .fb-ab-note {
+	display: block;
+	max-width: 420px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#wpadminbar .fb-ab-note--error {
+	color: #ffb3b3;
+}
+
+#wpadminbar .fb-notifications-see-all .ab-item,
+#wpadminbar .fb-notifications-mark-all .ab-item {
+	border-top: 1px solid rgba(255, 255, 255, 0.15);
+	text-align: center;
+}
+
+.fb-notifications-table-wrap {
+	overflow-x: auto;
+	margin-top: 0.75rem;
+}
+
+.fb-notifications-message {
+	max-width: 36rem;
+	white-space: normal;
+}
+
+.fb-notifications-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+.fb-notifications-row--unread th:first-child {
+	box-shadow: inset 3px 0 0 #2271b1;
+}
+
+.fb-notifications-form .tablenav .alignright {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+@media (min-width: 783px) {
+	.fb-notifications-form .tablenav .alignright {
+		float: right;
+	}
+}

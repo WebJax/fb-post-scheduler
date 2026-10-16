@@ -124,6 +124,24 @@ function fb_post_scheduler_count_scheduled_revision_posts() {
 }
 
 /**
+ * WordPress-indlægget et opslag hører til.
+ *
+ * Revisioner peger på forældreindlægget, så link og type matcher siden, indlægget eller begivenheden.
+ *
+ * @param int $post_id WordPress post ID, evt. en revision.
+ * @return int
+ */
+function fb_post_scheduler_get_source_post_id($post_id) {
+    $post_id = absint($post_id);
+    $parent_id = wp_is_post_revision($post_id);
+    if ($parent_id) {
+        return (int) $parent_id;
+    }
+
+    return $post_id;
+}
+
+/**
  * Visningsnavn for den WP-post et planlagt opslag er knyttet til.
  *
  * Revisioner vises som forældreindlæggets type.
@@ -132,11 +150,7 @@ function fb_post_scheduler_count_scheduled_revision_posts() {
  * @return string
  */
 function fb_post_scheduler_get_linked_post_type_label($post_id) {
-    $post_id = absint($post_id);
-    $parent_id = wp_is_post_revision($post_id);
-    if ($parent_id) {
-        $post_id = (int) $parent_id;
-    }
+    $post_id = fb_post_scheduler_get_source_post_id($post_id);
 
     $post_type = get_post_type($post_id);
     if (!$post_type) {

@@ -1,80 +1,88 @@
 /**
- * Facebook Post Scheduler Notifications Scripts
+ * Handlinger på notifikationssiden og i admin-baren.
  */
-(function($) {
+(function ($) {
     'use strict';
-    
-    // Når dokumentet er klar
-    $(document).ready(function() {
-        // Håndtér klik på "Markér som læst"
-        $(document).on('click', '.fb-mark-read', function(e) {
-            e.preventDefault();
-            
-            var $this = $(this);
-            var id = $this.data('id');
-            
-            // Send AJAX-anmodning
-            $.ajax({
-                url: fbPostSchedulerNotifications.ajaxurl,
-                type: 'POST',
-                data: {
-                    action: 'fb_post_scheduler_mark_notification_read',
-                    nonce: fbPostSchedulerNotifications.nonce,
-                    id: id
-                },
-                success: function(response) {
-                    if (response.success) {
-                        // Opdater UI
-                        $this.closest('.fb-notification').removeClass('unread').addClass('read');
-                        
-                        // Opdater tæller
-                        updateNotificationCount();
-                    }
-                }
-            });
-        });
-        
-        // Håndtér klik på "Markér alle som læst"
-        $(document).on('click', '.fb-notifications-mark-all', function(e) {
-            e.preventDefault();
-            
-            // Send AJAX-anmodning
-            $.ajax({
-                url: fbPostSchedulerNotifications.ajaxurl,
-                type: 'POST',
-                data: {
-                    action: 'fb_post_scheduler_mark_all_notifications_read',
-                    nonce: fbPostSchedulerNotifications.nonce
-                },
-                success: function(response) {
-                    if (response.success) {
-                        // Opdater UI
-                        $('.fb-notification').removeClass('unread').addClass('read');
-                        
-                        // Fjern tæller
-                        $('#wp-admin-bar-fb-post-scheduler-notifications > a').html('<span class="fb-notification-icon"></span>');
-                        
-                        // Fjern "Markér alle som læst" knappen
-                        $('#wp-admin-bar-fb-post-scheduler-notifications-mark-all').remove();
-                    }
-                }
-            });
-        });
-        
-        // Funktionalitet for at opdatere notifikationstæller
-        function updateNotificationCount() {
-            var unreadCount = $('.fb-notification.unread').length;
-            
-            if (unreadCount > 0) {
-                $('#wp-admin-bar-fb-post-scheduler-notifications > a').html(
-                    '<span class="fb-notification-count">' + unreadCount + '</span> ' +
-                    '<span class="screen-reader-text">Nye Facebook-opslagsnotifikationer</span>'
-                );
-            } else {
-                $('#wp-admin-bar-fb-post-scheduler-notifications > a').html('<span class="fb-notification-icon"></span>');
-                $('#wp-admin-bar-fb-post-scheduler-notifications-mark-all').remove();
+
+    if (typeof fbPostSchedulerNotifications === 'undefined') {
+        return;
+    }
+
+    /**
+     * Bekræft sletning og massehandlinger før formularen sendes.
+     *
+     * @param {JQuery.TriggeredEvent} event Submit.
+     */
+    function confirmSubmit(event) {
+        var submitter = event.originalEvent && event.originalEvent.submitter;
+        if (!submitter) {
+            return;
+        }
+
+        var message = submitter.getAttribute('data-confirm');
+        if (submitter.classList.contains('fb-notifications-bulk-apply')) {
+            var form = this;
+            var actionField = form.querySelector('.fb-notifications-bulk-action');
+            var selected = actionField ? actionField.value : '';
+            if (!selected) {
+                event.preventDefault();
+                window.alert(fbPostSchedulerNotifications.bulkNoAction);
+                return;
+            }
+
+            var checked = form.querySelectorAll('input[name="notification_ids[]"]:checked').length;
+            if (!checked) {
+                event.preventDefault();
+                window.alert(fbPostSchedulerNotifications.bulkNone);
+                return;
+            }
+
+            if (selected === 'delete') {
+                message = fbPostSchedulerNotifications.bulkDeleteConfirm;
             }
         }
+
+        if (message && !window.confirm(message)) {
+            event.preventDefault();
+        }
+    }
+
+    /**
+     * Vælg alle rækker i notifikationslisten.
+     *
+     * @param {JQuery.TriggeredEvent} event Change.
+     */
+    function toggleAll() {
+        var form = this.closest('form');
+        if (!form) {
+            return;
+        }
+        form.querySelectorAll('input[name="notification_ids[]"]').forEach(function (box) {
+            box.checked = this.checked;
+        }, this);
+    }
+
+    $(document).on('submit', '.fb-notifications-form', confirmSubmit);
+    $(document).on('change', '.fb-notifications-select-all', toggleAll);
+
+    $(document).on('click', '#wp-admin-bar-fb-post-scheduler-notifications-mark-all > a', function (event) {
+        event.preventDefault();
+
+        $.ajax({
+            url: fbPostSchedulerNotifications.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'fb_post_scheduler_mark_all_notifications_read',
+                nonce: fbPostSchedulerNotifications.nonce
+            }
+        }).done(function (response) {
+            if (response.success) {
+                window.location.reload();
+                return;
+            }
+            window.alert(fbPostSchedulerNotifications.ajaxError);
+        }).fail(function () {
+            window.alert(fbPostSchedulerNotifications.ajaxError);
+        });
     });
-    
-})(jQuery);
+}(jQuery));

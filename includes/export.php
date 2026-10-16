@@ -78,11 +78,11 @@ function fb_post_scheduler_export_page_content() {
         </div>
         
         <div class="card">
-            <h2><?php _e('Logfil', 'fb-post-scheduler'); ?></h2>
-            <p><?php _e('Se en logfil over alle Facebook-opslag forsøg.', 'fb-post-scheduler'); ?></p>
+            <h2><?php esc_html_e('Notifikationer', 'fb-post-scheduler'); ?></h2>
+            <p><?php esc_html_e('Se om opslag blev postet eller fejlede, åbn det tilhørende indhold, og slet notifikationer.', 'fb-post-scheduler'); ?></p>
             
             <p>
-                <a href="<?php echo admin_url('admin.php?page=fb-post-scheduler-logs'); ?>" class="button"><?php _e('Se logfil', 'fb-post-scheduler'); ?></a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=fb-post-scheduler-logs')); ?>" class="button"><?php esc_html_e('Se notifikationer', 'fb-post-scheduler'); ?></a>
             </p>
         </div>
     </div>
@@ -213,77 +213,3 @@ function fb_post_scheduler_export_posts() {
     exit;
 }
 
-/**
- * Tilføj logs side
- */
-function fb_post_scheduler_register_logs_page() {
-    add_submenu_page(
-        'fb-post-scheduler',
-        __('Facebook Opslag Logfil', 'fb-post-scheduler'),
-        __('Logfil', 'fb-post-scheduler'),
-        'manage_options',
-        'fb-post-scheduler-logs',
-        'fb_post_scheduler_logs_page_content'
-    );
-}
-add_action('admin_menu', 'fb_post_scheduler_register_logs_page', 30);
-
-/**
- * Indhold til logs siden
- */
-function fb_post_scheduler_logs_page_content() {
-    global $wpdb;
-    
-    $table_name = $wpdb->prefix . 'fb_post_scheduler_logs';
-    
-    // Få alle logs
-    $logs = $wpdb->get_results("SELECT * FROM $table_name ORDER BY created_at DESC LIMIT 100");
-    
-    ?>
-    <div class="wrap">
-        <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-        
-        <?php if ($logs) : ?>
-        <table class="widefat striped">
-            <thead>
-                <tr>
-                    <th><?php _e('Dato', 'fb-post-scheduler'); ?></th>
-                    <th><?php _e('Indlæg', 'fb-post-scheduler'); ?></th>
-                    <th><?php _e('Facebook ID', 'fb-post-scheduler'); ?></th>
-                    <th><?php _e('Status', 'fb-post-scheduler'); ?></th>
-                    <th><?php _e('Besked', 'fb-post-scheduler'); ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($logs as $log) : ?>
-                <tr>
-                    <td><?php echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($log->created_at)); ?></td>
-                    <td>
-                        <?php 
-                        $post_title = get_the_title($log->post_id);
-                        if ($post_title) {
-                            echo '<a href="' . get_edit_post_link($log->post_id) . '">' . $post_title . '</a>';
-                        } else {
-                            echo __('Indlæg ikke fundet', 'fb-post-scheduler') . ' (ID: ' . $log->post_id . ')';
-                        }
-                        ?>
-                    </td>
-                    <td><?php echo $log->fb_post_id ? $log->fb_post_id : '-'; ?></td>
-                    <td>
-                        <?php if ($log->status === 'success') : ?>
-                            <span class="fb-log-success"><?php _e('Success', 'fb-post-scheduler'); ?></span>
-                        <?php else : ?>
-                            <span class="fb-log-error"><?php _e('Fejl', 'fb-post-scheduler'); ?></span>
-                        <?php endif; ?>
-                    </td>
-                    <td><?php echo esc_html($log->message); ?></td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-        <?php else : ?>
-        <p><?php _e('Ingen logdata fundet.', 'fb-post-scheduler'); ?></p>
-        <?php endif; ?>
-    </div>
-    <?php
-}
