@@ -628,6 +628,13 @@ class FB_Post_Scheduler {
             'fb_post_scheduler_facebook_access_token'
         );
 
+        if (get_option('fb_post_scheduler_facebook_group_id', '') !== '') {
+            delete_option('fb_post_scheduler_facebook_group_id');
+        }
+        if (get_option('fb_post_scheduler_facebook_group_name', '') !== '') {
+            delete_option('fb_post_scheduler_facebook_group_name');
+        }
+
         // Bruger-token og sidenavn gemmes via AJAX og må ikke indgå i formularens
         // indstillingsgruppe, ellers nulstilles de når Facebook-fanen gemmes.
 
@@ -702,25 +709,9 @@ class FB_Post_Scheduler {
         );
 
         add_settings_field(
-            'fb_post_scheduler_facebook_page_id',
-            __('Facebook Side ID', 'fb-post-scheduler'),
-            array($this, 'facebook_page_id_callback'),
-            $tabs['facebook']['page'],
-            'fb_post_scheduler_facebook_section'
-        );
-
-        add_settings_field(
-            'fb_post_scheduler_facebook_page_selector',
-            __('Vælg Facebook Side', 'fb-post-scheduler'),
-            array($this, 'facebook_page_selector_callback'),
-            $tabs['facebook']['page'],
-            'fb_post_scheduler_facebook_section'
-        );
-
-        add_settings_field(
-            'fb_post_scheduler_facebook_group_selector',
-            __('Vælg Facebook Gruppe', 'fb-post-scheduler'),
-            array($this, 'facebook_group_selector_callback'),
+            'fb_post_scheduler_facebook_connect',
+            __('Forbind Facebook-side', 'fb-post-scheduler'),
+            array($this, 'facebook_connect_callback'),
             $tabs['facebook']['page'],
             'fb_post_scheduler_facebook_section'
         );
@@ -734,9 +725,9 @@ class FB_Post_Scheduler {
         );
 
         add_settings_field(
-            'fb_post_scheduler_facebook_access_token',
-            __('Facebook Access Token', 'fb-post-scheduler'),
-            array($this, 'facebook_access_token_callback'),
+            'fb_post_scheduler_facebook_advanced',
+            __('Avanceret', 'fb-post-scheduler'),
+            array($this, 'facebook_advanced_callback'),
             $tabs['facebook']['page'],
             'fb_post_scheduler_facebook_section'
         );
@@ -853,41 +844,29 @@ class FB_Post_Scheduler {
         echo '</div>';
 
         echo '<div class="fb-setup-step">';
-        echo '<h3>2. ' . esc_html__('Tilføj nødvendige produkter', 'fb-post-scheduler') . '</h3>';
-        echo '<p>' . esc_html__('Tilføj følgende produkter til din app:', 'fb-post-scheduler') . '</p>';
-        echo '<ul>';
-        echo '<li><strong>Facebook Login</strong> — ' . esc_html__('til brugerautorisering', 'fb-post-scheduler') . '</li>';
-        echo '<li><strong>Instagram Basic Display</strong> — ' . esc_html__('til Instagram integration', 'fb-post-scheduler') . '</li>';
-        echo '<li><strong>Business Manager API</strong> — ' . esc_html__('til virksomhedssider', 'fb-post-scheduler') . '</li>';
-        echo '</ul>';
+        echo '<h3>2. ' . esc_html__('Tilføj Facebook Login', 'fb-post-scheduler') . '</h3>';
+        echo '<p>' . esc_html__('Tilføj produktet Facebook Login, så du kan hente et bruger-token i Graph API Explorer.', 'fb-post-scheduler') . '</p>';
         echo '</div>';
 
         echo '<div class="fb-setup-step">';
-        echo '<h3>3. ' . esc_html__('Anmod om app-rettigheder', 'fb-post-scheduler') . '</h3>';
-        echo '<p>' . esc_html__('Din app skal have følgende rettigheder for at virke korrekt:', 'fb-post-scheduler') . '</p>';
+        echo '<h3>3. ' . esc_html__('Tilladelser', 'fb-post-scheduler') . '</h3>';
+        echo '<p>' . esc_html__('Bruger-tokenet skal have disse tilladelser:', 'fb-post-scheduler') . '</p>';
         echo '<ul class="fb-permissions-list">';
         echo '<li><code>pages_show_list</code> — ' . esc_html__('Se liste over sider', 'fb-post-scheduler') . '</li>';
-        echo '<li><code>business_management</code> — ' . esc_html__('Administrer virksomhedskonti', 'fb-post-scheduler') . '</li>';
-        echo '<li><code>instagram_basic</code> — ' . esc_html__('Grundlæggende Instagram adgang', 'fb-post-scheduler') . '</li>';
-        echo '<li><code>instagram_content_publish</code> — ' . esc_html__('Udgiv Instagram indhold', 'fb-post-scheduler') . '</li>';
         echo '<li><code>pages_read_engagement</code> — ' . esc_html__('Læs side-engagement', 'fb-post-scheduler') . '</li>';
-        echo '<li><code>pages_manage_metadata</code> — ' . esc_html__('Administrer side-metadata', 'fb-post-scheduler') . '</li>';
-        echo '<li><code>pages_read_user_content</code> — ' . esc_html__('Læs brugerindhold på siden', 'fb-post-scheduler') . '</li>';
-        echo '<li><code>pages_manage_posts</code> — ' . esc_html__('Administrer opslag på siden', 'fb-post-scheduler') . '</li>';
-        echo '<li><code>pages_manage_engagement</code> — ' . esc_html__('Administrer side-engagement', 'fb-post-scheduler') . '</li>';
+        echo '<li><code>pages_manage_posts</code> — ' . esc_html__('Udgiv opslag på siden', 'fb-post-scheduler') . '</li>';
         echo '</ul>';
-        echo '<p><em>' . esc_html__('Bemærk: Nogle af disse rettigheder kræver app-gennemgang fra Facebook.', 'fb-post-scheduler') . '</em></p>';
         echo '</div>';
 
         echo '<div class="fb-setup-step">';
         echo '<h3>4. ' . esc_html__('Hent App ID og App Secret', 'fb-post-scheduler') . '</h3>';
-        echo '<p>' . esc_html__('Find App ID og App Secret i din apps "Basic Settings" sektion og indtast dem nedenfor.', 'fb-post-scheduler') . '</p>';
+        echo '<p>' . esc_html__('Find App ID og App Secret under appens grundindstillinger, og gem dem her, før du opretter side-tokenet.', 'fb-post-scheduler') . '</p>';
         echo '</div>';
 
         echo '</div>';
         echo '</details>';
 
-        echo '<p><strong>' . esc_html__('Indtast dine Facebook API-oplysninger for at aktivere automatisk opslag til Facebook.', 'fb-post-scheduler') . '</strong></p>';
+        echo '<p><strong>' . esc_html__('Gem App ID og App Secret. Derefter opretter du et side-token uden udløb i boksen nedenfor.', 'fb-post-scheduler') . '</strong></p>';
     }
     
     /**
@@ -988,146 +967,88 @@ class FB_Post_Scheduler {
     }
     
     /**
-     * Facebook Page ID callback
+     * Ét trin: short-term bruger-token bliver til et side-token uden udløb.
      */
-    public function facebook_page_id_callback(): void {
+    public function facebook_connect_callback(): void {
         $page_id = get_option('fb_post_scheduler_facebook_page_id', '');
-        echo '<input type="text" name="fb_post_scheduler_facebook_page_id" value="' . esc_attr($page_id) . '" class="regular-text">';
-    }
-    
-    /**
-     * Facebook Access Token callback
-     */
-    public function facebook_access_token_callback(): void {
+        $page_name = get_option('fb_post_scheduler_facebook_page_name', '');
         $access_token = get_option('fb_post_scheduler_facebook_access_token', '');
-        echo '<input type="password" name="fb_post_scheduler_facebook_access_token" value="' . esc_attr($access_token) . '" class="regular-text">';
-        echo '<br><br>';
-        
-        // Token management buttons
-        echo '<div class="fb-token-management">';
-        echo '<button type="button" id="fb-test-connection" class="button button-secondary">' . __('Test Facebook API Forbindelse', 'fb-post-scheduler') . '</button>';
-        echo '<button type="button" id="fb-check-token-expiry" class="button button-secondary" style="margin-left: 10px;">' . __('Tjek Token Udløb', 'fb-post-scheduler') . '</button>';
-        echo '<span class="spinner" id="fb-test-spinner" style="float: none; margin-left: 10px;"></span>';
-        echo '</div>';
-        
-        echo '<div id="fb-test-result" style="margin-top: 10px;"></div>';
-        
-        // Long-term token section
-        echo '<div class="fb-longterm-token" style="margin-top: 15px; padding: 15px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px;">';
-        echo '<h4 style="margin-top: 0;">' . __('Long-term Access Token', 'fb-post-scheduler') . '</h4>';
-        echo '<p>' . __('Facebook access tokens udløber. Brug funktionen nedenfor til at udveksle dit kort-term token til et long-term token, der er gyldig i 60 dage.', 'fb-post-scheduler') . '</p>';
-        
-        echo '<label for="fb-short-term-token">' . __('Short-term Access Token:', 'fb-post-scheduler') . '</label><br>';
-        echo '<input type="text" id="fb-short-term-token" class="regular-text" placeholder="' . __('Indsæt dit short-term access token her', 'fb-post-scheduler') . '">';
-        echo '<br><br>';
-        echo '<button type="button" id="fb-exchange-token" class="button button-primary">' . __('Udveksle til Long-term Token', 'fb-post-scheduler') . '</button>';
-        echo '<span class="spinner" id="fb-exchange-spinner" style="float: none; margin-left: 10px;"></span>';
-        echo '<div id="fb-exchange-result" style="margin-top: 10px;"></div>';
-        echo '</div>';
-        
-        echo '<p class="description">' . __('Brug "Test Facebook API Forbindelse" for at verificere dine indstillinger. Brug "Tjek Token Udløb" for at se hvornår dit token udløber.', 'fb-post-scheduler') . '</p>';
-    }
-    
-    /**
-     * Facebook Page Selector callback
-     */
-    public function facebook_page_selector_callback(): void {
-        $user_access_token = get_option('fb_post_scheduler_facebook_user_token', '');
-        $selected_page_id = get_option('fb_post_scheduler_facebook_page_id', '');
-        $selected_page_name = get_option('fb_post_scheduler_facebook_page_name', '');
-        
+        $expires = get_option('fb_post_scheduler_token_expires_date', '');
+        $allowed_link = array(
+            'a' => array(
+                'href'   => array(),
+                'target' => array(),
+                'rel'    => array(),
+            ),
+            'code' => array(),
+        );
+
         echo '<div class="fb-page-selector-section">';
-        
-        // User Access Token input
-        echo '<div class="fb-user-token-section">';
-        echo '<label for="fb-user-access-token">' . __('Bruger Access Token:', 'fb-post-scheduler') . '</label><br>';
-        echo '<input type="password" id="fb-user-access-token" class="regular-text" value="' . esc_attr($user_access_token) . '" placeholder="' . __('Indsæt dit bruger access token her', 'fb-post-scheduler') . '">';
-        echo '<button type="button" id="fb-save-user-token" class="button button-secondary" style="margin-left: 10px;">' . __('Gem Token', 'fb-post-scheduler') . '</button>';
-        echo '<br><small class="description">' . __('Hent dit bruger access token fra <a href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a> med de nødvendige rettigheder.', 'fb-post-scheduler') . '</small>';
-        echo '</div>';
-        
-        echo '<br>';
-        
-        // Load pages button and dropdown
-        echo '<div class="fb-pages-section">';
-        echo '<button type="button" id="fb-load-pages" class="button button-secondary">' . __('Indlæs tilgængelige sider', 'fb-post-scheduler') . '</button>';
-        echo '<span class="spinner" id="fb-pages-spinner" style="float: none; margin-left: 10px;"></span>';
-        echo '<div id="fb-pages-result" style="margin-top: 10px;"></div>';
-        
-        // Pages dropdown (initially hidden)
+        echo '<p>' . wp_kses(
+            sprintf(
+                /* translators: %s: Graph API Explorer URL */
+                __('Åbn <a href="%s" target="_blank" rel="noopener noreferrer">Graph API Explorer</a>, vælg din app, og tilføj tilladelserne <code>pages_show_list</code>, <code>pages_read_engagement</code> og <code>pages_manage_posts</code>. Generér et token og indsæt det her.', 'fb-post-scheduler'),
+                esc_url('https://developers.facebook.com/tools/explorer/')
+            ),
+            $allowed_link
+        ) . '</p>';
+
+        echo '<label for="fb-short-term-token"><strong>' . esc_html__('Short-term bruger-token', 'fb-post-scheduler') . '</strong></label><br>';
+        echo '<input type="password" id="fb-short-term-token" class="regular-text" autocomplete="off" placeholder="' . esc_attr__('Indsæt token fra Graph API Explorer', 'fb-post-scheduler') . '">';
+        echo '<button type="button" id="fb-connect-page" class="button button-primary" style="margin-left: 10px;">' . esc_html__('Opret long-term side-token', 'fb-post-scheduler') . '</button>';
+        echo '<span class="spinner" id="fb-connect-spinner" style="float: none; margin-left: 10px;"></span>';
+        echo '<div id="fb-connect-result" style="margin-top: 10px;"></div>';
+
         echo '<div id="fb-pages-dropdown-container" style="margin-top: 15px; display: none;">';
-        echo '<label for="fb-pages-dropdown">' . __('Vælg Facebook Side:', 'fb-post-scheduler') . '</label><br>';
+        echo '<label for="fb-pages-dropdown"><strong>' . esc_html__('Vælg Facebook-side', 'fb-post-scheduler') . '</strong></label><br>';
         echo '<select id="fb-pages-dropdown" class="regular-text">';
-        echo '<option value="">' . __('-- Vælg en side --', 'fb-post-scheduler') . '</option>';
+        echo '<option value="">' . esc_html__('-- Vælg en side --', 'fb-post-scheduler') . '</option>';
         echo '</select>';
-        echo '<button type="button" id="fb-select-page" class="button button-primary" style="margin-left: 10px;">' . __('Vælg denne side', 'fb-post-scheduler') . '</button>';
+        echo '<button type="button" id="fb-select-page" class="button button-primary" style="margin-left: 10px;">' . esc_html__('Brug denne side', 'fb-post-scheduler') . '</button>';
         echo '</div>';
-        echo '</div>';
-        
-        // Current selected page info
-        if (!empty($selected_page_id) && !empty($selected_page_name)) {
-            echo '<div class="fb-current-page-info" style="margin-top: 15px; padding: 10px; background: #e7f3ff; border: 1px solid #0073aa; border-radius: 4px;">';
-            echo '<h4 style="margin-top: 0;">' . __('Aktuel valgte side:', 'fb-post-scheduler') . '</h4>';
-            echo '<p><strong>' . esc_html($selected_page_name) . '</strong> (ID: ' . esc_html($selected_page_id) . ')</p>';
-            echo '<button type="button" id="fb-renew-page-token" class="button button-secondary">' . __('Forny Token', 'fb-post-scheduler') . '</button>';
-            echo '<span class="spinner" id="fb-renew-spinner" style="float: none; margin-left: 10px;"></span>';
+
+        if ($page_id !== '' || $page_name !== '' || $access_token !== '') {
+            $expires_label = ($expires === '' || $expires === '0' || $expires === 'Aldrig')
+                ? __('Udløber ikke', 'fb-post-scheduler')
+                : $expires;
+
+            echo '<div class="fb-current-page-info">';
+            echo '<h4>' . esc_html__('Forbundet side', 'fb-post-scheduler') . '</h4>';
+            echo '<p><strong>' . esc_html($page_name !== '' ? $page_name : __('Ukendt side', 'fb-post-scheduler')) . '</strong>';
+            if ($page_id !== '') {
+                echo ' (ID: ' . esc_html($page_id) . ')';
+            }
+            echo '<br>' . esc_html__('Token:', 'fb-post-scheduler') . ' ' . esc_html($expires_label) . '</p>';
+            echo '<p class="description">' . esc_html__('Tokenet har ingen udløbsdato. Det holder op med at virke, hvis du skifter Facebook-kodeord, mister rollen på siden eller fjerner appen.', 'fb-post-scheduler') . '</p>';
+            echo '<button type="button" id="fb-test-connection" class="button button-secondary">' . esc_html__('Test Facebook API Forbindelse', 'fb-post-scheduler') . '</button>';
+            echo '<button type="button" id="fb-check-token-expiry" class="button button-secondary" style="margin-left: 10px;">' . esc_html__('Tjek Token Udløb', 'fb-post-scheduler') . '</button>';
+            echo '<span class="spinner" id="fb-test-spinner" style="float: none; margin-left: 10px;"></span>';
+            echo '<div id="fb-test-result" style="margin-top: 10px;"></div>';
             echo '</div>';
         }
-        
-        echo '<div id="fb-page-selection-result" style="margin-top: 10px;"></div>';
-        
+
         echo '</div>';
-        
-        echo '<p class="description">' . __('Denne funktion gør det muligt at vælge en Facebook-side direkte og automatisk generere de nødvendige tokens.', 'fb-post-scheduler') . '</p>';
     }
-    
+
     /**
-     * Facebook Group Selector callback
+     * Manuelle felter til en eksisterende side og side-token.
      */
-    public function facebook_group_selector_callback(): void {
-        $user_access_token = get_option('fb_post_scheduler_facebook_user_token', '');
-        $selected_group_id = get_option('fb_post_scheduler_facebook_group_id', '');
-        $selected_group_name = get_option('fb_post_scheduler_facebook_group_name', '');
-        
-        echo '<div class="fb-group-selector-section">';
-        
-        // Note about user access token (can use the same as for pages)
-        if (empty($user_access_token)) {
-            echo '<div class="notice notice-info inline">';
-            echo '<p>' . __('Du skal først angive dit bruger access token i "Vælg Facebook Side" sektionen ovenfor for at kunne indlæse grupper.', 'fb-post-scheduler') . '</p>';
-            echo '</div>';
-        }
-        
-        // Load groups button and dropdown
-        echo '<div class="fb-groups-section">';
-        echo '<button type="button" id="fb-load-groups" class="button button-secondary">' . __('Indlæs tilgængelige grupper', 'fb-post-scheduler') . '</button>';
-        echo '<span class="spinner" id="fb-groups-spinner" style="float: none; margin-left: 10px;"></span>';
-        echo '<div id="fb-groups-result" style="margin-top: 10px;"></div>';
-        
-        // Groups dropdown (initially hidden)
-        echo '<div id="fb-groups-dropdown-container" style="margin-top: 15px; display: none;">';
-        echo '<label for="fb-groups-dropdown">' . __('Vælg Facebook Gruppe:', 'fb-post-scheduler') . '</label><br>';
-        echo '<select id="fb-groups-dropdown" class="regular-text">';
-        echo '<option value="">' . __('-- Vælg en gruppe --', 'fb-post-scheduler') . '</option>';
-        echo '</select>';
-        echo '<button type="button" id="fb-select-group" class="button button-primary" style="margin-left: 10px;">' . __('Vælg denne gruppe', 'fb-post-scheduler') . '</button>';
-        echo '</div>';
-        echo '</div>';
-        
-        // Current selected group info
-        if (!empty($selected_group_id) && !empty($selected_group_name)) {
-            echo '<div class="fb-current-group-info" style="margin-top: 15px; padding: 10px; background: #f0f8e7; border: 1px solid #4caf50; border-radius: 4px;">';
-            echo '<h4 style="margin-top: 0;">' . __('Aktuel valgte gruppe:', 'fb-post-scheduler') . '</h4>';
-            echo '<p><strong>' . esc_html($selected_group_name) . '</strong> (ID: ' . esc_html($selected_group_id) . ')</p>';
-            echo '<button type="button" id="fb-clear-group" class="button button-secondary">' . __('Ryd gruppe-valg', 'fb-post-scheduler') . '</button>';
-            echo '</div>';
-        }
-        
-        echo '<div id="fb-group-selection-result" style="margin-top: 10px;"></div>';
-        
-        echo '</div>';
-        
-        echo '<p class="description">' . __('Vælg en Facebook-gruppe hvor du er administrator for at kunne dele opslag direkte til gruppen.', 'fb-post-scheduler') . '</p>';
+    public function facebook_advanced_callback(): void {
+        $page_id = get_option('fb_post_scheduler_facebook_page_id', '');
+        $access_token = get_option('fb_post_scheduler_facebook_access_token', '');
+
+        echo '<details class="fb-advanced-token">';
+        echo '<summary>' . esc_html__('Ret side-id og token manuelt', 'fb-post-scheduler') . '</summary>';
+        echo '<p class="description">' . esc_html__('Felterne udfyldes automatisk, når du opretter et long-term side-token. Ret dem kun, hvis forbindelsen skal sættes manuelt, og gem derefter ændringer.', 'fb-post-scheduler') . '</p>';
+        echo '<p>';
+        echo '<label for="fb_post_scheduler_facebook_page_id"><strong>' . esc_html__('Facebook Side ID', 'fb-post-scheduler') . '</strong></label><br>';
+        echo '<input type="text" id="fb_post_scheduler_facebook_page_id" name="fb_post_scheduler_facebook_page_id" value="' . esc_attr($page_id) . '" class="regular-text">';
+        echo '</p>';
+        echo '<p>';
+        echo '<label for="fb_post_scheduler_facebook_access_token"><strong>' . esc_html__('Facebook Access Token', 'fb-post-scheduler') . '</strong></label><br>';
+        echo '<input type="password" id="fb_post_scheduler_facebook_access_token" name="fb_post_scheduler_facebook_access_token" value="' . esc_attr($access_token) . '" class="regular-text" autocomplete="off">';
+        echo '</p>';
+        echo '</details>';
     }
 
     /**
@@ -1367,45 +1288,6 @@ class FB_Post_Scheduler {
                         </label>
                     </p>
                     
-                    <?php
-                    $selected_page_name = get_option('fb_post_scheduler_facebook_page_name', '');
-                    $selected_group_name = get_option('fb_post_scheduler_facebook_group_name', '');
-                    $has_page = !empty($selected_page_name);
-                    $has_group = !empty($selected_group_name);
-                    
-                    if ($has_page || $has_group) :
-                        $post_target = isset($fb_post['target_type']) ? $fb_post['target_type'] : 'page';
-                    ?>
-                    <p class="fb-post-target-selection">
-                        <label><?php _e('Del til:', 'fb-post-scheduler'); ?></label><br>
-                        
-                        <?php if ($has_page) : ?>
-                        <label for="fb_post_target_page_<?php echo $index; ?>" style="display: inline-block; margin-right: 20px;">
-                            <input type="radio" id="fb_post_target_page_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][target_type]" value="page" <?php checked($post_target, 'page'); ?> <?php disabled($is_posted, true); ?>>
-                            <?php printf(__('Facebook Side: %s', 'fb-post-scheduler'), '<strong>' . esc_html($selected_page_name) . '</strong>'); ?>
-                        </label>
-                        <?php endif; ?>
-                        
-                        <?php if ($has_group) : ?>
-                        <label for="fb_post_target_group_<?php echo $index; ?>" style="display: inline-block;">
-                            <input type="radio" id="fb_post_target_group_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][target_type]" value="group" <?php checked($post_target, 'group'); ?> <?php disabled($is_posted, true); ?>>
-                            <?php printf(__('Facebook Gruppe: %s', 'fb-post-scheduler'), '<strong>' . esc_html($selected_group_name) . '</strong>'); ?>
-                        </label>
-                        <?php endif; ?>
-                        
-                        <?php if (!$has_page && !$has_group) : ?>
-                        <p class="description" style="color: #d63384;">
-                            <?php _e('Du skal først vælge en Facebook Side eller Gruppe i plugin-indstillingerne.', 'fb-post-scheduler'); ?>
-                            <a href="<?php echo admin_url('admin.php?page=fb-post-scheduler-settings'); ?>" target="_blank"><?php _e('Gå til indstillinger', 'fb-post-scheduler'); ?></a>
-                        </p>
-                        <?php elseif (!$has_page) : ?>
-                        <input type="hidden" name="fb_posts[<?php echo $index; ?>][target_type]" value="group">
-                        <?php elseif (!$has_group) : ?>
-                        <input type="hidden" name="fb_posts[<?php echo $index; ?>][target_type]" value="page">
-                        <?php endif; ?>
-                    </p>
-                    <?php endif; ?>
-                    
                     <?php if ($is_posted && isset($fb_post['fb_post_id'])) : ?>
                     <p class="fb-post-success">
                         <?php _e('Dette opslag blev postet til Facebook', 'fb-post-scheduler'); ?>
@@ -1513,44 +1395,6 @@ class FB_Post_Scheduler {
                     </label>
                 </p>
                 
-                <?php
-                $selected_page_name = get_option('fb_post_scheduler_facebook_page_name', '');
-                $selected_group_name = get_option('fb_post_scheduler_facebook_group_name', '');
-                $has_page = !empty($selected_page_name);
-                $has_group = !empty($selected_group_name);
-                
-                if ($has_page || $has_group) :
-                ?>
-                <p class="fb-post-target-selection">
-                    <label><?php _e('Del til:', 'fb-post-scheduler'); ?></label><br>
-                    
-                    <?php if ($has_page) : ?>
-                    <label for="fb_post_target_page_{{index}}" style="display: inline-block; margin-right: 20px;">
-                        <input type="radio" id="fb_post_target_page_{{index}}" name="fb_posts[{{index}}][target_type]" value="page" checked>
-                        <?php printf(__('Facebook Side: %s', 'fb-post-scheduler'), '<strong>' . esc_html($selected_page_name) . '</strong>'); ?>
-                    </label>
-                    <?php endif; ?>
-                    
-                    <?php if ($has_group) : ?>
-                    <label for="fb_post_target_group_{{index}}" style="display: inline-block;">
-                        <input type="radio" id="fb_post_target_group_{{index}}" name="fb_posts[{{index}}][target_type]" value="group" <?php echo !$has_page ? 'checked' : ''; ?>>
-                        <?php printf(__('Facebook Gruppe: %s', 'fb-post-scheduler'), '<strong>' . esc_html($selected_group_name) . '</strong>'); ?>
-                    </label>
-                    <?php endif; ?>
-                    
-                    <?php if (!$has_page && !$has_group) : ?>
-                    <p class="description" style="color: #d63384;">
-                        <?php _e('Du skal først vælge en Facebook Side eller Gruppe i plugin-indstillingerne.', 'fb-post-scheduler'); ?>
-                        <a href="<?php echo admin_url('admin.php?page=fb-post-scheduler-settings'); ?>" target="_blank"><?php _e('Gå til indstillinger', 'fb-post-scheduler'); ?></a>
-                    </p>
-                    <?php elseif (!$has_page) : ?>
-                    <input type="hidden" name="fb_posts[{{index}}][target_type]" value="group">
-                    <?php elseif (!$has_group) : ?>
-                    <input type="hidden" name="fb_posts[{{index}}][target_type]" value="page">
-                    <?php endif; ?>
-                </p>
-                <?php endif; ?>
-                
                 <p>
                     <label for="fb_post_date_{{index}}"><?php _e('Dato for opslag:', 'fb-post-scheduler'); ?></label>
                     <input type="date" id="fb_post_date_{{index}}" name="fb_posts[{{index}}][date]" value="<?php echo date('Y-m-d', strtotime('+1 day') ?? time()); ?>" class="widefat">
@@ -1652,7 +1496,7 @@ class FB_Post_Scheduler {
                             'date'        => isset($fb_post['date']) ? sanitize_text_field($fb_post['date']) : '',
                             'fb_post_id'  => isset($fb_post['fb_post_id']) ? sanitize_text_field($fb_post['fb_post_id']) : '',
                             'posted_date' => isset($fb_post['posted_date']) ? sanitize_text_field($fb_post['posted_date']) : '',
-                            'target_type' => isset($fb_post['target_type']) ? sanitize_text_field($fb_post['target_type']) : 'page',
+                            'target_type' => 'page',
                             'enabled'     => false,
                         );
                     }
@@ -1665,7 +1509,7 @@ class FB_Post_Scheduler {
                 $time = isset($fb_post['time']) ? sanitize_text_field($fb_post['time']) : '';
                 $datetime = $date . ' ' . $time . ':00';
                 $image_id = isset($fb_post['image_id']) ? absint($fb_post['image_id']) : 0;
-                $target_type = isset($fb_post['target_type']) ? sanitize_text_field($fb_post['target_type']) : 'page';
+                $target_type = 'page';
                 
                 $fb_posts[$index] = array(
                     'text'        => $text,
@@ -1985,19 +1829,12 @@ class FB_Post_Scheduler {
                             } else {
                                 fb_post_scheduler_log('Ingen billede fundet til opslag #' . ($index + 1) . ' – poster link uden styret preview-billede', $post_id);
                             }
-                            
-                            // Send til Facebook - enten side eller gruppe
+
                             if ($target_type === 'group') {
-                                $group_id = get_option('fb_post_scheduler_facebook_group_id', '');
-                                if (!empty($group_id)) {
-                                    $result = $api->post_to_facebook_group($message, $link, $group_id, $image_id, $post_id);
-                                } else {
-                                    $result = new WP_Error('no_group', __('Ingen Facebook-gruppe valgt', 'fb-post-scheduler'));
-                                }
-                            } else {
-                                // Standard posting til side
-                                $result = $api->post_to_facebook($message, $link, $image_id, $post_id);
+                                fb_post_scheduler_log('Gruppe-deling er ikke længere mulig via Facebook API. Opslaget postes til siden.', $post_id);
                             }
+
+                            $result = $api->post_to_facebook($message, $link, $image_id, $post_id);
                             
                             if (is_wp_error($result)) {
                                 // Log fejl
@@ -2050,7 +1887,7 @@ class FB_Post_Scheduler {
                                     'status'      => 'posted',
                                     'posted_date' => $now,
                                     'fb_post_id'  => isset($result['id']) ? $result['id'] : '',
-                                    'target_type' => isset($fb_post['target_type']) ? $fb_post['target_type'] : 'page',
+                                    'target_type' => 'page',
                                 );
                                 
                                 fb_post_scheduler_log('Opslag blev postet til Facebook. Post ID: ' . (isset($result['id']) ? $result['id'] : 'N/A'), $post_id);
@@ -2784,8 +2621,7 @@ function fb_post_scheduler_retry_failed_post($post_id, $post_index) {
     }
 
     $image_id = isset($fb_post['image_id']) ? absint($fb_post['image_id']) : 0;
-    $target_type = isset($fb_post['target_type']) ? $fb_post['target_type'] : 'page';
-    $ok = fb_post_scheduler_post_to_facebook($post_id, $text, $image_id, $target_type, $post_index);
+    $ok = fb_post_scheduler_post_to_facebook($post_id, $text, $image_id, 'page', $post_index);
 
     if ($ok) {
         $fb_id = (string) get_post_meta($post_id, '_fb_post_id', true);
@@ -2796,7 +2632,7 @@ function fb_post_scheduler_retry_failed_post($post_id, $post_index) {
             'status' => 'posted',
             'posted_date' => current_time('mysql'),
             'fb_post_id' => $fb_id,
-            'target_type' => $target_type,
+            'target_type' => 'page',
         );
         update_post_meta($post_id, '_fb_posts', $fb_posts);
         return true;
@@ -2820,7 +2656,7 @@ function fb_post_scheduler_retry_failed_post($post_id, $post_index) {
  * @param int $post_id WordPress post ID
  * @param string $fb_text Tekst til Facebook-opslag
  * @param int $image_id (Optional) Image attachment ID
- * @param string $target_type (Optional) 'page' eller 'group' - hvor skal opslaget deles
+ * @param string $target_type Beholdt for kaldere. Opslag postes altid til siden.
  * @param int|null $post_index Indeks, så en fejl kan prøves igen
  * @return bool True hvis opslaget blev postet, ellers false
  */
@@ -2842,19 +2678,12 @@ function fb_post_scheduler_post_to_facebook($post_id, $fb_text, $image_id = 0, $
     
     // Hent API-hjælper
     $api = fb_post_scheduler_get_api();
-    
-    // Post til Facebook - enten side eller gruppe
+
     if ($target_type === 'group') {
-        $group_id = get_option('fb_post_scheduler_facebook_group_id', '');
-        if (!empty($group_id)) {
-            $result = $api->post_to_facebook_group($fb_text, $permalink, $group_id, $image_id, $post_id);
-        } else {
-            $result = new WP_Error('no_group', __('Ingen Facebook-gruppe valgt', 'fb-post-scheduler'));
-        }
-    } else {
-        // Standard posting til side
-        $result = $api->post_to_facebook($fb_text, $permalink, $image_id, $post_id);
+        fb_post_scheduler_log('Gruppe-deling er ikke længere mulig via Facebook API. Opslaget postes til siden.', $post_id);
     }
+
+    $result = $api->post_to_facebook($fb_text, $permalink, $image_id, $post_id);
     
     if (is_wp_error($result)) {
         // Log fejl

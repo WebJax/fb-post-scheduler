@@ -688,7 +688,7 @@ function fb_post_scheduler_format_preview_schedule($date, $time) {
  * Render den fælles Facebook-link-preview i metaboxen.
  *
  * @param int   $post_id WordPress post ID
- * @param array $fb_post Opslagsdata (text, image_id, date, target_type)
+ * @param array $fb_post Opslagsdata (text, image_id, date)
  * @return void
  */
 function fb_post_scheduler_render_link_preview($post_id, $fb_post = array()) {
@@ -697,9 +697,7 @@ function fb_post_scheduler_render_link_preview($post_id, $fb_post = array()) {
     $data = fb_post_scheduler_get_resolved_preview_data($post_id, $image_id);
 
     $page_name = get_option('fb_post_scheduler_facebook_page_name', '');
-    $group_name = get_option('fb_post_scheduler_facebook_group_name', '');
-    $target = isset($fb_post['target_type']) ? $fb_post['target_type'] : 'page';
-    $actor_name = ($target === 'group' && $group_name) ? $group_name : $page_name;
+    $actor_name = $page_name;
 
     $date_parts = !empty($fb_post['date']) ? explode(' ', $fb_post['date']) : array();
     $date = !empty($date_parts[0]) ? $date_parts[0] : '';
@@ -720,8 +718,7 @@ function fb_post_scheduler_render_link_preview($post_id, $fb_post = array()) {
         data-og-description="<?php echo esc_attr($data['description']); ?>"
         data-og-site-name="<?php echo esc_attr($data['site_name']); ?>"
         data-permalink="<?php echo esc_attr($data['permalink']); ?>"
-        data-page-name="<?php echo esc_attr($page_name); ?>"
-        data-group-name="<?php echo esc_attr($group_name); ?>">
+        data-page-name="<?php echo esc_attr($page_name); ?>">
         <h4 class="fb-post-preview-toggle" role="button" tabindex="0" aria-expanded="false">
             <?php esc_html_e('Forhåndsvisning af opslag', 'fb-post-scheduler'); ?>
             <span class="dashicons dashicons-arrow-down-alt2 fb-post-preview-toggle-icon" aria-hidden="true"></span>

@@ -8,10 +8,8 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 - Tilføj Facebook-opslagstekst direkte i indholdsredigeringen
 - Planlæg, hvornår opslaget skal sendes til Facebook
 - AI-genereret opslagstekst med Ollama (lokal Gemma 4) eller Google Gemini API
-- **Automatisk Facebook Page selection og token management** 🆕
-- **Facebook Group support - del direkte til grupper du administrerer** 🆕
-- **Detaljeret Facebook App setup guide med rettigheder** 🆕
-- **"Forny token" knap for nemt token management** 🆕
+- Ét trin til et side-token uden udløb: indsæt et short-term bruger-token, og pluginet gemmer siden
+- Opslag udgives på den forbundne Facebook-side
 - Automatisk tilføjelse af link til den originale indholdside
 - Vedhæft et specifikt billede til Facebook-opslaget
 - Hybrid forhåndsvisning af Facebook-linkkortet (`og:image`, titel og beskrivelse) med knappen “Tjek hos Facebook”
@@ -36,67 +34,46 @@ Facebook Post Scheduler er et WordPress-plugin, der giver dig mulighed for at pl
 ## Konfiguration
 
 ### 1. Facebook App Setup
-Før du kan bruge pluginet, skal du have en Facebook App med de korrekte rettigheder. Pluginet inkluderer en detaljeret setup-guide:
+Før du kan bruge pluginet, skal du have en Facebook-app:
 
 1. **Opret Facebook App**: Gå til [Facebook for Developers](https://developers.facebook.com/apps/) og opret en ny app af typen "Business"
-2. **Tilføj produkter**: Tilføj Facebook Login, Instagram Basic Display og Business Manager API
-3. **Anmod om rettigheder**: Din app skal have følgende rettigheder:
+2. **Tilføj Facebook Login**, så du kan hente et bruger-token i Graph API Explorer
+3. **Tilladelser** på bruger-tokenet:
    - `pages_show_list` - Se liste over sider
-   - `business_management` - Administrer virksomhedskonti
-   - `instagram_basic` - Grundlæggende Instagram adgang
-   - `instagram_content_publish` - Udgiv Instagram indhold
    - `pages_read_engagement` - Læs side-engagement
-   - `pages_manage_metadata` - Administrer side-metadata
-   - `pages_read_user_content` - Læs brugerindhold på siden
-   - `pages_manage_posts` - Administrer opslag på siden
-   - `pages_manage_engagement` - Administrer side-engagement
-   - `groups_access_member_info` - Adgang til gruppemedlemsoplysninger 🆕
-   - `publish_to_groups` - Udgiv opslag i grupper 🆕
+   - `pages_manage_posts` - Udgiv opslag på siden
+4. **Hent App ID og App Secret**: Find disse under appens grundindstillinger, og gem dem i pluginet
 
-4. **Hent App ID og App Secret**: Find disse i din apps "Basic Settings" sektion
+### 2. Long-term side-token
+Et side-token uden udløb laves sådan: short-term bruger-token → long-lived bruger-token → `GET /me/accounts`. Page-tokenet i svaret udløber ikke af sig selv.
 
-### 2. Automatisk Facebook Side Setup 🆕
-Pluginet inkluderer nu en ny funktion til at automatisk vælge Facebook-sider og generere long-term access tokens:
+1. Gem App ID og App Secret
+2. Åbn [Graph API Explorer](https://developers.facebook.com/tools/explorer/), vælg appen, tilføj tilladelserne ovenfor, og generér et token
+3. Indsæt tokenet under **Forbind Facebook-side**, og klik **Opret long-term side-token**
+4. Har du én side, gemmes den med det samme. Har du flere, vælger du siden i listen
+5. Status viser sidenavn og at tokenet udløber ikke. Brug **Test Facebook API Forbindelse** og **Tjek Token Udløb**
 
-1. **Indtast App oplysninger**: Udfyld Facebook App ID og App Secret
-2. **Bruger Access Token**: Hent et bruger access token fra [Graph API Explorer](https://developers.facebook.com/tools/explorer/) med de nødvendige rettigheder og gem det
-3. **Indlæs sider**: Klik "Indlæs tilgængelige sider" for at se alle sider du har adgang til
-4. **Vælg side**: Vælg den ønskede Facebook-side fra dropdown-menuen
-5. **Automatisk konfiguration**: Pluginet genererer automatisk et long-term page access token og opdaterer alle indstillinger
+Tokenet holder op med at virke, hvis du skifter Facebook-kodeord, mister rollen på siden eller fjerner appen. Kør trinnet igen for at lave et nyt.
 
-### 3. Facebook Gruppe Support 🆕
-Du kan nu også dele opslag direkte til Facebook-grupper du administrerer:
+Grupper kan ikke længere nås via Graph API. Meta fjernede Groups API i april 2024, også for grupper en side administrerer eller følger. Opslag går derfor kun til siden. Allerede planlagte gruppe-opslag postes til siden.
 
-1. **Brug samme bruger access token**: Som blev brugt til side-setup
-2. **Indlæs grupper**: Klik "Indlæs tilgængelige grupper" for at se alle grupper hvor du er administrator
-3. **Vælg gruppe**: Vælg den ønskede Facebook-gruppe fra dropdown-menuen
-4. **Ved opslag**: Vælg om du vil dele til din valgte side eller gruppe
+Page ID og side-token kan rettes under **Avanceret**, hvis forbindelsen skal sættes manuelt.
 
-**Bemærk**: For at dele til grupper skal du være administrator af gruppen, og gruppen skal tillade opslag fra eksterne apps.
-
-### 4. Andre indstillinger
+### 3. Andre indstillinger
 1. **Vælg Post Types**: Vælg hvilke post types der skal kunne oprette Facebook-opslag
-2. **Test Facebook API Forbindelse**: Klik på "Test Facebook API Forbindelse" knappen for at verificere at dine indstillinger virker korrekt
-3. **AI Tekst Generator Indstillinger**: Aktivér AI-tekstgenerering, vælg Ollama eller Gemini, og indtast Gemini API-nøgle hvis du bruger Gemini
-
-### Token Fornyelse
-For eksisterende opsætninger kan du forny dit page access token ved at:
-1. Opdatere dit bruger access token hvis nødvendigt
-2. Klikke på "Forny Token" knappen under den aktuelle side-information
-3. Dette henter et nyt long-term token automatisk
+2. **AI Tekst Generator Indstillinger**: Aktivér AI-tekstgenerering, vælg Ollama eller Gemini, og indtast Gemini API-nøgle hvis du bruger Gemini
 
 ## Sådan bruges pluginet
 1. Opret eller rediger et indlæg af en af de valgte post types
 2. Find 'Facebook Opslag' boksen i indholdseditoren
 3. Aktivér Facebook-opslag ved at klikke på checkboksen
-4. **Vælg destination**: Hvis du har konfigureret både en Facebook-side og en gruppe, vælg hvor opslaget skal deles 🆕
-5. Indtast teksten til Facebook-opslaget manuelt eller brug AI-knappen (Ollama eller Gemini afhængigt af indstillingen)
-6. Vælg dato og tidspunkt for opslaget
-7. Vælg eventuelt et billede til opslaget (bruges som link-preview via `og:image`; ellers bruges sidens aktuelle Open Graph-billede)
-8. Åbn **Forhåndsvisning af opslag** for at se det link-kort, Facebook forventes at vise. Kilde-labelen fortæller om billedet er valgt, kommer fra sidens `og:image` eller er udvalgt billede som fallback
-9. Brug **Tjek hos Facebook** for at læse Facebooks cache uden at ændre den. **Opdater Facebooks cache** tvinger et nyt scrape (kræver bekræftelse)
-10. Gem indlægget
-11. Tilføj flere opslag efter behov ved at klikke på "Tilføj endnu et opslag"
+4. Indtast teksten til Facebook-opslaget manuelt eller brug AI-knappen (Ollama eller Gemini afhængigt af indstillingen)
+5. Vælg dato og tidspunkt for opslaget
+6. Vælg eventuelt et billede til opslaget (bruges som link-preview via `og:image`; ellers bruges sidens aktuelle Open Graph-billede)
+7. Åbn **Forhåndsvisning af opslag** for at se det link-kort, Facebook forventes at vise. Kilde-labelen fortæller om billedet er valgt, kommer fra sidens `og:image` eller er udvalgt billede som fallback
+8. Brug **Tjek hos Facebook** for at læse Facebooks cache uden at ændre den. **Opdater Facebooks cache** tvinger et nyt scrape (kræver bekræftelse)
+9. Gem indlægget
+10. Tilføj flere opslag efter behov ved at klikke på "Tilføj endnu et opslag"
 
 ## AI-genererede Facebook-opslag
 Pluginet kan generere Facebook-opslagstekst med **Ollama** (localhost) eller **Google Gemini**. Vælg provider under indstillingerne. Knapteksten i metaboxen følger valget.
@@ -129,23 +106,11 @@ Pluginet inkluderer nu en omfattende test-funktion, der gør det muligt at verif
 3. **Posting Tilladelser**: Bekræfter at du har tilladelse til at poste på siden
 4. **Token Udløb**: Tjekker hvornår dit access token udløber
 
-### Long-term Access Tokens
+### Long-term side-token
 
-Facebook access tokens udløber regelmæssigt. Pluginet understøtter nu automatisk udveksling til long-term tokens:
+Short-term bruger-tokens fra Graph API Explorer udløber efter 1–2 timer. Pluginet udveksler dem til et long-lived bruger-token og henter derefter sidens token via `GET /me/accounts`. Det side-token har ingen udløbsdato (`expires_at: 0`).
 
-- **Short-term tokens**: Udløber efter 1-2 timer
-- **Long-term tokens**: Udløber efter 60 dage
-- **Automatisk advarsel**: Får besked når token snart udløber
-- **Nem udveksling**: Udveksle tokens direkte fra indstillingssiden
-
-**Sådan bruger du long-term tokens:**
-1. Få et short-term access token fra Facebook Graph API Explorer eller din app
-2. Gå til 'FB Opslag' > 'Indstillinger' > 'Facebook API Indstillinger'
-3. Indsæt short-term token i "Long-term Access Token" sektionen
-4. Klik "Udveksle til Long-term Token"
-5. Gem indstillingerne
-
-Gå til 'FB Opslag' > 'Indstillinger' > 'Facebook API Indstillinger' og brug de tilgængelige test-funktioner efter du har udfyldt alle felter.
+Det holder op med at virke, hvis Facebook-brugeren skifter kodeord, mister rollen på siden eller fjerner appen. Lav et nyt token med knappen **Opret long-term side-token**.
 
 ## Nye funktioner
 

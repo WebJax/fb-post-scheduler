@@ -482,25 +482,22 @@ class FB_Post_Scheduler_API {
      * Graph API sætter expires_at til 0 når tokenet ikke udløber.
      *
      * @param mixed $expires_at
-     * @return int|null
+     * @return int Unix-tid, eller 0 når tokenet ikke udløber.
      */
     private function normalize_expires_at($expires_at) {
         if (!is_numeric($expires_at)) {
-            return null;
+            return 0;
         }
 
         $expires_at = (int) $expires_at;
-        if ($expires_at <= 0) {
-            return null;
-        }
 
-        return $expires_at;
+        return $expires_at > 0 ? $expires_at : 0;
     }
 
     /**
-     * Tjek om access token snart udløber
-     * 
-     * @return bool|WP_Error True hvis token snart udløber, false hvis ikke, WP_Error ved fejl
+     * Tjek om access token snart udløber.
+     *
+     * @return array|WP_Error Token-info. expires_at er 0 når tokenet ikke udløber.
      */
     public function check_token_expiration() {
         if (empty($this->access_token)) {
@@ -540,8 +537,8 @@ class FB_Post_Scheduler_API {
             }
             
             // Tjek udløbsdato. Graph API bruger 0 når et page token ikke udløber.
-            $expires_at = $this->normalize_expires_at(isset($token_data['expires_at']) ? $token_data['expires_at'] : null);
-            if ($expires_at !== null) {
+            $expires_at = $this->normalize_expires_at(isset($token_data['expires_at']) ? $token_data['expires_at'] : 0);
+            if ($expires_at > 0) {
                 $days_until_expiry = ($expires_at - time()) / (24 * 60 * 60);
                 
                 return array(
@@ -556,7 +553,7 @@ class FB_Post_Scheduler_API {
             }
 
             return array(
-                'expires_at' => null,
+                'expires_at' => 0,
                 'expires_date' => 'Aldrig',
                 'days_until_expiry' => null,
                 'expires_soon' => false,
@@ -608,8 +605,8 @@ class FB_Post_Scheduler_API {
             
             foreach ($data['data'] as $page) {
                 // Filtrer kun sider hvor brugeren kan lave indlæg
-                if (isset($page['tasks']) && is_array($page['tasks']) && 
-                    (in_array('MODERATE', $page['tasks']) || in_array('CREATE_CONTENT', $page['tasks']))) {
+                if (isset($page['tasks']) && is_array($page['tasks']) &&
+                    (in_array('MANAGE', $page['tasks'], true) || in_array('MODERATE', $page['tasks'], true) || in_array('CREATE_CONTENT', $page['tasks'], true))) {
                     $pages[] = array(
                         'id' => $page['id'],
                         'name' => isset($page['name']) ? $page['name'] : 'Unavngivet side',
@@ -676,8 +673,8 @@ class FB_Post_Scheduler_API {
             }
             
             // Page access tokens udløber normalt aldrig. 0 fra Graph API betyder "udløber ikke".
-            $expires_at = $this->normalize_expires_at(isset($token_data['expires_at']) ? $token_data['expires_at'] : null);
-            $expires_date = $expires_at !== null ? date('Y-m-d H:i:s', $expires_at) : 'Aldrig';
+            $expires_at = $this->normalize_expires_at(isset($token_data['expires_at']) ? $token_data['expires_at'] : 0);
+            $expires_date = $expires_at > 0 ? date('Y-m-d H:i:s', $expires_at) : 'Aldrig';
             
             return array(
                 'access_token' => $page_access_token,
@@ -690,62 +687,6 @@ class FB_Post_Scheduler_API {
         }
         
         return new WP_Error('no_data', __('Ingen token data modtaget', 'fb-post-scheduler'));
-    }
-    
-    /**
-     * Hent brugerens Facebook Grupper
-     * 
-     * @param string $user_access_token Bruger access token
-     * @return array|WP_Error Liste af grupper eller fejl
-     */
-    public function get_user_groups($user_access_token) {
-        if (empty($user_access_token)) {
-            return new WP_Error('no_user_token', __('Bruger access token er påkrævet', 'fb-post-scheduler'));
-        }
-        
-        $url = sprintf(
-            'https://graph.facebook.com/me/groups?access_token=%s&fields=id,name,description,privacy,administrator',
-            urlencode($user_access_token)
-        );
-        
-        $response = wp_remote_get($url, array(
-            'timeout' => 30,
-            'headers' => array(
-                'User-Agent' => 'WordPress/Facebook-Post-Scheduler'
-            )
-        ));
-        
-        if (is_wp_error($response)) {
-            return new WP_Error('api_error', sprintf(__('API forespørgsel fejlede: %s', 'fb-post-scheduler'), $response->get_error_message()));
-        }
-        
-        $body = wp_remote_retrieve_body($response);
-        $data = json_decode($body, true);
-        
-        if (isset($data['error'])) {
-            return new WP_Error('groups_error', sprintf(__('Fejl ved hentning af grupper: %s', 'fb-post-scheduler'), $data['error']['message']));
-        }
-        
-        if (isset($data['data']) && is_array($data['data'])) {
-            $groups = array();
-            
-            foreach ($data['data'] as $group) {
-                // Filtrer kun grupper hvor brugeren kan lave indlæg (administrator eller moderator)
-                if (isset($group['administrator']) && $group['administrator']) {
-                    $groups[] = array(
-                        'id' => $group['id'],
-                        'name' => isset($group['name']) ? $group['name'] : 'Unavngivet gruppe',
-                        'description' => isset($group['description']) ? $group['description'] : '',
-                        'privacy' => isset($group['privacy']) ? $group['privacy'] : 'UNKNOWN',
-                        'type' => 'group'
-                    );
-                }
-            }
-            
-            return $groups;
-        }
-        
-        return array();
     }
     
     /**
@@ -1039,64 +980,6 @@ class FB_Post_Scheduler_API {
         return is_string($formatted) ? $formatted : $message;
     }
 
-    /**
-     * Post til Facebook Gruppe som link-opslag (klikbart preview til artiklen).
-     *
-     * @param string $message Beskedtekst til Facebook-opslag
-     * @param string $link URL til at inkludere i opslaget
-     * @param string $group_id Facebook gruppe ID
-     * @param int $image_id Attachment ID til link-preview (optional)
-     * @param int $post_id WordPress post ID (bruges til OG override/scrape)
-     * @return array|WP_Error Response fra Facebook eller fejl
-     */
-    public function post_to_facebook_group($message, $link, $group_id, $image_id = 0, $post_id = 0) {
-        // Tjek at alle nødvendige indstillinger er sat
-        if (empty($group_id) || empty($this->access_token)) {
-            return new WP_Error('missing_credentials', __('Manglende Facebook API-indstillinger for gruppe', 'fb-post-scheduler'));
-        }
-
-        $image_id = absint($image_id);
-        $post_id = absint($post_id);
-
-        $this->prepare_link_preview($link, $post_id, $image_id);
-
-        // Page mentions must use @[PAGE_ID] in the message body.
-        // @see https://developers.facebook.com/docs/graph-api/reference/page/feed/
-        $message = $this->format_page_mentions($message);
-
-        // API endpoint for gruppe – altid link-post via feed
-        $url = "https://graph.facebook.com/{$group_id}/feed";
-
-        $data = array(
-            'message' => $message,
-            'link' => $link,
-            'access_token' => $this->access_token,
-        );
-
-        // Send POST-anmodning til Facebook Graph API
-        $response = wp_remote_post($url, array(
-            'method' => 'POST',
-            'timeout' => 45,
-            'redirection' => 5,
-            'httpversion' => '1.0',
-            'blocking' => true,
-            'body' => $data,
-        ));
-
-        $this->cleanup_link_preview($link, $post_id, $image_id);
-
-        if (is_wp_error($response)) {
-            return $response;
-        }
-
-        $body = json_decode(wp_remote_retrieve_body($response), true);
-
-        if (isset($body['error'])) {
-            return new WP_Error('facebook_error', $body['error']['message']);
-        }
-
-        return $body;
-    }
 }
 
 /**

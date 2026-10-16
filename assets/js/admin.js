@@ -449,71 +449,7 @@
             });
         });
         
-        // Long-term token udveksling
-        $('#fb-exchange-token').off('click').on('click', function(e) {
-            e.preventDefault();
-            
-            var button = $(this);
-            var spinner = $('#fb-exchange-spinner');
-            var resultDiv = $('#fb-exchange-result');
-            var shortTermToken = $('#fb-short-term-token').val();
-            
-            if (!shortTermToken.trim()) {
-                resultDiv.html('<div class="notice notice-error inline"><p>❌ Indtast venligst et short-term access token</p></div>');
-                return;
-            }
-            
-            // Disable button og vis spinner
-            button.prop('disabled', true).text('Udveksler...');
-            spinner.addClass('is-active');
-            resultDiv.html('');
-            
-            $.ajax({
-                url: fbPostScheduler.ajaxUrl,
-                type: 'POST',
-                data: {
-                    action: 'fb_post_scheduler_exchange_token',
-                    short_term_token: shortTermToken,
-                    nonce: fbPostScheduler.nonce
-                },
-                success: function(response) {
-                    if (response.success) {
-                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
-                        
-                        // Opdater access token feltet med det nye token
-                        $('input[name="fb_post_scheduler_facebook_access_token"]').val(response.data.token_info.access_token);
-                        
-                        // Ryd short-term token feltet
-                        $('#fb-short-term-token').val('');
-                        
-                        // Vis besked om at gemme indstillinger
-                        setTimeout(function() {
-                            resultDiv.append('<div class="notice notice-info inline" style="margin-top: 10px;"><p>💡 Husk at klikke "Gem ændringer" for at gemme det nye token permanent.</p></div>');
-                        }, 1000);
-                    } else {
-                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
-                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
-                    }
-                },
-                error: function() {
-                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
-                },
-                complete: function() {
-                    // Genaktiver knap og skjul spinner
-                    button.prop('disabled', false).text('Udveksle til Long-term Token');
-                    spinner.removeClass('is-active');
-                }
-            });
-        });
-        
-        // Bind page selection buttons  
-        bindPageSelectionButtons();
-        
-        // Bind group selection buttons
-        bindGroupSelectionButtons();
-        
-        // Bind group selection buttons
-        bindGroupSelectionButtons();
+        bindFacebookConnect();
     }
     
     /**
@@ -603,67 +539,6 @@
                 complete: function() {
                     // Genaktiver knap og skjul spinner
                     button.prop('disabled', false).text('Tjek Token Udløb');
-                    spinner.removeClass('is-active');
-                }
-            });
-        });
-        
-        $(document).off('click.fb-token-management').on('click.fb-token-management', '#fb-exchange-token', function(e) {
-            e.preventDefault();
-            
-            var button = $(this);
-            var spinner = $('#fb-exchange-spinner');
-            var resultDiv = $('#fb-exchange-result');
-            var shortTermToken = $('#fb-short-term-token').val();
-            
-            if (typeof fbPostScheduler === 'undefined') {
-                console.error('fbPostScheduler object not available');
-                return;
-            }
-            
-            if (!shortTermToken.trim()) {
-                resultDiv.html('<div class="notice notice-error inline"><p>❌ Indtast venligst et short-term access token</p></div>');
-                return;
-            }
-            
-            // Disable button og vis spinner
-            button.prop('disabled', true).text('Udveksler...');
-            spinner.addClass('is-active');
-            resultDiv.html('');
-            
-            $.ajax({
-                url: fbPostScheduler.ajaxUrl,
-                type: 'POST',
-                data: {
-                    action: 'fb_post_scheduler_exchange_token',
-                    short_term_token: shortTermToken,
-                    nonce: fbPostScheduler.nonce
-                },
-                success: function(response) {
-                    if (response.success) {
-                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
-                        
-                        // Opdater access token feltet med det nye token
-                        $('input[name="fb_post_scheduler_facebook_access_token"]').val(response.data.token_info.access_token);
-                        
-                        // Ryd short-term token feltet
-                        $('#fb-short-term-token').val('');
-                        
-                        // Vis besked om at gemme indstillinger
-                        setTimeout(function() {
-                            resultDiv.append('<div class="notice notice-info inline" style="margin-top: 10px;"><p>💡 Husk at klikke "Gem ændringer" for at gemme det nye token permanent.</p></div>');
-                        }, 1000);
-                    } else {
-                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
-                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
-                    }
-                },
-                error: function() {
-                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
-                },
-                complete: function() {
-                    // Genaktiver knap og skjul spinner
-                    button.prop('disabled', false).text('Udveksle til Long-term Token');
                     spinner.removeClass('is-active');
                 }
             });
@@ -784,7 +659,7 @@
                         resetLoginButton($btn);
                     }
                 }, { 
-                    scope: 'pages_manage_posts,pages_read_engagement,publish_to_groups,email'
+                    scope: 'pages_show_list,pages_manage_posts,pages_read_engagement'
                 });
             } catch (error) {
                 console.error('Facebook login error:', error);
@@ -1005,19 +880,12 @@
      */
     function updatePreviewActor($previewItem) {
         var $postItem = $previewItem.closest('.fb-post-item');
-        var $target = $postItem.find('input[name*="[target_type]"]:checked');
-        if (!$target.length) {
-            $target = $postItem.find('input[name*="[target_type]"]').first();
-        }
-        var target = $target.val() || 'page';
         var pageName = $previewItem.attr('data-page-name') || '';
-        var groupName = $previewItem.attr('data-group-name') || '';
-        var actorName = (target === 'group' && groupName) ? groupName : pageName;
         var dateVal = $postItem.find('input[id^="fb_post_date_"]').val() || '';
         var timeVal = $postItem.find('input[id^="fb_post_time_"]').val() || '';
         var meta = (dateVal && timeVal) ? (dateVal + ' · ' + timeVal) : '';
 
-        $previewItem.find('.fb-post-preview-actor-name').text(actorName);
+        $previewItem.find('.fb-post-preview-actor-name').text(pageName);
         $previewItem.find('.fb-post-preview-actor-meta').text(meta);
     }
 
@@ -1107,7 +975,7 @@
                 }
             });
 
-            $(document).on('change', '.fb-post-item input[name*="[target_type]"], .fb-post-item input[id^="fb_post_date_"], .fb-post-item input[id^="fb_post_time_"]', function() {
+            $(document).on('change', '.fb-post-item input[id^="fb_post_date_"], .fb-post-item input[id^="fb_post_time_"]', function() {
                 updatePreviewActor($(this).closest('.fb-post-item').find('.fb-post-preview'));
             });
 
@@ -1259,401 +1127,130 @@
         });
     }
     
-    // Facebook Page Selection functionality
-    function bindPageSelectionButtons() {
-        console.log('bindPageSelectionButtons');
-        // Gem bruger access token
-        $('#fb-save-user-token').click('', function(e) {
-            console.log('save user token');
+    /**
+     * Opret long-term side-token ud fra et short-term bruger-token.
+     */
+    function bindFacebookConnect() {
+        function showConnectNotice(resultDiv, type, message) {
+            var notice = $('<div>', { 'class': 'notice notice-' + type + ' inline' });
+            notice.append($('<p>').text(message || 'Der opstod en fejl'));
+            resultDiv.empty().append(notice);
+        }
+
+        $(document).off('click.fb-connect').on('click.fb-connect', '#fb-connect-page', function(e) {
             e.preventDefault();
-            
+
             var button = $(this);
-            var userToken = $('#fb-user-access-token').val();
-            
-            if (typeof fbPostScheduler === 'undefined') {
-                console.error('fbPostScheduler object not available');
-                return;
-            }
-            
-            if (!userToken.trim()) {
-                alert('Indtast venligst dit bruger access token');
-                return;
-            }
-            
-            // Disable button
-            button.prop('disabled', true).text('Gemmer...');
-            
-            $.ajax({
-                url: fbPostScheduler.ajaxUrl,
-                type: 'POST',
-                data: {
-                    action: 'fb_post_scheduler_save_user_token',
-                    nonce: fbPostScheduler.nonce,
-                    user_token: userToken
-                },
-                success: function(response) {
-                    if (response.success) {
-                        $('#fb-pages-result').html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
-                    } else {
-                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
-                        $('#fb-pages-result').html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
-                    }
-                },
-                error: function() {
-                    $('#fb-pages-result').html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
-                },
-                complete: function() {
-                    // Genaktiver knap
-                    button.prop('disabled', false).text('Gem Token');
-                }
-            });
-        });
-        
-        // Indlæs Facebook Pages
-        $('#fb-load-pages').on('click', function(e) {
-            e.preventDefault();
-            
-            var button = $(this);
-            var spinner = $('#fb-pages-spinner');
-            var resultDiv = $('#fb-pages-result');
+            var spinner = $('#fb-connect-spinner');
+            var resultDiv = $('#fb-connect-result');
+            var shortTermToken = $('#fb-short-term-token').val();
             var dropdownContainer = $('#fb-pages-dropdown-container');
-            
+
             if (typeof fbPostScheduler === 'undefined') {
-                console.error('fbPostScheduler object not available');
                 return;
             }
-            
-            // Disable button og vis spinner
-            button.prop('disabled', true).text('Indlæser...');
+
+            if (!shortTermToken || !shortTermToken.trim()) {
+                showConnectNotice(resultDiv, 'error', 'Indsæt et short-term bruger-token fra Graph API Explorer.');
+                return;
+            }
+
+            button.prop('disabled', true).text('Opretter...');
             spinner.addClass('is-active');
-            resultDiv.html('');
+            resultDiv.empty();
             dropdownContainer.hide();
-            
+
             $.ajax({
                 url: fbPostScheduler.ajaxUrl,
                 type: 'POST',
                 data: {
-                    action: 'fb_post_scheduler_load_facebook_pages',
-                    nonce: fbPostScheduler.nonce
+                    action: 'fb_post_scheduler_connect_facebook',
+                    nonce: fbPostScheduler.nonce,
+                    short_term_token: shortTermToken
                 },
                 success: function(response) {
-                    if (response.success) {
-                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
-                        
-                        // Populer dropdown med sider
-                        var dropdown = $('#fb-pages-dropdown');
-                        dropdown.empty().append('<option value="">-- Vælg en side --</option>');
-                        
-                        if (response.data.pages && response.data.pages.length > 0) {
-                            $.each(response.data.pages, function(index, page) {
-                                dropdown.append('<option value="' + page.id + '" data-name="' + page.name + '" data-token="' + page.access_token + '">' + page.name + ' (' + page.category + ')</option>');
-                            });
-                            
-                            dropdownContainer.show();
-                        }
-                    } else {
+                    if (!response.success) {
                         var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
-                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
+                        showConnectNotice(resultDiv, 'error', message);
+                        return;
                     }
+
+                    if (response.data.connected) {
+                        showConnectNotice(resultDiv, 'success', response.data.message);
+                        $('#fb-short-term-token').val('');
+                        window.location.reload();
+                        return;
+                    }
+
+                    showConnectNotice(resultDiv, 'success', response.data.message);
+                    var dropdown = $('#fb-pages-dropdown');
+                    dropdown.empty().append($('<option>', { value: '', text: '-- Vælg en side --' }));
+                    $.each(response.data.pages || [], function(index, page) {
+                        if (!page || !page.id) {
+                            return;
+                        }
+                        var label = page.name || page.id;
+                        if (page.category) {
+                            label += ' (' + page.category + ')';
+                        }
+                        dropdown.append($('<option>', { value: page.id, text: label }));
+                    });
+                    dropdownContainer.show();
                 },
                 error: function() {
-                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
+                    showConnectNotice(resultDiv, 'error', 'Der opstod en netværksfejl');
                 },
                 complete: function() {
-                    // Genaktiver knap og skjul spinner
-                    button.prop('disabled', false).text('Indlæs tilgængelige sider');
+                    button.prop('disabled', false).text('Opret long-term side-token');
                     spinner.removeClass('is-active');
                 }
             });
         });
-        
-        // Vælg Facebook Page
-        $('#fb-select-page').on('click', function(e) {
+
+        $(document).off('click.fb-select-page').on('click.fb-select-page', '#fb-select-page', function(e) {
             e.preventDefault();
-            
+
             var button = $(this);
-            var dropdown = $('#fb-pages-dropdown');
-            var selectedOption = dropdown.find('option:selected');
-            var resultDiv = $('#fb-page-selection-result');
-            
+            var pageId = $('#fb-pages-dropdown').val();
+            var resultDiv = $('#fb-connect-result');
+
             if (typeof fbPostScheduler === 'undefined') {
-                console.error('fbPostScheduler object not available');
                 return;
             }
-            
-            if (!selectedOption.val()) {
-                alert('Vælg venligst en Facebook-side');
+
+            if (!pageId) {
+                showConnectNotice(resultDiv, 'error', 'Vælg en Facebook-side.');
                 return;
             }
-            
-            var pageId = selectedOption.val();
-            var pageName = selectedOption.data('name');
-            var pageAccessToken = selectedOption.data('token');
-            
-            // Disable button
-            button.prop('disabled', true).text('Konfigurerer...');
-            resultDiv.html('');
-            
+
+            button.prop('disabled', true).text('Gemmer...');
+
             $.ajax({
                 url: fbPostScheduler.ajaxUrl,
                 type: 'POST',
                 data: {
                     action: 'fb_post_scheduler_select_facebook_page',
                     nonce: fbPostScheduler.nonce,
-                    page_id: pageId,
-                    page_name: pageName,
-                    page_access_token: pageAccessToken
+                    page_id: pageId
                 },
                 success: function(response) {
                     if (response.success) {
-                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
-                        
-                        // Opdater Page ID feltene på siden
-                        $('input[name="fb_post_scheduler_facebook_page_id"]').val(pageId);
-                        
-                        // Genindlæs siden efter 2 sekunder for at vise den nye side-info
-                        setTimeout(function() {
-                            location.reload();
-                        }, 2000);
-                    } else {
-                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
-                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
+                        showConnectNotice(resultDiv, 'success', response.data.message);
+                        window.location.reload();
+                        return;
                     }
+                    var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
+                    showConnectNotice(resultDiv, 'error', message);
+                    button.prop('disabled', false).text('Brug denne side');
                 },
                 error: function() {
-                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
-                },
-                complete: function() {
-                    // Genaktiver knap
-                    button.prop('disabled', false).text('Vælg denne side');
-                }
-            });
-        });
-        
-        // Forny page token
-        $(document).off('click.fb-page-selection').on('click.fb-page-selection', '#fb-renew-page-token', function(e) {
-            e.preventDefault();
-            
-            var button = $(this);
-            var spinner = $('#fb-renew-spinner');
-            var resultDiv = $('#fb-page-selection-result');
-            
-            if (typeof fbPostScheduler === 'undefined') {
-                console.error('fbPostScheduler object not available');
-                return;
-            }
-            
-            if (!confirm('Er du sikker på, at du vil forny page access token?')) {
-                return;
-            }
-            
-            // Disable button og vis spinner
-            button.prop('disabled', true).text('Fornyer...');
-            spinner.addClass('is-active');
-            resultDiv.html('');
-            
-            $.ajax({
-                url: fbPostScheduler.ajaxUrl,
-                type: 'POST',
-                data: {
-                    action: 'fb_post_scheduler_renew_page_token',
-                    nonce: fbPostScheduler.nonce
-                },
-                success: function(response) {
-                    if (response.success) {
-                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
-                    } else {
-                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
-                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
-                    }
-                },
-                error: function() {
-                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
-                },
-                complete: function() {
-                    // Genaktiver knap og skjul spinner
-                    button.prop('disabled', false).text('Forny Token');
-                    spinner.removeClass('is-active');
+                    showConnectNotice(resultDiv, 'error', 'Der opstod en netværksfejl');
+                    button.prop('disabled', false).text('Brug denne side');
                 }
             });
         });
     }
-    
-    // Facebook Group Selection functionality
-    function bindGroupSelectionButtons() {
-        // Indlæs Facebook Groups
-        $('#fb-load-groups').on('click', function(e) {
-            e.preventDefault();
-            
-            var button = $(this);
-            var spinner = $('#fb-groups-spinner');
-            var resultDiv = $('#fb-groups-result');
-            var dropdownContainer = $('#fb-groups-dropdown-container');
-            var userToken = $('#fb-user-access-token').val();
-            
-            if (typeof fbPostScheduler === 'undefined') {
-                console.error('fbPostScheduler object not available');
-                return;
-            }
-            
-            if (!userToken.trim()) {
-                resultDiv.html('<div class="notice notice-error inline"><p>❌ Indtast venligst dit bruger access token først i "Vælg Facebook Side" sektionen</p></div>');
-                return;
-            }
-            
-            // Disable button og vis spinner
-            button.prop('disabled', true).text('Indlæser...');
-            spinner.addClass('is-active');
-            resultDiv.html('');
-            dropdownContainer.hide();
-            
-            $.ajax({
-                url: fbPostScheduler.ajaxUrl,
-                type: 'POST',
-                data: {
-                    action: 'fb_post_scheduler_load_groups',
-                    nonce: fbPostScheduler.nonce,
-                    user_access_token: userToken
-                },
-                success: function(response) {
-                    if (response.success) {
-                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
-                        
-                        // Populer dropdown med grupper
-                        var dropdown = $('#fb-groups-dropdown');
-                        dropdown.empty().append('<option value="">-- Vælg en gruppe --</option>');
-                        
-                        if (response.data.groups && response.data.groups.length > 0) {
-                            $.each(response.data.groups, function(index, group) {
-                                dropdown.append('<option value="' + group.id + '" data-name="' + group.name + '">' + group.name + ' (' + group.privacy + ')</option>');
-                            });
-                            
-                            dropdownContainer.show();
-                        } else {
-                            resultDiv.html('<div class="notice notice-info inline"><p>ℹ️ ' + response.data.message + '</p></div>');
-                        }
-                    } else {
-                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
-                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
-                    }
-                },
-                error: function() {
-                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
-                },
-                complete: function() {
-                    // Genaktiver knap og skjul spinner
-                    button.prop('disabled', false).text('Indlæs tilgængelige grupper');
-                    spinner.removeClass('is-active');
-                }
-            });
-        });
-        
-        // Vælg Facebook Group
-        $(document).off('click.fb-group-selection').on('click.fb-group-selection', '#fb-select-group', function(e) {
-            e.preventDefault();
-            
-            var button = $(this);
-            var dropdown = $('#fb-groups-dropdown');
-            var selectedGroupId = dropdown.val();
-            var selectedGroupName = dropdown.find('option:selected').data('name');
-            var resultDiv = $('#fb-group-selection-result');
-            
-            if (typeof fbPostScheduler === 'undefined') {
-                console.error('fbPostScheduler object not available');
-                return;
-            }
-            
-            if (!selectedGroupId) {
-                resultDiv.html('<div class="notice notice-error inline"><p>❌ Vælg venligst en gruppe</p></div>');
-                return;
-            }
-            
-            // Disable button
-            button.prop('disabled', true).text('Vælger...');
-            resultDiv.html('');
-            
-            $.ajax({
-                url: fbPostScheduler.ajaxUrl,
-                type: 'POST',
-                data: {
-                    action: 'fb_post_scheduler_select_group',
-                    nonce: fbPostScheduler.nonce,
-                    group_id: selectedGroupId,
-                    group_name: selectedGroupName
-                },
-                success: function(response) {
-                    if (response.success) {
-                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
-                        
-                        // Genindlæs siden efter 2 sekunder for at vise den valgte gruppe
-                        setTimeout(function() {
-                            window.location.reload();
-                        }, 2000);
-                    } else {
-                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
-                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
-                    }
-                },
-                error: function() {
-                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
-                },
-                complete: function() {
-                    // Genaktiver knap
-                    button.prop('disabled', false).text('Vælg denne gruppe');
-                }
-            });
-        });
-        
-        // Ryd gruppe-valg
-        $(document).off('click.fb-group-selection').on('click.fb-group-selection', '#fb-clear-group', function(e) {
-            e.preventDefault();
-            
-            var button = $(this);
-            var resultDiv = $('#fb-group-selection-result');
-            
-            if (typeof fbPostScheduler === 'undefined') {
-                console.error('fbPostScheduler object not available');
-                return;
-            }
-            
-            if (!confirm('Er du sikker på, at du vil rydde gruppe-valget?')) {
-                return;
-            }
-            
-            // Disable button
-            button.prop('disabled', true).text('Rydder...');
-            resultDiv.html('');
-            
-            $.ajax({
-                url: fbPostScheduler.ajaxUrl,
-                type: 'POST',
-                data: {
-                    action: 'fb_post_scheduler_clear_group',
-                    nonce: fbPostScheduler.nonce
-                },
-                success: function(response) {
-                    if (response.success) {
-                        resultDiv.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
-                        
-                        // Genindlæs siden efter 2 sekunder
-                        setTimeout(function() {
-                            window.location.reload();
-                        }, 2000);
-                    } else {
-                        var message = response.data && response.data.message ? response.data.message : 'Der opstod en fejl';
-                        resultDiv.html('<div class="notice notice-error inline"><p>❌ ' + message + '</p></div>');
-                    }
-                },
-                error: function() {
-                    resultDiv.html('<div class="notice notice-error inline"><p>❌ Der opstod en netværksfejl</p></div>');
-                },
-                complete: function() {
-                    // Genaktiver knap
-                    button.prop('disabled', false).text('Ryd gruppe-valg');
-                }
-            });
-        });
-    }
+
 
     /**
      * Indstillinger: tilføj/fjern gemte sider til @[mention]-autocomplete.
