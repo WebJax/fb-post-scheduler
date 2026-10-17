@@ -14,10 +14,10 @@
 
 .fb-notification-icon::before {
 	content: "\f488";
-	color: #a0a5aa;
-	font-family: dashicons;
-	font-size: 20px;
-	vertical-align: middle;
+    color: #f3f1f1;
+    font-family: dashicons;
+    font-size: 20px;
+    line-height: 1.5;
 }
 
 #wpadminbar .fb-post-scheduler-notifications-menu .ab-sub-wrapper {
