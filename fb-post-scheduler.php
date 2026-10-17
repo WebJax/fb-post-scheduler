@@ -988,7 +988,7 @@ class FB_Post_Scheduler {
         echo '<p>' . wp_kses(
             sprintf(
                 /* translators: %s: Graph API Explorer URL */
-                __('Åbn <a href="%s" target="_blank" rel="noopener noreferrer">Graph API Explorer</a>, vælg den samme app som App ID herunder, og tilføj tilladelserne <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code> og <code>business_management</code>. Generér et bruger-token og indsæt det her. Brug ikke side-tokenet.', 'fb-post-scheduler'),
+                __('Åbn <a href="%s" target="_blank" rel="noopener noreferrer">Graph API Explorer</a>, vælg den samme app som App ID herunder, og tilføj tilladelserne <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code> og <code>business_management</code>. Generér et bruger-token og indsæt det her. Brug ikke side-tokenet. Du skal være administrator eller redaktør på siden. En rolle i Business-kontoen alene kan ikke udgive opslag.', 'fb-post-scheduler'),
                 esc_url('https://developers.facebook.com/tools/explorer/')
             ),
             $allowed_link

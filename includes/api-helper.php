@@ -17,21 +17,29 @@ class FB_Post_Scheduler_API {
     
     /**
      * Facebook App ID
+     *
+     * @var string
      */
     private $app_id;
     
     /**
      * Facebook App Secret
+     *
+     * @var string
      */
     private $app_secret;
     
     /**
      * Facebook Page ID
+     *
+     * @var string
      */
     private $page_id;
     
     /**
      * Facebook Access Token
+     *
+     * @var string
      */
     private $access_token;
 
@@ -303,19 +311,86 @@ class FB_Post_Scheduler_API {
             'body' => $data,
         ));
 
-        $this->cleanup_link_preview($link, $post_id, $image_id);
-
         if (is_wp_error($response)) {
+            $this->cleanup_link_preview($link, $post_id, $image_id);
             return $response;
         }
 
         $body = json_decode(wp_remote_retrieve_body($response), true);
 
-        if (isset($body['error'])) {
-            return new WP_Error('facebook_api_error', $body['error']['message']);
+        if (is_array($body) && isset($body['error']) && $this->is_page_publish_permission_error($body['error'])) {
+            if ($this->refresh_stored_page_token()) {
+                $data['access_token'] = $this->access_token;
+                $response = wp_remote_post($url, array(
+                    'method' => 'POST',
+                    'timeout' => 45,
+                    'redirection' => 5,
+                    'httpversion' => '1.0',
+                    'blocking' => true,
+                    'body' => $data,
+                ));
+                if (!is_wp_error($response)) {
+                    $body = json_decode(wp_remote_retrieve_body($response), true);
+                }
+            }
+        }
+
+        $this->cleanup_link_preview($link, $post_id, $image_id);
+
+        if (is_array($body) && isset($body['error'])) {
+            $message = $this->is_page_publish_permission_error($body['error'])
+                ? $this->page_publish_permission_message()
+                : $body['error']['message'];
+            return new WP_Error('facebook_api_error', $message);
         }
 
         return $body;
+    }
+
+    /**
+     * Facebook afviser opslag, når side-tokenet mangler de to side-tilladelser
+     * eller personen ikke er administrator/redaktør på siden.
+     *
+     * @param array $error
+     * @return bool
+     */
+    private function is_page_publish_permission_error($error) {
+        $message = isset($error['message']) ? (string) $error['message'] : '';
+        return strpos($message, 'pages_manage_posts') !== false
+            && strpos($message, 'pages_read_engagement') !== false;
+    }
+
+    /**
+     * @return string
+     */
+    private function page_publish_permission_message() {
+        return __('Facebook afviser opslaget. Side-tokenet skal have både pages_read_engagement og pages_manage_posts, og du skal være administrator eller redaktør på siden. En rolle i Business-kontoen er ikke nok. Tildel dig selv rollen på siden, og opret side-tokenet igen.', 'fb-post-scheduler');
+    }
+
+    /**
+     * Hent et nyt side-token fra det gemte bruger-token og gem det, hvis det kan udgive.
+     *
+     * @return bool
+     */
+    private function refresh_stored_page_token() {
+        $user_token = (string) get_option('fb_post_scheduler_facebook_user_token', '');
+        if ($user_token === '' || $this->page_id === '') {
+            return false;
+        }
+
+        $token = $this->fetch_page_access_token($this->page_id, $user_token);
+        if ($token === '' || $token === $this->access_token) {
+            return false;
+        }
+
+        $debug = $this->debug_access_token($token);
+        if (is_wp_error($debug) || !$this->token_can_publish($debug)) {
+            return false;
+        }
+
+        $this->access_token = $token;
+        update_option('fb_post_scheduler_facebook_access_token', $token);
+        return true;
     }
     
     /**
@@ -791,12 +866,12 @@ class FB_Post_Scheduler_API {
         if (is_wp_error($businesses)) {
             if ($this->is_missing_business_permission($businesses)) {
                 $this->pages_notice = __('Sider i Business-kontoen kræver tilladelsen business_management. Generér bruger-tokenet igen med den tilladelse.', 'fb-post-scheduler');
-                return $pages;
+                return $this->with_publish_tokens($pages, $user_access_token);
             }
             if (empty($pages)) {
                 return $businesses;
             }
-            return $pages;
+            return $this->with_publish_tokens($pages, $user_access_token);
         }
 
         foreach ($businesses as $business) {
@@ -812,7 +887,114 @@ class FB_Post_Scheduler_API {
             }
         }
 
+        return $this->with_publish_tokens($pages, $user_access_token);
+    }
+
+    /**
+     * Side-tokenet fra /{page-id}?fields=access_token arver bruger-tokenets tilladelser.
+     * Tokenet fra Business-kontoens sideliste kan mangle pages_manage_posts.
+     *
+     * @param array  $pages
+     * @param string $user_access_token
+     * @return array
+     */
+    private function with_publish_tokens($pages, $user_access_token) {
+        foreach ($pages as $index => $page) {
+            if (empty($page['id'])) {
+                continue;
+            }
+            $token = $this->fetch_page_access_token($page['id'], $user_access_token);
+            if ($token !== '') {
+                $pages[$index]['access_token'] = $token;
+            }
+        }
         return $pages;
+    }
+
+    /**
+     * @param string $page_id
+     * @param string $user_access_token
+     * @return string
+     */
+    private function fetch_page_access_token($page_id, $user_access_token) {
+        $url = add_query_arg(
+            array(
+                'fields' => 'access_token',
+                'access_token' => $user_access_token,
+            ),
+            'https://graph.facebook.com/' . rawurlencode((string) $page_id)
+        );
+
+        $response = wp_remote_get($url, array(
+            'timeout' => 30,
+            'headers' => array(
+                'User-Agent' => 'WordPress/Facebook-Post-Scheduler',
+            ),
+        ));
+        $data = $this->decode_graph_response($response);
+        if (is_wp_error($data) || empty($data['access_token']) || !is_string($data['access_token'])) {
+            return '';
+        }
+
+        return $data['access_token'];
+    }
+
+    /**
+     * @param array $token_data debug_token-data
+     * @return string[]
+     */
+    private function token_scope_names($token_data) {
+        $names = array();
+        if (!empty($token_data['scopes']) && is_array($token_data['scopes'])) {
+            foreach ($token_data['scopes'] as $scope) {
+                if (is_string($scope) && $scope !== '') {
+                    $names[] = $scope;
+                }
+            }
+        }
+        if (!empty($token_data['granular_scopes']) && is_array($token_data['granular_scopes'])) {
+            foreach ($token_data['granular_scopes'] as $scope) {
+                if (is_array($scope) && !empty($scope['scope'])) {
+                    $names[] = (string) $scope['scope'];
+                }
+            }
+        }
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * @param array $token_data
+     * @return bool
+     */
+    private function token_can_publish($token_data) {
+        $type = isset($token_data['type']) ? strtoupper((string) $token_data['type']) : '';
+        if ($type !== '' && $type !== 'PAGE') {
+            return false;
+        }
+        $scopes = $this->token_scope_names($token_data);
+        if ($scopes === array()) {
+            return true;
+        }
+        return in_array('pages_manage_posts', $scopes, true)
+            && in_array('pages_read_engagement', $scopes, true);
+    }
+
+    /**
+     * Tom streng når tokenet kan udgive. Ellers en forklaring til brugeren.
+     *
+     * @param array $token_info
+     * @return string
+     */
+    public function explain_unpublished_page_token($token_info) {
+        $type = isset($token_info['token_type']) ? (string) $token_info['token_type'] : '';
+        $scopes = isset($token_info['scopes']) && is_array($token_info['scopes']) ? $token_info['scopes'] : array();
+        if ($this->token_can_publish(array('type' => $type, 'scopes' => $scopes))) {
+            return '';
+        }
+        if (strtoupper($type) === 'USER') {
+            return __('Facebook returnerede et bruger-token. Opslag kræver et side-token fra en side, hvor du er administrator eller redaktør.', 'fb-post-scheduler');
+        }
+        return $this->page_publish_permission_message();
     }
 
     /**
@@ -851,7 +1033,7 @@ class FB_Post_Scheduler_API {
                 continue;
             }
             $tasks = isset($page['tasks']) && is_array($page['tasks']) ? $page['tasks'] : array();
-            if ($tasks !== array() && !array_intersect($tasks, array('MANAGE', 'MODERATE', 'CREATE_CONTENT'))) {
+            if (!$this->page_can_publish($tasks)) {
                 continue;
             }
             $pages[] = array(
@@ -863,6 +1045,26 @@ class FB_Post_Scheduler_API {
             );
         }
         return $pages;
+    }
+
+    /**
+     * Tom opgaveliste beholdes, fordi Business-kanten nogle gange udelader tasks.
+     * Moderator, annoncør og analytiker kan ikke udgive opslag.
+     *
+     * @param array $tasks
+     * @return bool
+     */
+    private function page_can_publish($tasks) {
+        if ($tasks === array()) {
+            return true;
+        }
+        foreach ($tasks as $task) {
+            $task = strtoupper((string) $task);
+            if ($task === 'MANAGE' || $task === 'CREATE_CONTENT' || $task === 'PROFILE_PLUS_MANAGE' || $task === 'PROFILE_PLUS_CREATE_CONTENT') {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -959,11 +1161,11 @@ class FB_Post_Scheduler_API {
             
             return array(
                 'access_token' => $page_access_token,
-                'token_type' => 'page',
+                'token_type' => isset($token_data['type']) ? $token_data['type'] : 'page',
                 'expires_at' => $expires_at,
                 'expires_date' => $expires_date,
                 'app_id' => isset($token_data['app_id']) ? $token_data['app_id'] : null,
-                'scopes' => isset($token_data['scopes']) ? $token_data['scopes'] : array()
+                'scopes' => $this->token_scope_names($token_data)
             );
         }
         

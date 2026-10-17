@@ -849,6 +849,11 @@ function fb_post_scheduler_save_connected_page($page) {
         return $token_info;
     }
 
+    $blocked = $api->explain_unpublished_page_token($token_info);
+    if ($blocked !== '') {
+        return new WP_Error('page_cannot_publish', $blocked);
+    }
+
     $page_name = isset($page['name']) ? $page['name'] : '';
     update_option('fb_post_scheduler_facebook_page_id', $page['id']);
     update_option('fb_post_scheduler_facebook_page_name', $page_name);
