@@ -659,7 +659,7 @@
                         resetLoginButton($btn);
                     }
                 }, { 
-                    scope: 'pages_show_list,pages_manage_posts,pages_read_engagement'
+                    scope: 'pages_show_list,pages_manage_posts,pages_read_engagement,business_management'
                 });
             } catch (error) {
                 console.error('Facebook login error:', error);

@@ -855,6 +855,7 @@ class FB_Post_Scheduler {
         echo '<li><code>pages_show_list</code> — ' . esc_html__('Se liste over sider', 'fb-post-scheduler') . '</li>';
         echo '<li><code>pages_read_engagement</code> — ' . esc_html__('Læs side-engagement', 'fb-post-scheduler') . '</li>';
         echo '<li><code>pages_manage_posts</code> — ' . esc_html__('Udgiv opslag på siden', 'fb-post-scheduler') . '</li>';
+        echo '<li><code>business_management</code> — ' . esc_html__('Sider i en Business-konto', 'fb-post-scheduler') . '</li>';
         echo '</ul>';
         echo '</div>';
 
@@ -987,7 +988,7 @@ class FB_Post_Scheduler {
         echo '<p>' . wp_kses(
             sprintf(
                 /* translators: %s: Graph API Explorer URL */
-                __('Åbn <a href="%s" target="_blank" rel="noopener noreferrer">Graph API Explorer</a>, vælg din app, og tilføj tilladelserne <code>pages_show_list</code>, <code>pages_read_engagement</code> og <code>pages_manage_posts</code>. Generér et token og indsæt det her.', 'fb-post-scheduler'),
+                __('Åbn <a href="%s" target="_blank" rel="noopener noreferrer">Graph API Explorer</a>, vælg den samme app som App ID herunder, og tilføj tilladelserne <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code> og <code>business_management</code>. Generér et bruger-token og indsæt det her. Brug ikke side-tokenet.', 'fb-post-scheduler'),
                 esc_url('https://developers.facebook.com/tools/explorer/')
             ),
             $allowed_link

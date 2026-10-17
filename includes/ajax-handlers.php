@@ -884,6 +884,23 @@ function fb_post_scheduler_public_page_choices($pages) {
 }
 
 /**
+ * Bevar Facebook-tokenet. sanitize_text_field fjerner %xx-sekvenser midt i tokenet.
+ *
+ * @param mixed $token
+ * @return string
+ */
+function fb_post_scheduler_sanitize_token($token) {
+    if (!is_string($token)) {
+        return '';
+    }
+
+    $token = trim(wp_unslash($token));
+    $token = preg_replace('/\s+/', '', $token);
+
+    return is_string($token) ? $token : '';
+}
+
+/**
  * Udveksl et short-term bruger-token og gem det side-token, det giver.
  */
 function fb_post_scheduler_connect_facebook_ajax() {
@@ -901,7 +918,7 @@ function fb_post_scheduler_connect_facebook_ajax() {
         exit;
     }
 
-    $short_term_token = isset($_POST['short_term_token']) ? sanitize_text_field(wp_unslash($_POST['short_term_token'])) : '';
+    $short_term_token = isset($_POST['short_term_token']) ? fb_post_scheduler_sanitize_token($_POST['short_term_token']) : '';
     if ($short_term_token === '') {
         wp_send_json_error(array(
             'message' => __('Short-term bruger-token er påkrævet', 'fb-post-scheduler')
@@ -910,17 +927,17 @@ function fb_post_scheduler_connect_facebook_ajax() {
     }
 
     $api = fb_post_scheduler_get_api();
-    $exchanged = $api->exchange_for_long_term_token($short_term_token);
-    if (is_wp_error($exchanged)) {
+    $user_token = $api->resolve_long_lived_user_token($short_term_token);
+    if (is_wp_error($user_token)) {
         wp_send_json_error(array(
-            'message' => sprintf(__('Token udveksling fejl: %s', 'fb-post-scheduler'), $exchanged->get_error_message())
+            'message' => $user_token->get_error_message()
         ));
         exit;
     }
 
-    update_option('fb_post_scheduler_facebook_user_token', $exchanged['access_token']);
+    update_option('fb_post_scheduler_facebook_user_token', $user_token);
 
-    $pages = $api->get_user_pages($exchanged['access_token']);
+    $pages = $api->get_user_pages($user_token);
     if (is_wp_error($pages)) {
         wp_send_json_error(array(
             'message' => sprintf(__('Fejl ved hentning af sider: %s', 'fb-post-scheduler'), $pages->get_error_message())
@@ -929,13 +946,17 @@ function fb_post_scheduler_connect_facebook_ajax() {
     }
 
     if (empty($pages)) {
+        $notice = $api->get_pages_notice();
         wp_send_json_error(array(
-            'message' => __('Ingen Facebook-sider fundet. Tokenet skal have pages_show_list, pages_read_engagement og pages_manage_posts, og du skal kunne oprette indhold på siden.', 'fb-post-scheduler')
+            'message' => $notice !== ''
+                ? $notice
+                : __('Ingen Facebook-sider fundet. Tokenet skal have pages_show_list, pages_read_engagement, pages_manage_posts og business_management, hvis siderne ligger i en Business-konto.', 'fb-post-scheduler')
         ));
         exit;
     }
 
     fb_post_scheduler_store_page_choices($pages);
+    $notice = $api->get_pages_notice();
 
     if (count($pages) === 1) {
         $saved = fb_post_scheduler_save_connected_page($pages[0]);
@@ -946,24 +967,34 @@ function fb_post_scheduler_connect_facebook_ajax() {
             exit;
         }
 
+        $message = sprintf(
+            __('Side-token er gemt for %1$s. %2$s.', 'fb-post-scheduler'),
+            $saved['name'],
+            ($saved['expires'] === '' || $saved['expires'] === 'Aldrig')
+                ? __('Tokenet udløber ikke', 'fb-post-scheduler')
+                : sprintf(__('Tokenet udløber %s', 'fb-post-scheduler'), $saved['expires'])
+        );
+        if ($notice !== '') {
+            $message .= ' ' . $notice;
+        }
+
         wp_send_json_success(array(
             'connected' => true,
-            'message' => sprintf(
-                __('Side-token er gemt for %1$s. %2$s.', 'fb-post-scheduler'),
-                $saved['name'],
-                ($saved['expires'] === '' || $saved['expires'] === 'Aldrig')
-                    ? __('Tokenet udløber ikke', 'fb-post-scheduler')
-                    : sprintf(__('Tokenet udløber %s', 'fb-post-scheduler'), $saved['expires'])
-            ),
+            'message' => $message,
             'page' => $saved,
         ));
         exit;
     }
 
+    $message = sprintf(__('Fandt %d sider. Vælg den side, opslagene skal udgives på.', 'fb-post-scheduler'), count($pages));
+    if ($notice !== '') {
+        $message .= ' ' . $notice;
+    }
+
     wp_send_json_success(array(
         'connected' => false,
         'needs_selection' => true,
-        'message' => sprintf(__('Fandt %d sider. Vælg den side, opslagene skal udgives på.', 'fb-post-scheduler'), count($pages)),
+        'message' => $message,
         'pages' => fb_post_scheduler_public_page_choices($pages),
     ));
     exit;

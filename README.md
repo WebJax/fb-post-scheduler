@@ -42,10 +42,11 @@ Før du kan bruge pluginet, skal du have en Facebook-app:
    - `pages_show_list` - Se liste over sider
    - `pages_read_engagement` - Læs side-engagement
    - `pages_manage_posts` - Udgiv opslag på siden
+   - `business_management` - Sider der ligger i en Business-konto
 4. **Hent App ID og App Secret**: Find disse under appens grundindstillinger, og gem dem i pluginet
 
 ### 2. Long-term side-token
-Et side-token uden udløb laves sådan: short-term bruger-token → long-lived bruger-token → `GET /me/accounts`. Page-tokenet i svaret udløber ikke af sig selv.
+Et side-token uden udløb laves sådan: short-term bruger-token → long-lived bruger-token → sidens token. Tokenet udløber ikke af sig selv. Sider med en direkte rolle hentes via `GET /me/accounts`. Sider i en Business-konto hentes via `GET /me/businesses` og derefter `owned_pages` og `client_pages`, hvilket kræver `business_management`.
 
 1. Gem App ID og App Secret
 2. Åbn [Graph API Explorer](https://developers.facebook.com/tools/explorer/), vælg appen, tilføj tilladelserne ovenfor, og generér et token
