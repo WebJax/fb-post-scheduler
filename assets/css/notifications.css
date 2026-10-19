@@ -1,23 +1,25 @@
-.fb-notification-count {
-	display: inline-block;
-	min-width: 18px;
-	height: 18px;
-	margin: 0 2px 0 0;
-	padding: 0 4px;
-	border-radius: 9px;
-	background-color: #d63638;
-	color: #fff;
-	font-size: 11px;
-	line-height: 18px;
-	text-align: center;
+#wp-admin-bar-fb-post-scheduler-notifications a:before {
+	content: "\f304";
+	top: 2px;
 }
 
-.fb-notification-icon::before {
-	content: "\f488";
-    color: #f3f1f1;
-    font-family: dashicons;
-    font-size: 20px;
-    line-height: 1.5;
+#wp-admin-bar-fb-post-scheduler-notifications-default a:before {
+    content: none;
+	margin-inline: 0;
+}
+
+#wp-admin-bar-fb-post-scheduler-notifications .fb-notification-count {
+    display: inline-block;
+    min-width: 18px;
+    height: 18px;
+    margin: 0 2px 0 0;
+    padding: 0 1px;
+    border-radius: 9px;
+    background-color: #d63638;
+    color: #fff;
+    font-size: 13px;
+    line-height: 18px;
+    text-align: center;
 }
 
 #wpadminbar .fb-post-scheduler-notifications-menu .ab-sub-wrapper {
