@@ -101,6 +101,12 @@ Ja, du kan oprette flere Facebook-opslag til samme WordPress-indlæg med forskel
 
 == Changelog ==
 
+= 1.2.8 =
+* Opdatering af notifikationssystemet, med mulighed for at genposte fejlede opslag.
+* Mail om notifikationer til valgfi mailadresse.
+* Lettere oprettelse af long-term side-token.
+* Opdeling af instillingssiden med tabs.
+
 = 1.2.0 =
 * Vælg AI-provider: Ollama (localhost) eller Google Gemini API
 * Gemini-kaldet bruger Interactions API (`gemini-3.6-flash`) med den gemte API-nøgle
@@ -134,6 +140,9 @@ Ja, du kan oprette flere Facebook-opslag til samme WordPress-indlæg med forskel
 * Detaljeret logging
 
 == Upgrade Notice ==
+
+= 1.2.8 =
+Opdatering af notifikationer, indstillingssiden og oprettelse af long-term side-token
 
 = 1.2.0 =
 AI-tekstgenerering kan nu køre via lokal Ollama eller Google Gemini. Vælg provider under indstillingerne.

@@ -204,7 +204,7 @@ class FB_Post_Scheduler_Notifications {
     }
 
     /**
-     * Slet, marker som læst eller prøv et fejlet opslag igen.
+     * Slet, marker som læst, prøv et fejlet opslag igen, eller fjern et fejlet opslag.
      */
     public function handle_admin_actions(): void {
         if (!isset($_POST['fb_notifications_nonce'])) {
@@ -219,6 +219,10 @@ class FB_Post_Scheduler_Notifications {
 
         if (isset($_POST['retry_post'])) {
             $this->handle_retry(sanitize_text_field(wp_unslash($_POST['retry_post'])));
+        }
+
+        if (isset($_POST['delete_failed_post'])) {
+            $this->handle_delete_failed(sanitize_text_field(wp_unslash($_POST['delete_failed_post'])));
         }
 
         if (isset($_POST['delete_notification'])) {
@@ -280,7 +284,7 @@ class FB_Post_Scheduler_Notifications {
 
             <?php if ($failed_posts !== array()) : ?>
                 <h2><?php esc_html_e('Fejlede opslag', 'fb-post-scheduler'); ?></h2>
-                <p><?php esc_html_e('Disse opslag blev ikke postet. Ret indholdet, eller prøv at poste igen.', 'fb-post-scheduler'); ?></p>
+                <p><?php esc_html_e('Disse opslag blev ikke postet. Ret indholdet, prøv at poste igen, eller slet dem, hvis de er forældede.', 'fb-post-scheduler'); ?></p>
                 <form method="post" class="fb-notifications-form">
                     <?php wp_nonce_field('fb_post_scheduler_manage_notifications', 'fb_notifications_nonce'); ?>
                     <div class="fb-notifications-table-wrap">
@@ -313,6 +317,7 @@ class FB_Post_Scheduler_Notifications {
                                                     <a class="button" href="<?php echo esc_url($failed->edit_link); ?>"><?php esc_html_e('Rediger', 'fb-post-scheduler'); ?></a>
                                                 <?php endif; ?>
                                                 <button type="submit" class="button" name="retry_post" value="<?php echo esc_attr($failed->post_id . ':' . $failed->post_index); ?>" data-confirm="<?php echo esc_attr__('Prøv at poste opslaget til Facebook igen?', 'fb-post-scheduler'); ?>"><?php esc_html_e('Prøv igen', 'fb-post-scheduler'); ?></button>
+                                                <button type="submit" class="button button-link-delete" name="delete_failed_post" value="<?php echo esc_attr($failed->post_id . ':' . $failed->post_index); ?>" data-confirm="<?php echo esc_attr__('Slet det fejlede opslag? Det fjernes fra oversigten og databasen. Handlingen kan ikke fortrydes.', 'fb-post-scheduler'); ?>"><?php esc_html_e('Slet', 'fb-post-scheduler'); ?></button>
                                             </div>
                                         </td>
                                     </tr>
@@ -1048,6 +1053,26 @@ class FB_Post_Scheduler_Notifications {
         }
 
         $this->redirect_with_notice('error', __('Ukendt handling.', 'fb-post-scheduler'));
+    }
+
+    /**
+     * Slet et fejlet opslag, så det ikke længere ligger i oversigten.
+     */
+    private function handle_delete_failed(string $raw): void {
+        $parts = explode(':', $raw);
+        if (count($parts) !== 2) {
+            $this->redirect_with_notice('error', __('Kunne ikke finde opslaget.', 'fb-post-scheduler'));
+        }
+
+        $post_id = absint($parts[0]);
+        $post_index = absint($parts[1]);
+        $result = fb_post_scheduler_delete_failed_post($post_id, $post_index);
+        if (is_wp_error($result)) {
+            $this->redirect_with_notice('error', $result->get_error_message());
+        }
+
+        $this->delete_error_notifications($post_id, $post_index);
+        $this->redirect_with_notice('success', __('Det fejlede opslag blev slettet.', 'fb-post-scheduler'));
     }
 
     /**

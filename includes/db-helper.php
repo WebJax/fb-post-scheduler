@@ -313,6 +313,98 @@ function fb_post_scheduler_delete_scheduled_post($post_id, $post_index) {
 }
 
 /**
+ * Slet et fejlet opslag fra tabellen og fra indholdets Facebook-meta.
+ *
+ * Andre opslag på samme indhold bliver stående, også deres indeks.
+ *
+ * @param int $post_id    WordPress post ID.
+ * @param int $post_index Indeks i _fb_posts.
+ * @return true|WP_Error
+ */
+function fb_post_scheduler_delete_failed_post($post_id, $post_index) {
+    global $wpdb;
+
+    $post_id = absint($post_id);
+    $post_index = absint($post_index);
+    if (!$post_id) {
+        return new WP_Error(
+            'fb_delete_missing',
+            __('Kunne ikke finde opslaget.', 'fb-post-scheduler')
+        );
+    }
+
+    $table_name = fb_post_scheduler_get_table_name();
+    $deleted = $wpdb->delete(
+        $table_name,
+        array(
+            'post_id' => $post_id,
+            'post_index' => $post_index,
+            'status' => 'error',
+        ),
+        array('%d', '%d', '%s')
+    );
+
+    if (!$deleted) {
+        return new WP_Error(
+            'fb_delete_missing',
+            __('Opslaget findes ikke længere, eller det er ikke et fejlet opslag.', 'fb-post-scheduler')
+        );
+    }
+
+    $fb_posts = get_post_meta($post_id, '_fb_posts', true);
+    if (is_array($fb_posts) && isset($fb_posts[$post_index]) && is_array($fb_posts[$post_index])) {
+        $status = isset($fb_posts[$post_index]['status']) ? (string) $fb_posts[$post_index]['status'] : '';
+        if ($status !== 'posted') {
+            unset($fb_posts[$post_index]);
+        }
+
+        if ($fb_posts === array()) {
+            delete_post_meta($post_id, '_fb_posts');
+        } else {
+            update_post_meta($post_id, '_fb_posts', $fb_posts);
+        }
+    }
+
+    fb_post_scheduler_remove_scheduled_time($post_id, $post_index);
+
+    $remaining = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$table_name} WHERE post_id = %d AND status IN (%s, %s, %s)",
+        $post_id,
+        'scheduled',
+        'posting',
+        'error'
+    ));
+    if ($remaining < 1) {
+        delete_post_meta($post_id, '_fb_post_enabled');
+    }
+
+    fb_post_scheduler_log('Slettede fejlet Facebook-opslag #' . ($post_index + 1), $post_id);
+
+    return true;
+}
+
+/**
+ * Fjern et tidsstempel for et opslag. Meta-nøglen slettes, når listen er tom.
+ *
+ * @param int $post_id    WordPress post ID.
+ * @param int $post_index Indeks i _fb_scheduled_times.
+ */
+function fb_post_scheduler_remove_scheduled_time($post_id, $post_index) {
+    $scheduled_times = get_post_meta($post_id, '_fb_scheduled_times', true);
+    if (!is_array($scheduled_times) || !array_key_exists($post_index, $scheduled_times)) {
+        return;
+    }
+
+    unset($scheduled_times[$post_index]);
+    if ($scheduled_times === array()) {
+        delete_post_meta($post_id, '_fb_scheduled_times');
+        return;
+    }
+
+    update_post_meta($post_id, '_fb_scheduled_times', $scheduled_times);
+}
+
+/**
  * Hent alle planlagte opslag for et bestemt tidsrum
  * 
  * @param string $start_date Start dato i Y-m-d H:i:s format
