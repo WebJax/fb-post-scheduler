@@ -1609,3 +1609,125 @@ function fb_post_scheduler_fetch_facebook_preview_ajax() {
     wp_send_json_success($mapped);
 }
 add_action('wp_ajax_fb_post_scheduler_fetch_facebook_preview', 'fb_post_scheduler_fetch_facebook_preview_ajax');
+
+/**
+ * Opret et planlagt Facebook-opslag fra indlægsoversigten.
+ *
+ * Teksten genereres med den valgte AI-provider, og opslaget vises i FB-opslag-kolonnen.
+ */
+function fb_post_scheduler_create_list_post_ajax(): void {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'fb_post_scheduler_list_create')) {
+        wp_send_json_error(array(
+            'message' => __('Ugyldig sikkerhedsnøgle', 'fb-post-scheduler'),
+        ));
+    }
+
+    $post_id = isset($_POST['post_id']) ? absint($_POST['post_id']) : 0;
+    $post = $post_id ? get_post($post_id) : null;
+
+    if (!$post instanceof WP_Post || $post->post_status === 'trash' || wp_is_post_revision($post_id)) {
+        wp_send_json_error(array(
+            'message' => __('Indlægget blev ikke fundet.', 'fb-post-scheduler'),
+        ));
+    }
+
+    if (!current_user_can('edit_post', $post_id)) {
+        wp_send_json_error(array(
+            'message' => __('Utilstrækkelige rettigheder', 'fb-post-scheduler'),
+        ));
+    }
+
+    $scheduler = FB_Post_Scheduler::get_instance();
+    if (!$scheduler->supports_schedule_column($post->post_type)) {
+        wp_send_json_error(array(
+            'message' => __('Facebook-opslag kan ikke oprettes for denne type.', 'fb-post-scheduler'),
+        ));
+    }
+
+    if (!get_option('fb_post_scheduler_ai_enabled', '')) {
+        wp_send_json_error(array(
+            'message' => __('AI-tekst er ikke aktiveret. Slå det til under indstillingerne for Facebook Scheduler.', 'fb-post-scheduler'),
+        ));
+    }
+
+    $date = isset($_POST['date']) ? sanitize_text_field(wp_unslash($_POST['date'])) : '';
+    $time = isset($_POST['time']) ? sanitize_text_field(wp_unslash($_POST['time'])) : '';
+    $datetime = DateTimeImmutable::createFromFormat('!Y-m-d H:i', $date . ' ' . $time, wp_timezone());
+
+    if (!$datetime instanceof DateTimeImmutable || $datetime->format('Y-m-d H:i') !== $date . ' ' . $time) {
+        wp_send_json_error(array(
+            'message' => __('Vælg en gyldig dato og et gyldigt tidspunkt.', 'fb-post-scheduler'),
+        ));
+    }
+
+    $generated = fb_post_scheduler_generate_ai_text($post_id);
+    if (is_wp_error($generated)) {
+        wp_send_json_error(array(
+            'message' => $generated->get_error_message(),
+        ));
+    }
+
+    $text = sanitize_textarea_field($generated);
+    if ($text === '') {
+        wp_send_json_error(array(
+            'message' => __('AI returnerede ingen tekst. Prøv igen.', 'fb-post-scheduler'),
+        ));
+    }
+
+    $mysql_time = $datetime->format('Y-m-d H:i:s');
+    $index = fb_post_scheduler_allocate_post_index($post_id);
+    $image_id = (int) get_post_thumbnail_id($post_id);
+    $previous_posts = get_post_meta($post_id, '_fb_posts', true);
+    $had_enabled = get_post_meta($post_id, '_fb_post_enabled', true) === '1';
+    $fb_posts = is_array($previous_posts) ? $previous_posts : array();
+
+    $fb_posts[$index] = array(
+        'text' => $text,
+        'date' => $mysql_time,
+        'enabled' => true,
+        'image_id' => $image_id,
+        'target_type' => 'page',
+    );
+
+    update_post_meta($post_id, '_fb_posts', $fb_posts);
+    update_post_meta($post_id, '_fb_post_enabled', '1');
+
+    $saved = fb_post_scheduler_save_scheduled_post($post_id, array(
+        'text' => $text,
+        'date' => $mysql_time,
+        'image_id' => $image_id,
+        'enabled' => true,
+    ), $index);
+
+    if (!$saved) {
+        if (is_array($previous_posts)) {
+            update_post_meta($post_id, '_fb_posts', $previous_posts);
+        } else {
+            delete_post_meta($post_id, '_fb_posts');
+        }
+
+        if (!$had_enabled) {
+            delete_post_meta($post_id, '_fb_post_enabled');
+        }
+
+        wp_send_json_error(array(
+            'message' => __('Opslaget kunne ikke gemmes. Prøv igen.', 'fb-post-scheduler'),
+        ));
+    }
+
+    fb_post_scheduler_log('Oprettede Facebook-opslag #' . ($index + 1) . ' fra oversigten til ' . $mysql_time, $post_id);
+
+    ob_start();
+    $scheduler->render_schedule_count_column('fb_schedule_count', $post_id);
+    $column_html = ob_get_clean();
+
+    wp_send_json_success(array(
+        'message' => sprintf(
+            /* translators: %s: scheduled date and time */
+            __('Facebook-opslaget er planlagt til %s.', 'fb-post-scheduler'),
+            wp_date(get_option('date_format') . ' ' . get_option('time_format'), $datetime->getTimestamp())
+        ),
+        'columnHtml' => is_string($column_html) ? $column_html : '',
+    ));
+}
+add_action('wp_ajax_fb_post_scheduler_create_list_post', 'fb_post_scheduler_create_list_post_ajax');

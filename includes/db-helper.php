@@ -21,8 +21,60 @@ function fb_post_scheduler_get_table_name() {
 }
 
 /**
+ * Om et opslagsindeks allerede har en række i databasen.
+ *
+ * @param int $post_id    WordPress-indlægget.
+ * @param int $post_index Indeks i _fb_posts.
+ */
+function fb_post_scheduler_post_index_is_taken(int $post_id, int $post_index): bool {
+    global $wpdb;
+    $table_name = fb_post_scheduler_get_table_name();
+    $id = $wpdb->get_var($wpdb->prepare(
+        "SELECT id FROM {$table_name} WHERE post_id = %d AND post_index = %d",
+        $post_id,
+        $post_index
+    ));
+
+    return $id !== null;
+}
+
+/**
+ * Næste ledige indeks. Tomme standardrækker genbruges, så editoren ikke får et ekstra tomt slot.
+ *
+ * @param int $post_id WordPress-indlægget.
+ */
+function fb_post_scheduler_allocate_post_index(int $post_id): int {
+    $fb_posts = get_post_meta($post_id, '_fb_posts', true);
+
+    if (is_array($fb_posts)) {
+        foreach ($fb_posts as $key => $slot) {
+            $index = absint($key);
+            if (fb_post_scheduler_editor_slot_is_placeholder($slot) && !fb_post_scheduler_post_index_is_taken($post_id, $index)) {
+                return $index;
+            }
+        }
+    }
+
+    global $wpdb;
+    $table_name = fb_post_scheduler_get_table_name();
+    $max_db = $wpdb->get_var($wpdb->prepare(
+        "SELECT MAX(post_index) FROM {$table_name} WHERE post_id = %d",
+        $post_id
+    ));
+    $max = is_numeric($max_db) ? (int) $max_db : -1;
+
+    if (is_array($fb_posts)) {
+        foreach (array_keys($fb_posts) as $key) {
+            $max = max($max, (int) $key);
+        }
+    }
+
+    return $max + 1;
+}
+
+/**
  * Indsæt eller opdater et planlagt opslag i databasen
- * 
+ *
  * @param int $post_id ID på det oprindelige WordPress indlæg
  * @param array $fb_post Data for Facebook-opslaget
  * @param int $post_index Indeks for opslaget i tilfælde af flere FB opslag for samme post
