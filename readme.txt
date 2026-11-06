@@ -101,6 +101,9 @@ Ja, du kan oprette flere Facebook-opslag til samme WordPress-indlæg med forskel
 
 == Changelog ==
 
+= 1.2.9 =
+* “Opret FB-Opslag” under titlen på indlæg, sider og begivenheder. Dato og tid vælges i en dialog, teksten genereres med AI, og opslaget vises i kolonnen FB opslag.
+
 = 1.2.8 =
 * Opdatering af notifikationssystemet, med mulighed for at genposte fejlede opslag.
 * Mail om notifikationer til valgfi mailadresse.
@@ -140,6 +143,9 @@ Ja, du kan oprette flere Facebook-opslag til samme WordPress-indlæg med forskel
 * Detaljeret logging
 
 == Upgrade Notice ==
+
+= 1.2.9 =
+Opret et planlagt Facebook-opslag direkte fra oversigten. Teksten genereres med AI.
 
 = 1.2.8 =
 Opdatering af notifikationer, indstillingssiden og oprettelse af long-term side-token

@@ -3,7 +3,7 @@
  * Plugin Name: Facebook Post Scheduler
  * Plugin URI: https://jaxweb.dk/fb-post-scheduler
  * Description: Planlæg og administrer Facebook-opslag direkte fra WordPress med automatisk link til indholdet, AI-tekst generering, og avanceret administration
- * Version: 1.2.8
+ * Version: 1.2.9
  * Author: Jacob Thygesen
  * Author URI: https://jaxweb.dk
  * License: GPL2
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 // Definér konstanter
 define('FB_POST_SCHEDULER_PATH', plugin_dir_path(__FILE__));
 define('FB_POST_SCHEDULER_URL', plugin_dir_url(__FILE__));
-define('FB_POST_SCHEDULER_VERSION', '1.2.8');
+define('FB_POST_SCHEDULER_VERSION', '1.2.9');
 
 // Inkluder nødvendige filer
 require_once FB_POST_SCHEDULER_PATH . 'includes/ajax-handlers.php';
@@ -1565,6 +1565,28 @@ class FB_Post_Scheduler {
                 array(),
                 FB_POST_SCHEDULER_VERSION
             );
+
+            wp_enqueue_script(
+                'fb-post-scheduler-list-create',
+                FB_POST_SCHEDULER_URL . 'assets/js/list-create.js',
+                array('wp-a11y'),
+                FB_POST_SCHEDULER_VERSION,
+                true
+            );
+
+            wp_localize_script(
+                'fb-post-scheduler-list-create',
+                'fbListCreate',
+                array(
+                    'ajaxUrl' => admin_url('admin-ajax.php'),
+                    'nonce' => wp_create_nonce('fb_post_scheduler_list_create'),
+                    'defaultDate' => wp_date('Y-m-d', strtotime('+1 day') ?: time()),
+                    'defaultTime' => '12:00',
+                    'pastDateWarning' => __('Advarsel: Du har valgt en dato i fortiden. Opslaget vil blive postet med det samme.', 'fb-post-scheduler'),
+                    'missingDate' => __('Vælg både dato og tidspunkt.', 'fb-post-scheduler'),
+                    'ajaxError' => __('Der opstod en fejl ved kommunikation med serveren. Prøv igen senere.', 'fb-post-scheduler'),
+                )
+            );
         }
 
         if (strpos($hook, 'fb-post-scheduler') !== false || $hook == 'post.php' || $hook == 'post-new.php' || strpos($hook, 'admin_page_fb-post-scheduler') !== false) {
@@ -1741,7 +1763,7 @@ class FB_Post_Scheduler {
         
         // Få poster med _fb_post_enabled meta
         $args = array(
-            'post_type' => $this->selected_post_types,
+            'post_type' => $this->get_schedule_column_post_types(),
             'posts_per_page' => -1,
             'meta_query' => array(
                 array(
@@ -2080,6 +2102,91 @@ class FB_Post_Scheduler {
             add_filter("manage_{$post_type}_posts_columns", array($this, 'add_schedule_count_column'));
             add_action("manage_{$post_type}_posts_custom_column", array($this, 'render_schedule_count_column'), 10, 2);
         }
+
+        add_filter('post_row_actions', array($this, 'add_create_fb_post_row_action'), 10, 2);
+        add_filter('page_row_actions', array($this, 'add_create_fb_post_row_action'), 10, 2);
+        add_action('admin_footer', array($this, 'render_list_create_dialog'));
+    }
+
+    /**
+     * Om post-typen viser FB-opslag-kolonnen.
+     */
+    public function supports_schedule_column(string $post_type): bool {
+        return in_array($post_type, $this->get_schedule_column_post_types(), true);
+    }
+
+    /**
+     * Rækkehandling under titlen, så et opslag kan oprettes fra oversigten.
+     *
+     * @param array<string, string> $actions
+     * @return array<string, string>
+     */
+    public function add_create_fb_post_row_action(array $actions, WP_Post $post): array {
+        if (!$this->supports_schedule_column($post->post_type)) {
+            return $actions;
+        }
+
+        if ($post->post_status === 'trash' || !current_user_can('edit_post', $post->ID)) {
+            return $actions;
+        }
+
+        $action = sprintf(
+            '<button type="button" class="button-link fb-create-list-post" data-post-id="%1$d" data-post-title="%2$s">%3$s</button>',
+            (int) $post->ID,
+            esc_attr($post->post_title),
+            esc_html__('Opret FB-Opslag', 'fb-post-scheduler')
+        );
+
+        $updated = array();
+        $inserted = false;
+
+        foreach ($actions as $key => $link) {
+            $updated[$key] = $link;
+            if ($key === 'edit') {
+                $updated['fb_create_post hide-if-no-js'] = $action;
+                $inserted = true;
+            }
+        }
+
+        if (!$inserted) {
+            $updated['fb_create_post hide-if-no-js'] = $action;
+        }
+
+        return $updated;
+    }
+
+    /**
+     * Dialog til dato og tid, når et opslag oprettes fra oversigten.
+     */
+    public function render_list_create_dialog(): void {
+        $screen = get_current_screen();
+        if (!$screen instanceof WP_Screen || $screen->base !== 'edit' || !$this->supports_schedule_column($screen->post_type)) {
+            return;
+        }
+        ?>
+        <dialog id="fb-list-create-dialog" class="fb-list-create-dialog" aria-labelledby="fb-list-create-title">
+            <form id="fb-list-create-form" class="fb-list-create-dialog__form">
+                <h2 id="fb-list-create-title"><?php esc_html_e('Opret FB-Opslag', 'fb-post-scheduler'); ?></h2>
+                <p id="fb-list-create-post-title" class="fb-list-create-dialog__post"></p>
+                <p>
+                    <label for="fb-list-create-date"><?php esc_html_e('Dato', 'fb-post-scheduler'); ?></label>
+                    <input type="date" id="fb-list-create-date" name="fb_list_create_date" required>
+                </p>
+                <p>
+                    <label for="fb-list-create-time"><?php esc_html_e('Tidspunkt', 'fb-post-scheduler'); ?></label>
+                    <input type="time" id="fb-list-create-time" name="fb_list_create_time" required>
+                </p>
+                <p id="fb-list-create-error" class="fb-list-create-dialog__error" role="alert" hidden></p>
+                <div class="fb-list-create-dialog__actions">
+                    <button type="button" class="button" id="fb-list-create-cancel"><?php esc_html_e('Annuller', 'fb-post-scheduler'); ?></button>
+                    <button type="submit" class="button button-primary" id="fb-list-create-ok">
+                        <?php esc_html_e('OK', 'fb-post-scheduler'); ?>
+                        <span class="spinner" aria-hidden="true"></span>
+                    </button>
+                </div>
+            </form>
+        </dialog>
+        <?php
     }
 
     /**
