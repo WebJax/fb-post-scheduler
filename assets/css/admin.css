@@ -113,6 +113,23 @@
     color: #dc3232;
 }
 
+.fb-post-schedule-container {
+    display: grid;
+    grid-template-areas: 'date-field time-field';
+}
+
+.fb-post-date-field {
+    grid-area: date-field;
+}
+
+.fb-post-time-field {
+    grid-area: time-field;
+}
+
+.fb-post-item > .date-warning {
+    margin-top: 8px;
+}
+
 .fb-post-success {
     background-color: #f0fff0;
     border-left: 4px solid #46b450;

@@ -1310,19 +1310,20 @@ class FB_Post_Scheduler {
                         </button>
                     </p>
                     <?php endif; ?>
-                    
-                    <p>
-                        <label for="fb_post_date_<?php echo $index; ?>"><?php _e('Dato for opslag:', 'fb-post-scheduler'); ?></label>
-                        <input type="date" id="fb_post_date_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][date]" value="<?php echo esc_attr($date); ?>" class="" <?php disabled($is_posted, true); ?>>
-                    </p>
-                    
-                    <p>
-                        <label for="fb_post_time_<?php echo $index; ?>"><?php _e('Tidspunkt for opslag:', 'fb-post-scheduler'); ?></label>
-                        <input type="time" id="fb_post_time_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][time]" value="<?php echo esc_attr($time); ?>" class="" <?php disabled($is_posted, true); ?>>
-                        <button type="button" class="button fb-toggle-schedule-overview" title="<?php esc_attr_e('Vis overblik over planlagte opslag', 'fb-post-scheduler'); ?>" aria-label="<?php esc_attr_e('Vis overblik over planlagte opslag', 'fb-post-scheduler'); ?>" aria-expanded="false" aria-controls="fb_schedule_overview_<?php echo esc_attr($index); ?>" style="margin-left:5px;">
-                            <span class="dashicons dashicons-calendar-alt" style="vertical-align:text-top;"></span>
-                        </button>
-                    </p>
+                    <div class="fb-post-schedule-container">
+                        <p>
+                            <label for="fb_post_date_<?php echo $index; ?>"><?php _e('Dato for opslag:', 'fb-post-scheduler'); ?></label>
+                            <input type="date" id="fb_post_date_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][date]" value="<?php echo esc_attr($date); ?>" class="" <?php disabled($is_posted, true); ?>>
+                        </p>
+                        
+                        <p>
+                            <label for="fb_post_time_<?php echo $index; ?>"><?php _e('Tidspunkt for opslag:', 'fb-post-scheduler'); ?></label>
+                            <input type="time" id="fb_post_time_<?php echo $index; ?>" name="fb_posts[<?php echo $index; ?>][time]" value="<?php echo esc_attr($time); ?>" class="" <?php disabled($is_posted, true); ?>>
+                            <button type="button" class="button fb-toggle-schedule-overview" title="<?php esc_attr_e('Vis overblik over planlagte opslag', 'fb-post-scheduler'); ?>" aria-label="<?php esc_attr_e('Vis overblik over planlagte opslag', 'fb-post-scheduler'); ?>" aria-expanded="false" aria-controls="fb_schedule_overview_<?php echo esc_attr($index); ?>" style="margin-left:5px;">
+                                <span class="dashicons dashicons-calendar-alt" style="vertical-align:text-bottom;"></span>
+                            </button>
+                        </p>
+                    </div>
                     <div id="fb_schedule_overview_<?php echo esc_attr($index); ?>" class="fb-schedule-overview" style="display:none;"></div>
                     
                     <p class="fb-post-text-field">
@@ -1396,19 +1397,21 @@ class FB_Post_Scheduler {
                     </label>
                 </p>
                 
-                <p>
-                    <label for="fb_post_date_{{index}}"><?php _e('Dato for opslag:', 'fb-post-scheduler'); ?></label>
-                    <input type="date" id="fb_post_date_{{index}}" name="fb_posts[{{index}}][date]" value="<?php echo date('Y-m-d', strtotime('+1 day') ?? time()); ?>" class="widefat">
-                </p>
-                
-                <p>
-                    <label for="fb_post_time_{{index}}"><?php _e('Tidspunkt for opslag:', 'fb-post-scheduler'); ?></label>
-                    <input type="time" id="fb_post_time_{{index}}" name="fb_posts[{{index}}][time]" value="12:00" class="widefat">
-                    <button type="button" class="button fb-toggle-schedule-overview" title="<?php esc_attr_e('Vis overblik over planlagte opslag', 'fb-post-scheduler'); ?>" aria-label="<?php esc_attr_e('Vis overblik over planlagte opslag', 'fb-post-scheduler'); ?>" aria-expanded="false" aria-controls="fb_schedule_overview_{{index}}" style="margin-left:5px;">
-                        <span class="dashicons dashicons-calendar-alt" style="vertical-align:text-top;"></span>
-                        <span class="screen-reader-text"><?php _e('Vis overblik over planlagte opslag', 'fb-post-scheduler'); ?></span>
-                    </button>
-                </p>
+                <div class="fb-post-schedule-container">
+                    <p>
+                        <label for="fb_post_date_{{index}}"><?php _e('Dato for opslag:', 'fb-post-scheduler'); ?></label>
+                        <input type="date" id="fb_post_date_{{index}}" name="fb_posts[{{index}}][date]" value="<?php echo date('Y-m-d', strtotime('+1 day') ?? time()); ?>" class="widefat">
+                    </p>
+                    
+                    <p>
+                        <label for="fb_post_time_{{index}}"><?php _e('Tidspunkt for opslag:', 'fb-post-scheduler'); ?></label>
+                        <input type="time" id="fb_post_time_{{index}}" name="fb_posts[{{index}}][time]" value="12:00" class="widefat">
+                        <button type="button" class="button fb-toggle-schedule-overview" title="<?php esc_attr_e('Vis overblik over planlagte opslag', 'fb-post-scheduler'); ?>" aria-label="<?php esc_attr_e('Vis overblik over planlagte opslag', 'fb-post-scheduler'); ?>" aria-expanded="false" aria-controls="fb_schedule_overview_{{index}}" style="margin-left:5px;">
+                            <span class="dashicons dashicons-calendar-alt" style="vertical-align:text-top;"></span>
+                            <span class="screen-reader-text"><?php _e('Vis overblik over planlagte opslag', 'fb-post-scheduler'); ?></span>
+                        </button>
+                    </p>
+                </div>
                 <div id="fb_schedule_overview_{{index}}" class="fb-schedule-overview" style="display:none;"></div>
                 
                 <p class="fb-post-text-field">

@@ -1041,8 +1041,14 @@
                 // Tilføj advarsel hvis den ikke allerede findes
                 var $postItem = $('#fb_post_time_' + index).closest('.fb-post-item');
                 if ($postItem.find('.date-warning').length === 0) {
-                    $('<div class="notice notice-warning inline date-warning"><p>Advarsel: Den valgte dato og tid er i fortiden. Facebook-opslaget vil blive forsøgt postet straks efter du gemmer.</p></div>')
-                        .insertAfter($postItem.find('[id^="fb_post_time_"]').closest('p'));
+                    var $warning = $('<div class="notice notice-warning inline date-warning"><p>Advarsel: Den valgte dato og tid er i fortiden. Facebook-opslaget vil blive forsøgt postet straks efter du gemmer.</p></div>');
+                    var $schedule = $postItem.find('.fb-post-schedule-container');
+
+                    if ($schedule.length) {
+                        $warning.insertAfter($schedule);
+                    } else {
+                        $warning.insertAfter($postItem.find('[id^="fb_post_time_"]').closest('p'));
+                    }
                 }
             } else {
                 // Fjern advarsel hvis datoen nu er i fremtiden
